@@ -39,13 +39,21 @@ if st.button('スコア追加'):
     add_score(competition_id, player_id, out_score, in_score, handicap)
     st.success('スコアを追加しました')
 
+# スコア一覧
 scores = get_scores()
-st.write('スコア一覧')
-for score in scores:
-    st.write(score)
-    if st.button(f'スコア削除 {score[0]}', key=f'delete_score_{score[0]}'):
-        delete_score(score[0])
-        st.success('スコアを削除しました')
+st.header('スコア一覧')
+if scores:
+    # pandas DataFrame に変換して表示
+    df_scores = pd.DataFrame(scores, columns=['id', 'competition_id', 'player_id', 'out_score', 'in_score', 'total_score', 'handicap', 'net_score', 'ranking'])
+    st.dataframe(df_scores)
+    # または、各スコアをループで表示
+    # for score in scores:
+    #     st.write(score)
+    #     if st.button(f'スコア削除 {score[0]}', key=f'delete_score_{score[0]}'):
+    #         delete_score(score[0])
+    #         st.success('スコアを削除しました')
+else:
+    st.write('スコアがありません。')
 
 # データ可視化
 st.header('データ可視化')
@@ -60,8 +68,22 @@ if st.button('スコア推移を表示'):
 st.header('データインポート')
 uploaded_file = st.file_uploader("CSVファイルをアップロード", type=["csv"])
 if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.write(df.head())  # デバッグ用にデータフレームの先頭を表示
-    st.write(df.columns)  # デバッグ用にデータフレームの列名を表示
-    import_data(df)
-    st.success('データをインポートしました')
+    try:
+        # エンコーディングと区切り文字を指定
+        df = pd.read_csv(uploaded_file, encoding='utf-8', sep=',')
+        record_count = len(df)
+        import_data(df)
+        st.success(f'{record_count} 件のデータをインポートしました')
+    except Exception as e:
+        st.error(f"データのインポート中にエラーが発生しました: {e}")
+
+def validate_data(df):
+    required_columns = ['competition_id', 'player_id', 'out_score', 'in_score', 'total_score', 'handicap', 'net_score', 'ranking']
+    for col in required_columns:
+        if col not in df.columns:
+            raise KeyError(f"CSVファイルに必要な列 '{col}' が存在しません。")
+    # 追加のバリデーション（例：数値であることの確認）
+    numeric_columns = ['competition_id', 'player_id', 'out_score', 'in_score', 'total_score', 'handicap', 'net_score', 'ranking']
+    for col in numeric_columns:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            raise ValueError(f"列 '{col}' は数値である必要があります。")

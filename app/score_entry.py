@@ -15,10 +15,23 @@ def add_score(competition_id, player_id, out_score, in_score, handicap):
 def get_scores():
     conn = sqlite3.connect('../data/golf_competition.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM scores')
-    scores = cursor.fetchall()
+    cursor.execute("SELECT * FROM scores")
+    rows = cursor.fetchall()
     conn.close()
-    return scores
+
+    # バイト列をデコード（もし存在する場合）
+    decoded_rows = []
+    for row in rows:
+        decoded_row = []
+        for item in row:
+            if isinstance(item, bytes):
+                decoded_item = item.decode('utf-8')
+                decoded_row.append(decoded_item)
+            else:
+                decoded_row.append(item)
+        decoded_rows.append(decoded_row)
+
+    return decoded_rows
 
 def delete_score(score_id):
     conn = sqlite3.connect('../data/golf_competition.db')

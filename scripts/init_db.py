@@ -24,14 +24,14 @@ def initialize_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS scores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        competition_id INTEGER,
-        player_id INTEGER,
-        out_score INTEGER,
-        in_score INTEGER,
-        total_score INTEGER,
-        handicap INTEGER,
-        net_score INTEGER,
-        ranking INTEGER,
+        competition_id INTEGER NOT NULL,
+        player_id INTEGER NOT NULL,
+        out_score INTEGER NOT NULL,
+        in_score INTEGER NOT NULL,
+        total_score INTEGER NOT NULL,
+        handicap INTEGER NOT NULL,
+        net_score INTEGER NOT NULL,
+        ranking INTEGER NOT NULL,
         FOREIGN KEY (competition_id) REFERENCES competitions(id),
         FOREIGN KEY (player_id) REFERENCES players(id)
     )

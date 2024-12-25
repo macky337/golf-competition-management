@@ -62,5 +62,6 @@ uploaded_file = st.file_uploader("CSVファイルをアップロード", type=["
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.write(df.head())  # デバッグ用にデータフレームの先頭を表示
+    st.write(df.columns)  # デバッグ用にデータフレームの列名を表示
     import_data(df)
     st.success('データをインポートしました')

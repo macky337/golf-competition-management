@@ -4,6 +4,9 @@ def import_data(df):
     conn = sqlite3.connect('../data/golf_competition.db')
     cursor = conn.cursor()
 
+    # デバッグ用にデータフレームの列名を表示
+    print(df.columns)
+
     # データを挿入
     for index, row in df.iterrows():
         cursor.execute('''
@@ -18,4 +21,3 @@ if __name__ == '__main__':
     import pandas as pd
     df = pd.read_csv('../data/sample_data.csv')
     import_data(df)
-

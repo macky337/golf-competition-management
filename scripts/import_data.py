@@ -1,5 +1,8 @@
 import sqlite3
 import pandas as pd
+import os
+
+print("Current Working Directory:", os.getcwd())
 
 def import_competitions(df):
     conn = sqlite3.connect('../data/golf_competition.db')

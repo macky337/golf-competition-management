@@ -50,5 +50,20 @@ def initialize_db():
     conn.commit()
     conn.close()
 
+def fetch_players():
+    conn = sqlite3.connect('data/golf_competition.db')
+    cursor = conn.cursor()
+
+    # playersテーブルのデータを取得
+    cursor.execute('SELECT * FROM players')
+    players = cursor.fetchall()
+
+    print("Playersテーブルのデータ:")
+    for player in players:
+        print(player)
+
+    conn.close()
+
 if __name__ == '__main__':
     initialize_db()
+    fetch_players()

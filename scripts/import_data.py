@@ -1,6 +1,7 @@
 import sqlite3
 import pandas as pd
 import os
+import chardet
 
 # スクリプトのディレクトリを取得
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +16,11 @@ print("Database Path:", db_path)
 print("Competitions CSV Path:", competitions_csv)
 print("Players CSV Path:", players_csv)
 print("Scores CSV Path:", scores_csv)
+
+def detect_encoding(file_path):
+    with open(file_path, 'rb') as f:
+        result = chardet.detect(f.read())
+    return result['encoding']
 
 def create_tables(conn):
     cursor = conn.cursor()
@@ -65,12 +71,14 @@ def import_data():
     cursor = conn.cursor()
 
     print("Importing competitions data...")
-    competitions_df = pd.read_csv(competitions_csv, encoding='utf-8', sep=',')
+    competitions_encoding = detect_encoding(competitions_csv)
+    competitions_df = pd.read_csv(competitions_csv, encoding=competitions_encoding, sep=',')
     competitions_df.to_sql('competitions', conn, if_exists='append', index=False)
     print(f"{len(competitions_df)} competitions imported.")
 
     print("Importing players data...")
-    players_df = pd.read_csv(players_csv, encoding='utf-8', sep=',')
+    players_encoding = detect_encoding(players_csv)
+    players_df = pd.read_csv(players_csv, encoding=players_encoding, sep=',')
     
     # 列名をデータベースに合わせてリネーム
     if 'player_name' in players_df.columns:
@@ -80,7 +88,8 @@ def import_data():
     print(f"{len(players_df)} players imported.")
 
     print("Importing scores data...")
-    scores_df = pd.read_csv(scores_csv, encoding='utf-8', sep=',')
+    scores_encoding = detect_encoding(scores_csv)
+    scores_df = pd.read_csv(scores_csv, encoding=scores_encoding, sep=',')
     scores_df.to_sql('scores', conn, if_exists='append', index=False)
     print(f"{len(scores_df)} scores imported.")
 

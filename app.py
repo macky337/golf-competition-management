@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 # 日本語フォントを設定
-plt.rcParams['font.family'] = 'Meiryo'  # または 'Yu Gothic'
+plt.rcParams['font.family'] = 'IPAexGothic'  # または 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
 
 def get_db_connection(db_path):
@@ -43,9 +43,6 @@ def fetch_scores(conn):
     try:
         df = pd.read_sql_query(query, conn)
         st.write("スコアデータの取得に成功しました。")
-        # ↓↓↓ デバッグ用の表示を削除またはコメントアウト ↓↓↓
-        # st.write("データフレームのカラム:", df.columns.tolist())
-        # st.write(df.head())
         return df
     except pd.io.sql.DatabaseError as e:
         st.error(f"データ取得エラー: {e}")

@@ -7,9 +7,7 @@ import matplotlib
 
 # 日本語フォントを設定
 plt.rcParams['font.family'] = 'Meiryo'  # または 'Yu Gothic'
-
-# 日本語文字が含まれる場合、マイナス記号が正しく表示されるように設定
-plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
@@ -45,8 +43,9 @@ def fetch_scores(conn):
     try:
         df = pd.read_sql_query(query, conn)
         st.write("スコアデータの取得に成功しました。")
-        st.write("データフレームのカラム:", df.columns.tolist())  # デバッグ用
-        st.write(df.head())  # デバッグ用
+        # ↓↓↓ デバッグ用の表示を削除またはコメントアウト ↓↓↓
+        # st.write("データフレームのカラム:", df.columns.tolist())
+        # st.write(df.head())
         return df
     except pd.io.sql.DatabaseError as e:
         st.error(f"データ取得エラー: {e}")
@@ -57,10 +56,8 @@ def display_aggregations(scores_df):
     
     st.markdown("### 総合ランキング")
     if "プレイヤー名" in scores_df.columns and "合計スコア" in scores_df.columns:
-        # プレイヤーごとの平均合計スコアを計算し、昇順にソート
         overall_ranking = scores_df.groupby("プレイヤー名")["合計スコア"].mean().sort_values(ascending=True)
         
-        # matplotlibを使用して昇順に並べ替えたバーグラフを作成
         plt.figure(figsize=(10,6))
         overall_ranking.plot(kind='bar', color='skyblue')
         plt.xlabel("プレイヤー名")
@@ -71,8 +68,6 @@ def display_aggregations(scores_df):
         st.pyplot(plt)
     else:
         st.error("必要なカラムがデータフレームに存在しません。")
-    
-    # ここに他の集計処理を追加
 
 def display_visualizations(scores_df):
     st.subheader("データ可視化")
@@ -85,17 +80,13 @@ def display_visualizations(scores_df):
     plt.xlabel("競技ID")
     plt.ylabel("合計スコア")
     plt.title("プレイヤーごとのスコア推移")
-    
-    # 競技IDのx軸を整数に設定
     plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    
     plt.legend()
     plt.tight_layout()
     st.pyplot(plt)
-    
 
 def main():
-    st.title("ゴルフ競技スコア管理システム")
+    st.title("88会ゴルフコンペスコア管理システム")
     
     # データベースへのパス設定
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))

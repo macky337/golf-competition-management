@@ -3,6 +3,13 @@ import os
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+import matplotlib
+
+# 日本語フォントを設定
+plt.rcParams['font.family'] = 'Meiryo'  # または 'Yu Gothic'
+
+# 日本語文字が含まれる場合、マイナス記号が正しく表示されるように設定
+plt.rcParams['axes.unicode_minus'] = False
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
@@ -22,92 +29,92 @@ def fetch_scores(conn):
     query = '''
         SELECT 
             scores.competition_id AS "競技ID",
+            competitions.date AS "日付",
+            competitions.course AS "コース",
             players.name AS "プレイヤー名",
             scores.out_score AS "アウトスコア",
             scores.in_score AS "インスコア",
             scores.total_score AS "合計スコア",
-            scores.handicap AS "ハンデキャップ",
+            scores.handicap AS "ハンディキャップ",
             scores.net_score AS "ネットスコア",
-            scores.ranking AS "ランキング"
-        FROM 
-            scores
-        JOIN 
-            players ON scores.player_id = players.id
-        ORDER BY 
-            scores.competition_id, scores.ranking;
+            scores.ranking AS "順位"
+        FROM scores
+        JOIN players ON scores.player_id = players.id
+        JOIN competitions ON scores.competition_id = competitions.competition_id
     '''
     try:
         df = pd.read_sql_query(query, conn)
-        st.write("スコアデータ取得成功")
+        st.write("スコアデータの取得に成功しました。")
+        st.write("データフレームのカラム:", df.columns.tolist())  # デバッグ用
+        st.write(df.head())  # デバッグ用
         return df
-    except sqlite3.Error as e:
-        st.error(f"クエリ実行エラー: {e}")
+    except pd.io.sql.DatabaseError as e:
+        st.error(f"データ取得エラー: {e}")
         return pd.DataFrame()
 
-def display_scores(df):
-    st.subheader("スコア一覧")
-    st.dataframe(df)
-
-def display_aggregations(df):
+def display_aggregations(scores_df):
     st.subheader("データ集計")
     
     st.markdown("### 総合ランキング")
-    overall_ranking = df.groupby("プレイヤー名")["合計スコア"].sum().sort_values()
-    st.bar_chart(overall_ranking)
+    if "プレイヤー名" in scores_df.columns and "合計スコア" in scores_df.columns:
+        # プレイヤーごとの平均合計スコアを計算し、昇順にソート
+        overall_ranking = scores_df.groupby("プレイヤー名")["合計スコア"].mean().sort_values(ascending=True)
+        
+        # matplotlibを使用して昇順に並べ替えたバーグラフを作成
+        plt.figure(figsize=(10,6))
+        overall_ranking.plot(kind='bar', color='skyblue')
+        plt.xlabel("プレイヤー名")
+        plt.ylabel("平均合計スコア")
+        plt.title("プレイヤーごとの平均合計スコア (昇順)")
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        st.pyplot(plt)
+    else:
+        st.error("必要なカラムがデータフレームに存在しません。")
     
-    st.markdown("### 優勝回数ランキング")
-    win_counts = df[df["ランキング"] == 1].groupby("プレイヤー名").size().sort_values(ascending=False)
-    st.bar_chart(win_counts)
-    
-    st.markdown("### スコア平均")
-    average_scores = df.groupby("プレイヤー名")[["アウトスコア", "インスコア", "合計スコア"]].mean()
-    st.dataframe(average_scores)
+    # ここに他の集計処理を追加
 
-def display_visualizations(df):
+def display_visualizations(scores_df):
     st.subheader("データ可視化")
     
     st.markdown("### スコア推移")
     plt.figure(figsize=(10,5))
-    for player in df["プレイヤー名"].unique():
-        player_data = df[df["プレイヤー名"] == player]
+    for player in scores_df["プレイヤー名"].unique():
+        player_data = scores_df[scores_df["プレイヤー名"] == player]
         plt.plot(player_data["競技ID"], player_data["合計スコア"], marker='o', label=player)
     plt.xlabel("競技ID")
     plt.ylabel("合計スコア")
     plt.title("プレイヤーごとのスコア推移")
+    
+    # 競技IDのx軸を整数に設定
+    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    
     plt.legend()
+    plt.tight_layout()
     st.pyplot(plt)
+    
 
 def main():
     st.title("ゴルフ競技スコア管理システム")
     
     # データベースへのパス設定
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
-    st.write(f"データベースパス: {db_path}")
     
-    # データベースに接続
     conn = get_db_connection(db_path)
-    
     if conn:
-        # スコアデータを取得
-        df_scores = fetch_scores(conn)
-        
-        if not df_scores.empty:
-            # スコア一覧の表示
-            display_scores(df_scores)
+        scores_df = fetch_scores(conn)
+        if not scores_df.empty:
+            display_aggregations(scores_df)
+            display_visualizations(scores_df)
             
-            # データ集計の表示
-            display_aggregations(df_scores)
+            # 競技ID 昇順、順位 昇順にソート
+            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
             
-            # データ可視化の表示
-            display_visualizations(df_scores)
+            st.subheader("過去データ")
+            st.dataframe(past_data_df, height=None, use_container_width=True)
             
-            # データベース接続を閉じる
-            conn.close()
-            st.write("データベース接続を閉じました")
-        else:
-            st.info("スコアデータが存在しません。")
-    else:
-        st.error("データベースに接続できませんでした。")
+        conn.close()
+        st.write("データベース接続を閉じました")
 
 if __name__ == "__main__":
     main()

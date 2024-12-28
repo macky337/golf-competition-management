@@ -9,8 +9,10 @@ import matplotlib
 plt.rcParams['font.family'] = 'IPAexGothic'  # または 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
 
-# CSVファイルのパスを設定
-csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "scores.csv")
+# app.py のディレクトリを基準にデータファイルのパスを指定
+csv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'scores.csv'))
+
+print("CSV File Path:", csv_path)  # デバッグ用: 実際のパスを確認
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
@@ -25,11 +27,24 @@ def get_db_connection(db_path):
         st.error(f"データベース接続エラー: {e}")
         return None
 
-def fetch_scores():
+def fetch_scores(conn):
     st.write("スコアデータを取得しています...")
     try:
-        # CSVファイルからデータを読み込む
-        df = pd.read_csv(csv_path, encoding='utf-8')
+        query = """
+        SELECT
+            competition_id AS 競技ID,
+            date AS 日付,
+            course AS コース,
+            name AS プレイヤー名,  -- 修正されたカラム名
+            out_score AS アウトスコア,
+            in_score AS インスコア,
+            total_score AS 合計スコア,
+            handicap AS ハンディキャップ,
+            net_score AS ネットスコア,
+            ranking AS 順位
+        FROM scores
+        """
+        df = pd.read_sql_query(query, conn)
         st.write("スコアデータの取得に成功しました。")
         return df
     except Exception as e:
@@ -71,26 +86,26 @@ def display_visualizations(scores_df):
     st.pyplot(plt)
 
 def main():
-    st.title("88会ゴルフコンペスコア管理システム")
+    st.title("# 88会ゴルフコンペ\nスコア管理システム")
     
     # データベースへのパス設定
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
     
-    # conn = get_db_connection(db_path)
-    # if conn:
-    scores_df = fetch_scores()
-    if not scores_df.empty:
-        display_aggregations(scores_df)
-        display_visualizations(scores_df)
+    conn = get_db_connection(db_path)
+    if conn:
+        scores_df = fetch_scores(conn)
+        if not scores_df.empty:
+            display_aggregations(scores_df)
+            display_visualizations(scores_df)
+            
+            # 競技ID 昇順、順位 昇順にソート
+            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
+            
+            st.subheader("過去データ")
+            st.dataframe(past_data_df, height=None, use_container_width=True)
         
-        # 競技ID 昇順、順位 昇順にソート
-        past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
-        
-        st.subheader("過去データ")
-        st.dataframe(past_data_df, height=None, use_container_width=True)
-        
-    # conn.close()
-    st.write("データベース接続を閉じました")
+        conn.close()
+        st.write("データベース接続を閉じました")
 
 if __name__ == "__main__":
     main()

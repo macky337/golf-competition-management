@@ -26,7 +26,8 @@ def fetch_scores():
     st.write("スコアデータを取得しています...")
     try:
         # CSVファイルからデータを読み込む
-        df = pd.read_csv('data.csv', encoding='utf-8')
+        csv_path = os.path.join(os.path.dirname(__file__), 'data', 'data.csv')
+        df = pd.read_csv(csv_path, encoding='utf-8')
         st.write("スコアデータの取得に成功しました。")
         return df
     except Exception as e:

@@ -1,102 +1,43 @@
-import sqlite3
 import pandas as pd
 import os
-import chardet
 
-# スクリプトのディレクトリを取得
+# スクリプトのディレクトリを基準にファイルパスを設定
 script_dir = os.path.dirname(os.path.abspath(__file__))
+excel_file = os.path.join(script_dir, '..', 'golf_scores1.xlsx')
+competitions_csv = os.path.join(script_dir, '..', 'competitions.csv')
+players_csv = os.path.join(script_dir, '..', 'players.csv')
+scores_csv = os.path.join(script_dir, '..', 'scores.csv')
 
-# データベースとCSVファイルの絶対パスを作成
-db_path = os.path.join(script_dir, '../data/golf_competition.db')
-competitions_csv = os.path.join(script_dir, '../data/competitions.csv')
-players_csv = os.path.join(script_dir, '../data/players.csv')
-scores_csv = os.path.join(script_dir, '../data/scores.csv')
+# Excelファイルの読み込み
+df = pd.read_excel(excel_file)
 
-print("Database Path:", db_path)
-print("Competitions CSV Path:", competitions_csv)
-print("Players CSV Path:", players_csv)
-print("Scores CSV Path:", scores_csv)
+# competitions.csv の作成
+competitions = df[['competition_id', 'date', 'course']].drop_duplicates().reset_index(drop=True)
+competitions.to_csv(competitions_csv, index=False, encoding='utf-8-sig')
 
-def detect_encoding(file_path):
-    with open(file_path, 'rb') as f:
-        result = chardet.detect(f.read())
-    return result['encoding']
+# players.csv の作成
+players = df[['player']].drop_duplicates().reset_index(drop=True)
+players = players.rename(columns={'player': 'name'})
+players.insert(0, 'id', range(1, len(players) + 1))
+players.to_csv(players_csv, index=False, encoding='utf-8-sig')
 
-def create_tables(conn):
-    cursor = conn.cursor()
-    
-    print("Creating tables...")
-    
-    # competitions テーブルの作成
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS competitions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            competition_number INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            venue TEXT NOT NULL
-        );
-    ''')
-    
-    # players テーブルの作成
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS players (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL
-        );
-    ''')
-    
-    # scores テーブルの作成
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            competition_id INTEGER,
-            player_id INTEGER,
-            out_score INTEGER,
-            in_score INTEGER,
-            total_score INTEGER,
-            handicap INTEGER,
-            net_score INTEGER,
-            ranking INTEGER,
-            FOREIGN KEY (competition_id) REFERENCES competitions(id),
-            FOREIGN KEY (player_id) REFERENCES players(id)
-        );
-    ''')
-    
-    print("Tables created successfully.")
+# scores.csv の作成
+# players.csv からプレイヤーIDを取得
+players_df = pd.read_csv(players_csv)
+df = df.merge(players_df, left_on='player', right_on='name', how='left')
+df = df.rename(columns={
+    'competition_id': 'competition_id',
+    'id_y': 'player_id',
+    'score1': 'out_score',
+    'score2': 'in_score',
+    'total_score': 'total_score',
+    'handicap': 'handicap',
+    'net_score': 'net_score'
+})
 
-def import_data():
-    # データベースに接続
-    conn = sqlite3.connect(db_path)
-    create_tables(conn)
-    cursor = conn.cursor()
+# scores.csv に必要なカラムを選択して保存
+scores = df[['id_x', 'competition_id', 'player_id', 'out_score', 'in_score', 'total_score', 'handicap', 'net_score']]
+scores = scores.rename(columns={'id_x': 'id'})
+scores.to_csv(scores_csv, index=False, encoding='utf-8-sig')
 
-    print("Importing competitions data...")
-    competitions_encoding = detect_encoding(competitions_csv)
-    competitions_df = pd.read_csv(competitions_csv, encoding=competitions_encoding, sep=',')
-    competitions_df.to_sql('competitions', conn, if_exists='append', index=False)
-    print(f"{len(competitions_df)} competitions imported.")
-
-    print("Importing players data...")
-    players_encoding = detect_encoding(players_csv)
-    players_df = pd.read_csv(players_csv, encoding=players_encoding, sep=',')
-    
-    # 列名をデータベースに合わせてリネーム
-    if 'player_name' in players_df.columns:
-        players_df.rename(columns={'player_name': 'name'}, inplace=True)
-    
-    players_df.to_sql('players', conn, if_exists='append', index=False)
-    print(f"{len(players_df)} players imported.")
-
-    print("Importing scores data...")
-    scores_encoding = detect_encoding(scores_csv)
-    scores_df = pd.read_csv(scores_csv, encoding=scores_encoding, sep=',')
-    scores_df.to_sql('scores', conn, if_exists='append', index=False)
-    print(f"{len(scores_df)} scores imported.")
-
-    # コミットして接続を閉じる
-    conn.commit()
-    conn.close()
-    print("Data import completed successfully.")
-
-if __name__ == '__main__':
-    import_data()
+print("CSVファイルのインポートが完了しました。")

@@ -9,6 +9,9 @@ import matplotlib
 plt.rcParams['font.family'] = 'IPAexGothic'  # または 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
 
+# CSVファイルのパスを設定
+csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "scores.csv")
+
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
     if not os.path.exists(db_path):
@@ -22,29 +25,14 @@ def get_db_connection(db_path):
         st.error(f"データベース接続エラー: {e}")
         return None
 
-def fetch_scores(conn):
+def fetch_scores():
     st.write("スコアデータを取得しています...")
-    query = '''
-        SELECT 
-            scores.competition_id AS "競技ID",
-            competitions.date AS "日付",
-            competitions.course AS "コース",
-            players.name AS "プレイヤー名",
-            scores.out_score AS "アウトスコア",
-            scores.in_score AS "インスコア",
-            scores.total_score AS "合計スコア",
-            scores.handicap AS "ハンディキャップ",
-            scores.net_score AS "ネットスコア",
-            scores.ranking AS "順位"
-        FROM scores
-        JOIN players ON scores.player_id = players.id
-        JOIN competitions ON scores.competition_id = competitions.competition_id
-    '''
     try:
-        df = pd.read_sql_query(query, conn)
+        # CSVファイルからデータを読み込む
+        df = pd.read_csv(csv_path, encoding='utf-8')
         st.write("スコアデータの取得に成功しました。")
         return df
-    except pd.io.sql.DatabaseError as e:
+    except Exception as e:
         st.error(f"データ取得エラー: {e}")
         return pd.DataFrame()
 
@@ -88,21 +76,21 @@ def main():
     # データベースへのパス設定
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
     
-    conn = get_db_connection(db_path)
-    if conn:
-        scores_df = fetch_scores(conn)
-        if not scores_df.empty:
-            display_aggregations(scores_df)
-            display_visualizations(scores_df)
-            
-            # 競技ID 昇順、順位 昇順にソート
-            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
-            
-            st.subheader("過去データ")
-            st.dataframe(past_data_df, height=None, use_container_width=True)
-            
-        conn.close()
-        st.write("データベース接続を閉じました")
+    # conn = get_db_connection(db_path)
+    # if conn:
+    scores_df = fetch_scores()
+    if not scores_df.empty:
+        display_aggregations(scores_df)
+        display_visualizations(scores_df)
+        
+        # 競技ID 昇順、順位 昇順にソート
+        past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
+        
+        st.subheader("過去データ")
+        st.dataframe(past_data_df, height=None, use_container_width=True)
+        
+    # conn.close()
+    st.write("データベース接続を閉じました")
 
 if __name__ == "__main__":
     main()

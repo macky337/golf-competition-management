@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 # 日本語フォントを設定
-plt.rcParams['font.family'] = 'IPAexGothic'  # または 'Noto Sans CJK JP'
+plt.rcParams['font.family'] = 'IPAexGothic'  # インストールしたフォントを指定
 plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
 
 # app.py のディレクトリを基準にデータファイルのパスを指定
@@ -86,7 +86,8 @@ def display_visualizations(scores_df):
     st.pyplot(plt)
 
 def main():
-    st.title("# 88会ゴルフコンペ\nスコア管理システム")
+    # タイトルに改行を含める
+    st.markdown("# 88会ゴルフコンペ\nスコア管理システム")
     
     # データベースへのパス設定
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))

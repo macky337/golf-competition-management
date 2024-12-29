@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 import japanize_matplotlib  # 追加
 
+# ログイン用のパスワード設定
+PASSWORD = "88"
+
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
     if not os.path.exists(db_path):
@@ -78,27 +81,35 @@ def display_visualizations(scores_df):
     st.pyplot(plt)
 
 def main():
-    # タイトルに改行を含める
-    st.markdown("# 88会ゴルフコンペ\nスコア管理システム")
-    
-    # データベースへのパス設定
-    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
-    
-    conn = get_db_connection(db_path)
-    if conn:
-        scores_df = fetch_scores(conn)
-        if not scores_df.empty:
-            display_aggregations(scores_df)
-            display_visualizations(scores_df)
-            
-            # 競技ID 昇順、順位 昇順にソート
-            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
-            
-            st.subheader("過去データ")
-            st.dataframe(past_data_df, height=None, use_container_width=True)
+    # ログイン画面の表示
+    st.title("ログイン")
+    password = st.text_input("パスワードを入力してください", type="password")
+    if password == PASSWORD:
+        st.success("ログイン成功")
         
-        conn.close()
-        st.write("データベース接続を閉じました")
+        # タイトルに改行を含める
+        st.markdown("# 88会ゴルフコンペ\nスコア管理システム")
+        
+        # データベースへのパス設定
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
+        
+        conn = get_db_connection(db_path)
+        if conn:
+            scores_df = fetch_scores(conn)
+            if not scores_df.empty:
+                display_aggregations(scores_df)
+                display_visualizations(scores_df)
+                
+                # 競技ID 昇順、順位 昇順にソート
+                past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
+                
+                st.subheader("過去データ")
+                st.dataframe(past_data_df, height=None, use_container_width=True)
+            
+            conn.close()
+            st.write("データベース接続を閉じました")
+    else:
+        st.error("パスワードが間違っています")
 
 if __name__ == "__main__":
     main()

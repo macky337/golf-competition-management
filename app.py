@@ -4,15 +4,31 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib
+from matplotlib.font_manager import FontProperties
+from matplotlib import rcParams
 
-# 日本語フォントを設定
-plt.rcParams['font.family'] = 'IPAexGothic'  # インストールしたフォントを指定
-plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
+# フォントファイルのパスを設定
+font_path = os.path.join(os.path.dirname(__file__), '.venv', 'Lib', 'site-packages', 'matplotlib', 'mpl-data', 'fonts', 'ttf', 'ipaexg.ttf')
 
-# app.py のディレクトリを基準にデータファイルのパスを指定
-csv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'scores.csv'))
+# フォントファイルが仮想環境に存在しない場合、システムフォントを参照
+if not os.path.exists(font_path):
+    font_path = "C:/Windows/Fonts/ipaexg.ttf"
 
-print("CSV File Path:", csv_path)  # デバッグ用: 実際のパスを確認
+if not os.path.exists(font_path):
+    st.error(f"フォントファイルが存在しません: {font_path}")
+else:
+    font_prop = FontProperties(fname=font_path)
+    plt.rcParams['font.family'] = font_prop.get_name()
+    plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
+
+# フォント設定
+rcParams['font.family'] = 'IPAexGothic'
+rcParams['font.sans-serif'] = [font_path]
+
+# プロット例
+plt.plot([1, 2, 3], [4, 5, 6])
+plt.title("タイトル")
+plt.show()
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
@@ -35,7 +51,7 @@ def fetch_scores(conn):
             competition_id AS 競技ID,
             date AS 日付,
             course AS コース,
-            name AS プレイヤー名,  -- 修正されたカラム名
+            name AS プレイヤー名,
             out_score AS アウトスコア,
             in_score AS インスコア,
             total_score AS 合計スコア,

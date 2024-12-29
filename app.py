@@ -4,31 +4,7 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib
-from matplotlib.font_manager import FontProperties
-from matplotlib import rcParams
-
-# フォントファイルのパスを設定
-font_path = os.path.join(os.path.dirname(__file__), '.venv', 'Lib', 'site-packages', 'matplotlib', 'mpl-data', 'fonts', 'ttf', 'ipaexg.ttf')
-
-# フォントファイルが仮想環境に存在しない場合、システムフォントを参照
-if not os.path.exists(font_path):
-    font_path = "C:/Windows/Fonts/ipaexg.ttf"
-
-if not os.path.exists(font_path):
-    st.error(f"フォントファイルが存在しません: {font_path}")
-else:
-    font_prop = FontProperties(fname=font_path)
-    plt.rcParams['font.family'] = font_prop.get_name()
-    plt.rcParams['axes.unicode_minus'] = False  # 日本語文字が含まれる場合のマイナス記号対策
-
-# フォント設定
-rcParams['font.family'] = 'IPAexGothic'
-rcParams['font.sans-serif'] = [font_path]
-
-# プロット例
-plt.plot([1, 2, 3], [4, 5, 6])
-plt.title("タイトル")
-plt.show()
+import japanize_matplotlib  # 追加
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")

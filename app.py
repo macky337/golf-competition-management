@@ -81,7 +81,7 @@ def display_visualizations(scores_df):
     st.pyplot(plt)
 
 def display_winner_count_ranking(scores_df):
-    st.subheader("優勝回数ランキング")
+    st.subheader("優勝回数ランキング\n2024/12/31追加")
     winner_count = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().sort_values(ascending=False).reset_index(name='優勝回数')
     
     st.dataframe(winner_count, use_container_width=True)

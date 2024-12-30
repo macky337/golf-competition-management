@@ -80,6 +80,13 @@ def display_visualizations(scores_df):
     plt.tight_layout()
     st.pyplot(plt)
 
+def display_winner_count_ranking(scores_df):
+    st.subheader("優勝回数ランキング")
+    winner_count = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().sort_values(ascending=False).reset_index(name='優勝回数')
+    
+    st.dataframe(winner_count, use_container_width=True)
+    st.bar_chart(winner_count.set_index('プレイヤー名').sort_values('優勝回数', ascending=False))
+
 def main():
     # ログイン画面の表示
     st.title("ログイン")
@@ -99,6 +106,7 @@ def main():
             if not scores_df.empty:
                 display_aggregations(scores_df)
                 display_visualizations(scores_df)
+                display_winner_count_ranking(scores_df)
                 
                 # 競技ID 昇順、順位 昇順にソート
                 past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])

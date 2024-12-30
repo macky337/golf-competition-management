@@ -85,7 +85,7 @@ def display_winner_count_ranking(scores_df):
     winner_count = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().sort_values(ascending=False).reset_index(name='優勝回数')
     
     st.dataframe(winner_count, use_container_width=True)
-    st.bar_chart(winner_count.set_index('プレイヤー名').sort_values('優勝回数', ascending=False))
+    st.bar_chart(winner_count.set_index('プレイヤー名').sort_values(by='優勝回数', ascending=False))
 
 def main():
     # ログイン画面の表示

@@ -74,15 +74,21 @@ def display_visualizations(scores_df):
     st.subheader("データ可視化")
     
     st.markdown("### スコア推移")
-    plt.figure(figsize=(10,5))
-    for player in scores_df["プレイヤー名"].unique():
-        player_data = scores_df[scores_df["プレイヤー名"] == player]
+    
+    # スコア詳細がNoneではない行のみ抽出
+    filtered_scores_df = scores_df.dropna(subset=["アウトスコア", "インスコア", "合計スコア"])
+
+    # グラフ作成
+    plt.figure(figsize=(10, 5))
+    for player in filtered_scores_df["プレイヤー名"].unique():
+        player_data = filtered_scores_df[filtered_scores_df["プレイヤー名"] == player]
         plt.plot(player_data["競技ID"], player_data["合計スコア"], marker='o', label=player)
+    
     plt.xlabel("競技ID")
     plt.ylabel("合計スコア")
     plt.title("プレイヤーごとのスコア推移")
     plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')  # 凡例を右に配置
     plt.tight_layout()
     st.pyplot(plt)
 
@@ -103,14 +109,22 @@ def display_winner_count_ranking(scores_df):
     # 順位が1のデータを抽出
     rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
 
-    # 表示用のデータフレーム
-    rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False)
+    # 表示用のデータフレームに順位列を追加
+    rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False).reset_index(drop=True)
+    rank_one_winners.index += 1  # インデックスを1から始める
+    rank_one_winners.index.name = '順位'
 
     # データ表示
     st.dataframe(rank_one_winners, use_container_width=True)
 
     # グラフ表示
-    st.bar_chart(rank_one_winners.set_index('プレイヤー名'))
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
+    ax.set_ylabel("優勝回数")
+    ax.set_title("優勝回数ランキング")
+    ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
+    ax.yaxis.get_major_locator().set_params(integer=True)  # Y軸を整数で表示
+    st.pyplot(fig)
 
 def main():
     # ログイン画面の表示

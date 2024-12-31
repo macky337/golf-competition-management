@@ -150,6 +150,10 @@ def main():
                 # 競技ID 昇順、順位 昇順にソート
                 past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
                 
+                # "順位"を一番左に持ってくる
+                columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位"]
+                past_data_df = past_data_df[columns_order]
+
                 st.subheader("過去データ")
                 st.dataframe(past_data_df, height=None, use_container_width=True)
             

@@ -10,6 +10,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib
 import japanize_matplotlib  # 追加
+from datetime import datetime  # 追加
 
 # ログイン用のパスワード設定
 PASSWORD = "88"
@@ -168,7 +169,14 @@ def main():
                 # ベストグロススコアトップ10を表示
                 st.subheader("ベストグロススコアトップ10")
                 best_gross_scores = scores_df.sort_values(by="合計スコア").head(10)
+                best_gross_scores = best_gross_scores.reset_index(drop=True)
+                best_gross_scores.index += 1  # インデックスを1から始める
+                best_gross_scores.index.name = '順位'
                 st.dataframe(best_gross_scores, height=None, use_container_width=True)
+
+                # 最終更新日時を表示
+                st.subheader("最終更新日時")
+                st.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             
             conn.close()
             st.write("データベース接続を閉じました")

@@ -100,7 +100,7 @@ def display_visualizations(scores_df):
     st.pyplot(plt)
 
 def display_winner_count_ranking(scores_df):
-    st.subheader("優勝回数ランキング\n2024/12/31追加")
+    st.subheader("優勝回数ランキング")
 
     # ランキングのタイプを選択
     ranking_type = st.radio("ランキングの種類を選択してください:", ["トータルランキング", "年度ランキング"])
@@ -135,13 +135,13 @@ def display_winner_count_ranking(scores_df):
 
 def main():
     # ログイン画面の表示
-    st.title("ログイン")
+    st.title("88会ログイン")
     password = st.text_input("パスワードを入力してください", type="password")
     if password == PASSWORD:
         st.success("ログイン成功")
         
         # タイトルに改行を含める
-        st.markdown("# 88会ゴルフコンペ\nスコア管理システム")
+        st.markdown("# 88会ゴルフコンペ・スコア管理システム")
         
         # データベースへのパス設定
         db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))

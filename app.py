@@ -164,6 +164,11 @@ def main():
                 st.subheader("過去データ")
                 # データフレームを表示する際にインデックスを非表示にする
                 st.dataframe(past_data_df.reset_index(drop=True), height=None, use_container_width=True)
+
+                # ベストグロススコアトップ10を表示
+                st.subheader("ベストグロススコアトップ10")
+                best_gross_scores = scores_df.sort_values(by="合計スコア").head(10)
+                st.dataframe(best_gross_scores, height=None, use_container_width=True)
             
             conn.close()
             st.write("データベース接続を閉じました")

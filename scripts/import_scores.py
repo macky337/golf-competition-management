@@ -4,6 +4,10 @@
 # 各CSVファイルを作成するために必要なデータを抽出および変換します。
 # このスクリプトは、データのインポート処理を自動化するために使用されます。
 # このスクリプトを実行すると、CSVファイルが作成され、データのインポートが完了します。
+# C:\Users\user\Documents\GitHub\golf-competition-management\data\golf_scores1.xlsxを更新
+# import_scores.py
+# import_to_db.py
+# check_db.pyでdbの内容を確認
 
 import pandas as pd
 import os

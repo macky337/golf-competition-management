@@ -1,3 +1,8 @@
+# このスクリプトは、88会ゴルフコンペのスコア管理システムです。
+# ユーザーがログインし、データベースからスコアデータを取得して表示します。
+# データベース接続を確立し、スコアデータを取得し、集計および可視化を行います。
+# また、優勝回数ランキングを表示し、過去のデータを表示します。
+
 import sqlite3
 import os
 import pandas as pd
@@ -27,17 +32,18 @@ def fetch_scores(conn):
     try:
         query = """
         SELECT
-            competition_id AS 競技ID,
-            date AS 日付,
-            course AS コース,
-            name AS プレイヤー名,
-            out_score AS アウトスコア,
-            in_score AS インスコア,
-            total_score AS 合計スコア,
-            handicap AS ハンディキャップ,
-            net_score AS ネットスコア,
-            ranking AS 順位
+            scores.competition_id AS 競技ID,
+            scores.date AS 日付,
+            scores.course AS コース,
+            players.name AS プレイヤー名,
+            scores.out_score AS アウトスコア,
+            scores.in_score AS インスコア,
+            scores.total_score AS 合計スコア,
+            scores.handicap AS ハンディキャップ,
+            scores.net_score AS ネットスコア,
+            scores.ranking AS 順位
         FROM scores
+        JOIN players ON scores.player_id = players.id
         """
         df = pd.read_sql_query(query, conn)
         st.write("スコアデータの取得に成功しました。")
@@ -82,10 +88,27 @@ def display_visualizations(scores_df):
 
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング\n2024/12/31追加")
-    winner_count = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().sort_values(ascending=False).reset_index(name='優勝回数')
-    
-    st.dataframe(winner_count, use_container_width=True)
-    st.bar_chart(winner_count.set_index('プレイヤー名').sort_values(by='優勝回数', ascending=False))
+
+    # 順位が1のデータを抽出
+    rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
+
+    # 回数が1行の場合も優勝と見なす
+    single_entry_winners = (
+        scores_df.groupby('プレイヤー名')
+        .filter(lambda x: len(x) == 1 and x.iloc[0]['順位'] == 1)
+        .groupby('プレイヤー名').size().reset_index(name='優勝回数')
+    )
+
+    # 両方のデータを結合し、優勝回数を合算
+    total_winners = pd.concat([rank_one_winners, single_entry_winners])
+    total_winners = total_winners.groupby('プレイヤー名')['優勝回数'].sum().reset_index()
+
+    # 表示用のデータフレーム
+    total_winners = total_winners.sort_values(by='優勝回数', ascending=False)
+
+    # 表示
+    st.dataframe(total_winners, use_container_width=True)
+    st.bar_chart(total_winners.set_index('プレイヤー名'))
 
 def main():
     # ログイン画面の表示

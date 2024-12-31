@@ -1,3 +1,9 @@
+# このスクリプトは、SQLiteデータベースの内容を確認するためのものです。
+# スクリプトのディレクトリを基準にファイルパスを設定し、データベース接続を確立します。
+# データベース内のテーブル一覧を取得し、各テーブルの内容を表示します。
+# 最後に、データベース接続を閉じます。
+# このスクリプトを実行すると、データベース内のテーブルとその内容がコンソールに表示されます。
+# このスクリプトは、SQLiteデータベースの内容を確認するためのものです。
 # filepath: /c:/Users/user/Documents/GitHub/golf-competition-management/scripts/check_db.py
 import sqlite3
 import os

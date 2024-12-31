@@ -37,6 +37,9 @@ print("CSVファイル読み込み完了")
 # ranking を net_score から計算
 scores_df['ranking'] = scores_df.groupby('competition_id')['net_score'].rank(method='min')
 
+# その回が1行の場合、ランキングを1に設定
+scores_df.loc[scores_df.groupby('competition_id')['competition_id'].transform('count') == 1, 'ranking'] = 1
+
 # データベースにテーブルを作成
 competitions_df.to_sql('competitions', conn, if_exists='replace', index=False)
 players_df.to_sql('players', conn, if_exists='replace', index=False)

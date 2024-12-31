@@ -1,4 +1,4 @@
-# このスクリプトは、Excelファイルからゴルフスコアデータを読み込み、
+# 【本番】このスクリプトは、Excelファイルからゴルフスコアデータを読み込み、
 # それを competitions.csv、players.csv、および scores.csv に変換して保存します。
 # スクリプトのディレクトリを基準にファイルパスを設定し、
 # 各CSVファイルを作成するために必要なデータを抽出および変換します。
@@ -50,7 +50,7 @@ df = df.rename(columns={
 })
 
 # scores.csv に必要なカラムを選択して保存
-scores = df[['id_x', 'competition_id', 'player_id', 'out_score', 'in_score', 'total_score', 'handicap', 'net_score']]
+scores = df[['id_x', 'competition_id', 'date', 'course', 'player_id', 'out_score', 'in_score', 'total_score', 'handicap', 'net_score']]
 scores = scores.rename(columns={'id_x': 'id'})
 scores.to_csv(scores_csv, index=False, encoding='utf-8-sig')
 print("scores.csv 作成完了")

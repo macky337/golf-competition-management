@@ -89,26 +89,28 @@ def display_visualizations(scores_df):
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング\n2024/12/31追加")
 
+    # ランキングのタイプを選択
+    ranking_type = st.radio("ランキングの種類を選択してください:", ["トータルランキング", "年度ランキング"])
+
+    if ranking_type == "年度ランキング":
+        # 年を選択するセレクトボックスを追加
+        available_years = scores_df['日付'].str[:4].unique()
+        year = st.selectbox("表示する年度を選択してください:", sorted(available_years))
+
+        # 選択した年度のデータを抽出
+        scores_df = scores_df[scores_df['日付'].str.startswith(year)]
+
     # 順位が1のデータを抽出
     rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
 
-    # 回数が1行の場合も優勝と見なす
-    single_entry_winners = (
-        scores_df.groupby('プレイヤー名')
-        .filter(lambda x: len(x) == 1 and x.iloc[0]['順位'] == 1)
-        .groupby('プレイヤー名').size().reset_index(name='優勝回数')
-    )
-
-    # 両方のデータを結合し、優勝回数を合算
-    total_winners = pd.concat([rank_one_winners, single_entry_winners])
-    total_winners = total_winners.groupby('プレイヤー名')['優勝回数'].sum().reset_index()
-
     # 表示用のデータフレーム
-    total_winners = total_winners.sort_values(by='優勝回数', ascending=False)
+    rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False)
 
-    # 表示
-    st.dataframe(total_winners, use_container_width=True)
-    st.bar_chart(total_winners.set_index('プレイヤー名'))
+    # データ表示
+    st.dataframe(rank_one_winners, use_container_width=True)
+
+    # グラフ表示
+    st.bar_chart(rank_one_winners.set_index('プレイヤー名'))
 
 def main():
     # ログイン画面の表示

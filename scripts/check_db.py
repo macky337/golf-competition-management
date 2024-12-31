@@ -3,8 +3,7 @@
 # データベース内のテーブル一覧を取得し、各テーブルの内容を表示します。
 # 最後に、データベース接続を閉じます。
 # このスクリプトを実行すると、データベース内のテーブルとその内容がコンソールに表示されます。
-# このスクリプトは、SQLiteデータベースの内容を確認するためのものです。
-# filepath: /c:/Users/user/Documents/GitHub/golf-competition-management/scripts/check_db.py
+
 import sqlite3
 import os
 
@@ -28,6 +27,14 @@ def check_db():
     for table in tables:
         table_name = table[0]
         print(f"\n{table_name} テーブルの内容:")
+
+        # カラム名を取得して表示
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        columns = cursor.fetchall()
+        column_names = [column[1] for column in columns]
+        print(f"カラム名: {', '.join(column_names)}")
+
+        # テーブルの内容を取得して表示
         cursor.execute(f"SELECT * FROM {table_name};")
         rows = cursor.fetchall()
         for row in rows:

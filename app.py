@@ -38,7 +38,7 @@ def fetch_scores(conn):
             players.name AS プレイヤー名,
             scores.out_score AS アウトスコア,
             scores.in_score AS インスコア,
-            scores.total_score AS 合計スコア,
+            (scores.out_score + scores.in_score) AS 合計スコア,  -- グロススコアを計算
             scores.handicap AS ハンディキャップ,
             scores.net_score AS ネットスコア,
             scores.ranking AS 順位
@@ -57,14 +57,21 @@ def display_aggregations(scores_df):
     
     st.markdown("### 総合ランキング")
     if "プレイヤー名" in scores_df.columns and "合計スコア" in scores_df.columns:
-        overall_ranking = scores_df.groupby("プレイヤー名")["合計スコア"].mean().sort_values(ascending=True)
+        # 合計スコアがNaNでない行のみを使用
+        valid_scores_df = scores_df.dropna(subset=["合計スコア"])
+        overall_ranking = valid_scores_df.groupby("プレイヤー名")["合計スコア"].mean().sort_values(ascending=True)
         
         plt.figure(figsize=(10,6))
-        overall_ranking.plot(kind='bar', color='skyblue')
+        ax = overall_ranking.plot(kind='bar', color='skyblue')
         plt.xlabel("プレイヤー名")
         plt.ylabel("平均合計スコア")
         plt.title("プレイヤーごとの平均合計スコア (昇順)")
         plt.xticks(rotation=45, ha='right')
+        
+        # 棒グラフ上に数値を表示
+        for i in ax.containers:
+            ax.bar_label(i, label_type='edge', fmt='%.2f', padding=3)
+        
         plt.tight_layout()
         st.pyplot(plt)
     else:
@@ -155,7 +162,8 @@ def main():
                 past_data_df = past_data_df[columns_order]
 
                 st.subheader("過去データ")
-                st.dataframe(past_data_df, height=None, use_container_width=True)
+                # データフレームを表示する際にインデックスを非表示にする
+                st.dataframe(past_data_df.reset_index(drop=True), height=None, use_container_width=True)
             
             conn.close()
             st.write("データベース接続を閉じました")

@@ -154,7 +154,8 @@ def main():
                 display_aggregations(scores_df)
                 display_visualizations(scores_df)
                 display_winner_count_ranking(scores_df)
-                
+
+
                 # 競技ID 昇順、順位 昇順にソート
                 past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
                 
@@ -163,16 +164,16 @@ def main():
                 past_data_df = past_data_df[columns_order]
 
                 st.subheader("過去データ")
-                # データフレームを表示する際にインデックスを非表示にする
-                st.dataframe(past_data_df.reset_index(drop=True), height=None, use_container_width=True)
-
+                # データフレームを表示する際にインデックスを非表示にし、特定のカラムの表示形式を設定
+                st.dataframe(past_data_df.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}"}).hide(axis="index"), height=None, use_container_width=True)
+                
                 # ベストグロススコアトップ10を表示
                 st.subheader("ベストグロススコアトップ10")
                 best_gross_scores = scores_df.sort_values(by="合計スコア").head(10)
                 best_gross_scores = best_gross_scores.reset_index(drop=True)
                 best_gross_scores.index += 1  # インデックスを1から始める
                 best_gross_scores.index.name = '順位'
-                st.dataframe(best_gross_scores, height=None, use_container_width=True)
+                st.dataframe(best_gross_scores.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}"}), height=None, use_container_width=True)
 
                 # 最終更新日時を表示
                 st.subheader("最終更新日時")

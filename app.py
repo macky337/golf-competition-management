@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import japanize_matplotlib  # 追加
 from datetime import datetime  # 追加
+import pytz  # 追加
 
 # ログイン用のパスワード設定
 PASSWORD = "88"
@@ -179,7 +180,8 @@ def main():
 
                 # 最終更新日時を表示
                 st.subheader("最終更新日時")
-                st.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                jst = pytz.timezone('Asia/Tokyo')
+                st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
             
             conn.close()
             st.write("データベース接続を閉じました")

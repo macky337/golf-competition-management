@@ -154,18 +154,20 @@ def main():
                 display_aggregations(scores_df)
                 display_visualizations(scores_df)
                 display_winner_count_ranking(scores_df)
-
-
+                
                 # 競技ID 昇順、順位 昇順にソート
                 past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
                 
+                # インデックスをリセットして新しいカラムとして追加
+                past_data_df = past_data_df.reset_index()
+                
                 # "順位"を一番左に持ってくる
-                columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位"]
+                columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
                 past_data_df = past_data_df[columns_order]
-
+                
                 st.subheader("過去データ")
-                # データフレームを表示する際にインデックスを非表示にし、特定のカラムの表示形式を設定
-                st.dataframe(past_data_df.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}"}).hide(axis="index"), height=None, use_container_width=True)
+                # データフレームを表示する際に特定のカラムの表示形式を設定
+                st.dataframe(past_data_df.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}", "index": "{:.0f}"}), height=None, use_container_width=True)
                 
                 # ベストグロススコアトップ10を表示
                 st.subheader("ベストグロススコアトップ10")

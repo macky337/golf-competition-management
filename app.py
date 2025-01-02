@@ -1,17 +1,13 @@
-# このスクリプトは、88会ゴルフコンペのスコア管理システムです。
-# ユーザーがログインし、データベースからスコアデータを取得して表示します。
-# データベース接続を確立し、スコアデータを取得し、集計および可視化を行います。
-# また、優勝回数ランキングを表示し、過去のデータを表示します。
-
+import streamlit as st
+import session_manager  # セッション管理モジュール
 import sqlite3
 import os
 import pandas as pd
-import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib
-import japanize_matplotlib  # 追加
-from datetime import datetime  # 追加
-import pytz  # 追加
+import japanize_matplotlib
+from datetime import datetime
+import pytz
 
 # ログイン用のパスワード設定
 PASSWORD = "88"
@@ -135,58 +131,58 @@ def display_winner_count_ranking(scores_df):
     ax.yaxis.get_major_locator().set_params(integer=True)  # Y軸を整数で表示
     st.pyplot(fig)
 
-def main():
-    # ログイン画面の表示
-    st.title("88会ログイン")
-    password = st.text_input("パスワードを入力してください", type="password")
-    if password == PASSWORD:
-        st.success("ログイン成功")
-        
-        # タイトルに改行を含める
-        st.markdown("# 88会ゴルフコンペ・スコア管理システム")
-        
-        # データベースへのパス設定
-        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
-        
-        conn = get_db_connection(db_path)
-        if conn:
-            scores_df = fetch_scores(conn)
-            if not scores_df.empty:
-                display_aggregations(scores_df)
-                display_visualizations(scores_df)
-                display_winner_count_ranking(scores_df)
-                
-                # 競技ID 昇順、順位 昇順にソート
-                past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
-                
-                # インデックスをリセットして新しいカラムとして追加
-                past_data_df = past_data_df.reset_index()
-                
-                # "順位"を一番左に持ってくる
-                columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
-                past_data_df = past_data_df[columns_order]
-                
-                st.subheader("過去データ")
-                # データフレームを表示する際に特定のカラムの表示形式を設定
-                st.dataframe(past_data_df.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}", "index": "{:.0f}"}), height=None, use_container_width=True)
-                
-                # ベストグロススコアトップ10を表示
-                st.subheader("ベストグロススコアトップ10")
-                best_gross_scores = scores_df.sort_values(by="合計スコア").head(10)
-                best_gross_scores = best_gross_scores.reset_index(drop=True)
-                best_gross_scores.index += 1  # インデックスを1から始める
-                best_gross_scores.index.name = '順位'
-                st.dataframe(best_gross_scores.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}"}), height=None, use_container_width=True)
+def main_app():
+    st.title("メインアプリケーション")
+    st.write("ようこそ！こちらがメインアプリケーションです。")
 
-                # 最終更新日時を表示
-                st.subheader("最終更新日時")
-                jst = pytz.timezone('Asia/Tokyo')
-                st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+    if st.button("ログアウト"):
+        session_manager.set_logged_in(False)  # ログアウト状態に設定
+        st.experimental_rerun()  # ログイン画面へリダイレクト
+
+    # データベースへのパス設定
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
+    
+    conn = get_db_connection(db_path)
+    if conn:
+        scores_df = fetch_scores(conn)
+        if not scores_df.empty:
+            display_aggregations(scores_df)
+            display_visualizations(scores_df)
+            display_winner_count_ranking(scores_df)
             
-            conn.close()
-            st.write("データベース接続を閉じました")
-    else:
-        st.error("パスワードが間違っています")
+            # 競技ID 昇順、順位 昇順にソート
+            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
+            
+            # インデックスをリセットして新しいカラムとして追加
+            past_data_df = past_data_df.reset_index()
+            
+            # "順位"を一番左に持ってくる
+            columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
+            past_data_df = past_data_df[columns_order]
+            
+            st.subheader("過去データ")
+            # データフレームを表示する際に特定のカラムの表示形式を設定
+            st.dataframe(past_data_df.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}", "index": "{:.0f}"}), height=None, use_container_width=True)
+            
+            # ベストグロススコアトップ10を表示
+            st.subheader("ベストグロススコアトップ10")
+            best_gross_scores = scores_df.sort_values(by="合計スコア").head(10)
+            best_gross_scores = best_gross_scores.reset_index(drop=True)
+            best_gross_scores.index += 1  # インデックスを1から始める
+            best_gross_scores.index.name = '順位'
+            st.dataframe(best_gross_scores.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}", "競技ID": "{:.0f}", "アウトスコア": "{:.0f}", "インスコア": "{:.0f}", "合計スコア": "{:.0f}", "順位": "{:.0f}"}), height=None, use_container_width=True)
 
-if __name__ == "__main__":
-    main()
+            # 最終更新日時を表示
+            st.subheader("最終更新日時")
+            jst = pytz.timezone('Asia/Tokyo')
+            st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+        
+        conn.close()
+        st.write("データベース接続を閉じました")
+
+# メインアプリケーションを実行
+if session_manager.is_logged_in():
+    main_app()
+else:
+    st.warning("ログインが必要です。ログイン画面にリダイレクトします。")
+    st.experimental_rerun()  # ログイン画面へリダイレクト

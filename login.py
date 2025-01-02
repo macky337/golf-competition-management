@@ -7,6 +7,7 @@ import matplotlib
 import japanize_matplotlib
 from datetime import datetime
 import pytz
+import session_manager  # ここでsession_managerをインポート
 
 # セッションキーを定義
 SESSION_KEY = "is_authenticated"

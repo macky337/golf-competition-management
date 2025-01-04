@@ -19,4 +19,4 @@ git branch -d feature-branch
 git push origin --delete feature-branch
 
 # 新しいブランチを作成して開発を続ける
-git checkout -b new-feature-branch
+git checkout -b feature-branch

@@ -142,20 +142,50 @@ def main_app():
             display_visualizations(scores_df)
             display_winner_count_ranking(scores_df)
 
+            # 過去データを準備
             past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
             past_data_df = past_data_df.reset_index()
             columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
             past_data_df = past_data_df[columns_order]
             
             st.subheader("過去データ")
-            st.dataframe(past_data_df.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}"}), height=None, use_container_width=True)
+            # 過去データのフォーマットを適用
+            st.dataframe(
+                past_data_df.style.format({
+                    "ハンディキャップ": "{:.2f}", 
+                    "ネットスコア": "{:.2f}",
+                    "アウトスコア": "{:.0f}",
+                    "インスコア": "{:.0f}",
+                    "合計スコア": "{:.0f}",
+                    "順位": "{:.0f}",
+                    "競技ID": "{:.0f}"
+                }), 
+                height=None, 
+                use_container_width=True
+            )
 
+            # ベストグロススコアトップ10を準備
             st.subheader("ベストグロススコアトップ10")
             best_gross_scores = scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
             best_gross_scores.index += 1
             best_gross_scores.index.name = '順位'
-            st.dataframe(best_gross_scores.style.format({"ハンディキャップ": "{:.2f}", "ネットスコア": "{:.2f}"}), height=None, use_container_width=True)
 
+            # ベストグロススコアトップ10のフォーマットを適用
+            st.dataframe(
+                best_gross_scores.style.format({
+                    "ハンディキャップ": "{:.2f}",
+                    "ネットスコア": "{:.2f}",
+                    "アウトスコア": "{:.0f}",
+                    "インスコア": "{:.0f}",
+                    "合計スコア": "{:.0f}",
+                    "順位": "{:.0f}",
+                    "競技ID": "{:.0f}"
+                }), 
+                height=None, 
+                use_container_width=True
+            )
+
+            # 最終更新日時を表示
             st.subheader("最終更新日時")
             jst = pytz.timezone('Asia/Tokyo')
             st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))

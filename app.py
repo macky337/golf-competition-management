@@ -3,10 +3,10 @@ import os
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import matplotlib
 import japanize_matplotlib
 from datetime import datetime
 import pytz
+import io
 
 # ログイン用のパスワード設定
 PASSWORD = "88"
@@ -14,6 +14,8 @@ PASSWORD = "88"
 # セッション状態を初期化
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "page" not in st.session_state:
+    st.session_state.page = "main"  # デフォルトはメイン画面
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
@@ -136,66 +138,102 @@ def main_app():
     
     conn = get_db_connection(db_path)
     if conn:
+        # 登録後の表示や集計処理は既存コードに従う
         scores_df = fetch_scores(conn)
-        if not scores_df.empty:
-            display_aggregations(scores_df)
-            display_visualizations(scores_df)
-            display_winner_count_ranking(scores_df)
-
-            # 過去データを準備
-            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
-            past_data_df = past_data_df.reset_index()
-            columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
-            past_data_df = past_data_df[columns_order]
-            
-            st.subheader("過去データ")
-            # 過去データのフォーマットを適用
-            st.dataframe(
-                past_data_df.style.format({
-                    "ハンディキャップ": "{:.2f}", 
-                    "ネットスコア": "{:.2f}",
-                    "アウトスコア": "{:.0f}",
-                    "インスコア": "{:.0f}",
-                    "合計スコア": "{:.0f}",
-                    "順位": "{:.0f}",
-                    "競技ID": "{:.0f}"
-                }), 
-                height=None, 
-                use_container_width=True
-            )
-
-            # ベストグロススコアトップ10を準備
-            st.subheader("ベストグロススコアトップ10")
-            best_gross_scores = scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
-            best_gross_scores.index += 1
-            best_gross_scores.index.name = '順位'
-
-            # ベストグロススコアトップ10のフォーマットを適用
-            st.dataframe(
-                best_gross_scores.style.format({
-                    "ハンディキャップ": "{:.2f}",
-                    "ネットスコア": "{:.2f}",
-                    "アウトスコア": "{:.0f}",
-                    "インスコア": "{:.0f}",
-                    "合計スコア": "{:.0f}",
-                    "順位": "{:.0f}",
-                    "競技ID": "{:.0f}"
-                }), 
-                height=None, 
-                use_container_width=True
-            )
-
-            # 最終更新日時を表示
-            st.subheader("最終更新日時")
-            jst = pytz.timezone('Asia/Tokyo')
-            st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+        display_aggregations(scores_df)
+        display_visualizations(scores_df)
+        display_winner_count_ranking(scores_df)
 
         conn.close()
         st.write("データベース接続を閉じました")
+
     if st.button("ログアウト"):
         st.session_state.logged_in = False
 
-if st.session_state.logged_in:
-    main_app()
-else:
-    login_page()
+def add_new_scores_screen(conn):
+    st.title("新しいスコアの登録")
+    num_entries = st.number_input("登録するデータの件数を入力してください", min_value=1, step=1)
+
+    # 入力フォームを動的に生成
+    forms = []
+    for i in range(num_entries):
+        st.write(f"### データ {i+1}")
+        form = {
+            "competition_id": st.text_input(f"[{i+1}] 競技ID"),
+            "date": st.date_input(f"[{i+1}] 日付"),
+            "course": st.text_input(f"[{i+1}] コース名"),
+            "player_name": st.text_input(f"[{i+1}] プレイヤー名"),
+            "out_score": st.number_input(f"[{i+1}] アウトスコア", min_value=0, max_value=50, step=1),
+            "in_score": st.number_input(f"[{i+1}] インスコア", min_value=0, max_value=50, step=1),
+            "handicap": st.number_input(f"[{i+1}] ハンディキャップ", min_value=0.0, format="%.2f"),
+        }
+        forms.append(form)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # 登録ボタン
+        if st.button("一括登録"):
+            try:
+                # 競技IDごとに順位を計算
+                competition_data = {}
+                for form in forms:
+                    total_score = form["out_score"] + form["in_score"]
+                    net_score = total_score - form["handicap"]
+
+                    if form["competition_id"] not in competition_data:
+                        competition_data[form["competition_id"]] = []
+                    
+                    competition_data[form["competition_id"]].append({
+                        "date": form["date"],
+                        "course": form["course"],
+                        "player_name": form["player_name"],
+                        "total_score": total_score,
+                        "net_score": net_score,
+                    })
+
+                # データベースに登録
+                for competition_id, players in competition_data.items():
+                    # 順位を計算（ネットスコアの昇順）
+                    sorted_players = sorted(players, key=lambda x: x["net_score"])
+                    for rank, player in enumerate(sorted_players, start=1):
+                        conn.execute("""
+                        INSERT INTO scores (competition_id, date, course, player_id, out_score, in_score, handicap, net_score, ranking)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            competition_id, player["date"], player["course"], player["player_name"],
+                            player["total_score"] - player["net_score"],  # アウトスコア + インスコアから計算
+                            player["total_score"],  # 合計スコア
+                            player["net_score"],  # ネットスコア
+                            rank  # 自動計算した順位
+                        ))
+                conn.commit()
+                st.success(f"{num_entries}件のスコアを登録しました！")
+                st.session_state.page = "main"  # 登録後にメイン画面へ遷移
+            except Exception as e:
+                st.error(f"登録エラー: {e}")
+
+    with col2:
+        # キャンセルボタン
+        if st.button("キャンセル"):
+            st.session_state.page = "main"  # メイン画面へ遷移
+            st.warning("入力がキャンセルされました。")
+
+def page_router():
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
+    conn = get_db_connection(db_path)
+
+    if st.session_state.page == "main":
+        main_app()
+    elif st.session_state.page == "add_scores":
+        if conn:
+            add_new_scores_screen(conn)
+            conn.close()
+    elif st.session_state.page == "login":
+        login_page()
+
+# アプリの起動
+if not st.session_state.logged_in:
+    st.session_state.page = "login"
+
+page_router()

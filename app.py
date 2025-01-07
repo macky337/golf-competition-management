@@ -15,6 +15,7 @@ PASSWORD = "88"
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+# データベース接続関数
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
     if not os.path.exists(db_path):
@@ -28,6 +29,7 @@ def get_db_connection(db_path):
         st.error(f"データベース接続エラー: {e}")
         return None
 
+# スコアデータ取得関数
 def fetch_scores(conn):
     st.write("スコアデータを取得しています...")
     try:
@@ -53,6 +55,7 @@ def fetch_scores(conn):
         st.error(f"データ取得エラー: {e}")
         return pd.DataFrame()
 
+# 集計結果表示関数
 def display_aggregations(scores_df):
     st.subheader("データ集計")
     
@@ -76,6 +79,7 @@ def display_aggregations(scores_df):
     else:
         st.error("必要なカラムがデータフレームに存在しません。")
 
+
 def display_visualizations(scores_df):
     st.subheader("データ可視化")
     
@@ -95,6 +99,7 @@ def display_visualizations(scores_df):
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
     plt.tight_layout()
     st.pyplot(plt)
+
 
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
@@ -121,6 +126,7 @@ def display_winner_count_ranking(scores_df):
     ax.yaxis.get_major_locator().set_params(integer=True)
     st.pyplot(fig)
 
+# ログインページ
 def login_page():
     st.title("88会ログイン")
     password = st.text_input("パスワードを入力してください", type="password")
@@ -130,6 +136,7 @@ def login_page():
         else:
             st.error("パスワードが間違っています")
 
+# メインアプリ
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))

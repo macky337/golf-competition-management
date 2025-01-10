@@ -7,6 +7,7 @@ import matplotlib
 import japanize_matplotlib
 from datetime import datetime
 import pytz
+import shutil
 
 # ログイン用のパスワード設定
 PASSWORD = "88"
@@ -121,6 +122,14 @@ def display_winner_count_ranking(scores_df):
     ax.yaxis.get_major_locator().set_params(integer=True)
     st.pyplot(fig)
 
+def backup_database(db_path, backup_dir):
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    
+    backup_file = os.path.join(backup_dir, f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
+    shutil.copy(db_path, backup_file)
+    st.success(f"バックアップが作成されました: {backup_file}")
+
 def login_page():
     st.title("88会ログイン")
     password = st.text_input("パスワードを入力してください", type="password")
@@ -133,7 +142,8 @@ def login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
-    
+    backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'backup'))
+
     conn = get_db_connection(db_path)
     if conn:
         scores_df = fetch_scores(conn)
@@ -189,6 +199,10 @@ def main_app():
             st.subheader("最終更新日時")
             jst = pytz.timezone('Asia/Tokyo')
             st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+
+            # バックアップボタン
+            if st.button("データベースをバックアップ"):
+                backup_database(db_path, backup_dir)
 
         conn.close()
         st.write("データベース接続を閉じました")

@@ -1,20 +1,59 @@
+"""
+88会ゴルフコンペ・スコア管理システム
+
+このスクリプトは、88会ゴルフコンペのスコアを管理するためのStreamlitアプリケーションです。
+ユーザーはスコアデータを閲覧し、データの集計や可視化を行うことができます。
+また、管理者はデータベースのバックアップおよびリストアを行うことができます。
+
+機能:
+- ユーザー認証
+- スコアデータの取得と表示
+- データの集計と可視化
+- 優勝回数ランキングの表示
+- データベースのバックアップとリストア
+
+使用方法:
+1. Streamlitをインストールします。
+2. このスクリプトを実行します: `streamlit run app.py`
+3. ブラウザで表示されるアプリケーションにアクセスします。
+
+必要なライブラリ:
+- sqlite3
+- os
+- pandas
+- streamlit
+- matplotlib
+- japanize_matplotlib
+- datetime
+- pytz
+- shutil
+
+ログイン情報:
+- ユーザー用パスワード: "88"
+- 管理者用パスワード: "admin88"
+"""
+
 import sqlite3
 import os
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import matplotlib
 import japanize_matplotlib
 from datetime import datetime
 import pytz
 import shutil
 
 # ログイン用のパスワード設定
-PASSWORD = "88"
+USER_PASSWORD = "88"
+ADMIN_PASSWORD = "admin88"
 
 # セッション状態を初期化
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
+if "page" not in st.session_state:
+    st.session_state.page = "login"  # デフォルトはログイン画面
 
 def get_db_connection(db_path):
     st.write("データベース接続を試みています...")
@@ -69,8 +108,8 @@ def display_aggregations(scores_df):
         plt.title("プレイヤーごとの平均合計スコア (昇順)")
         plt.xticks(rotation=45, ha='right')
         
-        for i in ax.containers:
-            ax.bar_label(i, label_type='edge', fmt='%.2f', padding=3)
+        for container in ax.containers:
+            ax.bar_label(container, fmt='%.2f', padding=3)
         
         plt.tight_layout()
         st.pyplot(plt)
@@ -118,6 +157,7 @@ def display_winner_count_ranking(scores_df):
     ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
     ax.set_ylabel("優勝回数")
     ax.set_title("優勝回数ランキング")
+    ax.set_xticks(range(len(rank_one_winners['プレイヤー名'])))
     ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
     ax.yaxis.get_major_locator().set_params(integer=True)
     st.pyplot(fig)
@@ -130,12 +170,38 @@ def backup_database(db_path, backup_dir):
     shutil.copy(db_path, backup_file)
     st.success(f"バックアップが作成されました: {backup_file}")
 
+def restore_database(db_path, backup_dir):
+    st.subheader("データベースのリストア")
+    backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.db')]
+    if not backup_files:
+        st.warning("バックアップファイルが見つかりません。")
+        return
+    selected_backup = st.selectbox("リストアするバックアップファイルを選択してください", backup_files)
+    
+    if st.button("リストア実行"):
+        backup_file_path = os.path.join(backup_dir, selected_backup)
+        shutil.copy(backup_file_path, db_path)
+        st.success(f"データベースがリストアされました: {selected_backup}")
+
 def login_page():
     st.title("88会ログイン")
     password = st.text_input("パスワードを入力してください", type="password")
     if st.button("ログイン"):
-        if password == PASSWORD:
+        if password == USER_PASSWORD:
             st.session_state.logged_in = True
+            st.session_state.page = "main"
+            # st.experimental_rerun() を削除
+        else:
+            st.error("パスワードが間違っています")
+
+def admin_login_page():
+    st.title("管理者ログイン")
+    password = st.text_input("管理者パスワードを入力してください", type="password")
+    if st.button("ログイン"):
+        if password == ADMIN_PASSWORD:
+            st.session_state.admin_logged_in = True
+            st.session_state.page = "admin"
+            # st.experimental_rerun() を削除
         else:
             st.error("パスワードが間違っています")
 
@@ -200,16 +266,52 @@ def main_app():
             jst = pytz.timezone('Asia/Tokyo')
             st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
 
-            # バックアップボタン
-            if st.button("データベースをバックアップ"):
-                backup_database(db_path, backup_dir)
-
         conn.close()
         st.write("データベース接続を閉じました")
+    
+    if st.button("設定画面へ"):
+        st.session_state.page = "admin"
+        # st.experimental_rerun() を削除
+
     if st.button("ログアウト"):
         st.session_state.logged_in = False
+        st.session_state.page = "login"
 
-if st.session_state.logged_in:
-    main_app()
-else:
-    login_page()
+def admin_app():
+    st.title("管理者設定画面")
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'golf_competition.db'))
+    backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'backup'))
+
+    # バックアップボタン
+    if st.button("データベースをバックアップ"):
+        backup_database(db_path, backup_dir)
+
+    # リストアボタン
+    restore_database(db_path, backup_dir)
+
+    if st.button("本体画面へ"):
+        st.session_state.page = "main"
+
+    if st.button("ログアウト"):
+        st.session_state.admin_logged_in = False
+        st.session_state.page = "login"
+
+def page_router():
+    if st.session_state.page == "main":
+        if st.session_state.logged_in:
+            main_app()
+        else:
+            login_page()
+    elif st.session_state.page == "admin":
+        if st.session_state.admin_logged_in:
+            admin_app()
+        else:
+            admin_login_page()
+    else:
+        login_page()
+
+# アプリの起動
+if not st.session_state.logged_in and not st.session_state.admin_logged_in:
+    st.session_state.page = "login"
+
+page_router()

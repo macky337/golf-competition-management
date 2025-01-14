@@ -93,6 +93,11 @@ def fetch_scores(conn):
         st.error(f"データ取得エラー: {e}")
         return pd.DataFrame()
 
+def fetch_players(conn):
+    query = "SELECT * FROM players"
+    players_df = pd.read_sql_query(query, conn)
+    return players_df
+
 def display_aggregations(scores_df):
     st.subheader("データ集計")
     
@@ -116,25 +121,39 @@ def display_aggregations(scores_df):
     else:
         st.error("必要なカラムがデータフレームに存在しません。")
 
-def display_visualizations(scores_df):
-    st.subheader("データ可視化")
+def display_visualizations(scores_df, players_df):
+    st.subheader("スコア推移グラフ")
     
-    st.markdown("### スコア推移")
-    
-    filtered_scores_df = scores_df.dropna(subset=["アウトスコア", "インスコア", "合計スコア"])
+    if 'player_id' not in scores_df.columns or 'name' not in players_df.columns:
+        st.error("必要なカラムがデータに含まれていません。")
+        return
 
-    plt.figure(figsize=(10, 5))
-    for player in filtered_scores_df["プレイヤー名"].unique():
-        player_data = filtered_scores_df[filtered_scores_df["プレイヤー名"] == player]
-        plt.plot(player_data["競技ID"], player_data["合計スコア"], marker='o', label=player)
+    # プレイヤーを選択するドロップダウンメニュー
+    player_names = players_df['name'].tolist()
+    selected_player = st.selectbox("プレイヤーを選択してください", player_names)
     
-    plt.xlabel("競技ID")
-    plt.ylabel("合計スコア")
-    plt.title("プレイヤーごとのスコア推移")
-    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-    plt.tight_layout()
-    st.pyplot(plt)
+    try:
+        # 選択されたプレイヤーのIDを取得
+        player_id = players_df[players_df['name'] == selected_player]['id'].values[0]
+        
+        # 選択されたプレイヤーのスコアデータを取得
+        player_scores = scores_df[scores_df['player_id'] == player_id].copy()
+        
+        if player_scores.empty:
+            st.warning(f"{selected_player} のスコアデータが見つかりません。")
+            return
+        
+        # 日付でソート
+        player_scores['date'] = pd.to_datetime(player_scores['date'])
+        player_scores = player_scores.sort_values(by='date')
+        
+        # スコア推移グラフの作成
+        st.line_chart(player_scores.set_index('date')['total_score'])
+    
+    except IndexError:
+        st.error("選択されたプレイヤーに対応するIDが見つかりません。")
+    except Exception as e:
+        st.error(f"スコア推移グラフの作成中にエラーが発生しました: {e}")
 
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
@@ -213,9 +232,10 @@ def main_app():
     conn = get_db_connection(db_path)
     if conn:
         scores_df = fetch_scores(conn)
+        players_df = fetch_players(conn)  # 追加: プレイヤーデータの取得
         if not scores_df.empty:
             display_aggregations(scores_df)
-            display_visualizations(scores_df)
+            display_visualizations(scores_df, players_df)  # 修正: players_df を渡す
             display_winner_count_ranking(scores_df)
 
             # 過去データを準備
@@ -240,9 +260,15 @@ def main_app():
                 use_container_width=True
             )
 
+            
             # ベストグロススコアトップ10を準備
             st.subheader("ベストグロススコアトップ10")
-            best_gross_scores = scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
+
+            # 競技IDが41でないデータのみを対象にする
+            filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
+
+            # 合計スコアでソートし、トップ10を取得
+            best_gross_scores = filtered_scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
             best_gross_scores.index += 1
             best_gross_scores.index.name = '順位'
 

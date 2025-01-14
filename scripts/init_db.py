@@ -1,10 +1,12 @@
 import sqlite3
+import os
 
 def initialize_db():
-    conn = sqlite3.connect('../data/golf_competition.db')
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'golf_competition.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # テーブル作成
+    # players テーブル作成
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS players (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -12,6 +14,7 @@ def initialize_db():
     )
     ''')
 
+    # competitions テーブル作成
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS competitions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +24,7 @@ def initialize_db():
     )
     ''')
 
+    # scores テーブル作成
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS scores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +53,7 @@ def initialize_db():
 
     conn.commit()
     conn.close()
+    print("データベースとテーブルが初期化されました。")
 
 def fetch_players():
     conn = sqlite3.connect('data/golf_competition.db')

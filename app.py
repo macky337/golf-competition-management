@@ -56,20 +56,20 @@ if "page" not in st.session_state:
     st.session_state.page = "login"  # デフォルトはログイン画面
 
 def get_db_connection(db_path):
-    st.write("データベース接続を試みています...")
+    # st.write("データベース接続を試みています...")
     if not os.path.exists(db_path):
         st.error(f"データベースファイルが存在しません: {db_path}")
         return None
     try:
         conn = sqlite3.connect(db_path)
-        st.write("データベース接続成功")
+        # st.write("データベース接続成功")
         return conn
     except sqlite3.Error as e:
         st.error(f"データベース接続エラー: {e}")
         return None
 
 def fetch_scores(conn):
-    st.write("スコアデータを取得しています...")
+    # st.write("スコアデータを取得しています...")
     try:
         query = """
         SELECT
@@ -87,7 +87,7 @@ def fetch_scores(conn):
         JOIN players ON scores.player_id = players.id
         """
         df = pd.read_sql_query(query, conn)
-        st.write("スコアデータの取得に成功しました。")
+        # st.write("スコアデータの取得に成功しました。")
         return df
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
@@ -124,36 +124,32 @@ def display_aggregations(scores_df):
 def display_visualizations(scores_df, players_df):
     st.subheader("スコア推移グラフ")
     
-    if 'player_id' not in scores_df.columns or 'name' not in players_df.columns:
+    # 必要なカラムを確認
+    required_columns = ['プレイヤー名', '合計スコア', '日付']
+    if not all(column in scores_df.columns for column in required_columns):
         st.error("必要なカラムがデータに含まれていません。")
         return
 
-    # プレイヤーを選択するドロップダウンメニュー
-    player_names = players_df['name'].tolist()
-    selected_player = st.selectbox("プレイヤーを選択してください", player_names)
+    # ユニークなプレイヤー名を取得
+    players = scores_df['プレイヤー名'].unique()
+    selected_player = st.selectbox("プレイヤーを選択してください", players)
     
-    try:
-        # 選択されたプレイヤーのIDを取得
-        player_id = players_df[players_df['name'] == selected_player]['id'].values[0]
-        
-        # 選択されたプレイヤーのスコアデータを取得
-        player_scores = scores_df[scores_df['player_id'] == player_id].copy()
-        
-        if player_scores.empty:
-            st.warning(f"{selected_player} のスコアデータが見つかりません。")
-            return
-        
-        # 日付でソート
-        player_scores['date'] = pd.to_datetime(player_scores['date'])
-        player_scores = player_scores.sort_values(by='date')
-        
-        # スコア推移グラフの作成
-        st.line_chart(player_scores.set_index('date')['total_score'])
+    # 選択されたプレイヤーのスコアデータをフィルタリング
+    player_scores = scores_df[scores_df['プレイヤー名'] == selected_player].sort_values(by='日付')
     
-    except IndexError:
-        st.error("選択されたプレイヤーに対応するIDが見つかりません。")
-    except Exception as e:
-        st.error(f"スコア推移グラフの作成中にエラーが発生しました: {e}")
+    if player_scores.empty:
+        st.warning(f"{selected_player} のスコアデータがありません。")
+        return
+    
+    # スコア推移のプロット
+    plt.figure(figsize=(10, 5))
+    plt.plot(player_scores['日付'], player_scores['合計スコア'], marker='o', linestyle='-')
+    plt.title(f"{selected_player} のスコア推移")
+    plt.xlabel("日付")
+    plt.ylabel("合計スコア")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    st.pyplot(plt)
 
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
@@ -233,7 +229,8 @@ def main_app():
     if conn:
         scores_df = fetch_scores(conn)
         players_df = fetch_players(conn)  # 追加: プレイヤーデータの取得
-        if not scores_df.empty:
+
+        if not scores_df.empty and not players_df.empty:
             display_aggregations(scores_df)
             display_visualizations(scores_df, players_df)  # 修正: players_df を渡す
             display_winner_count_ranking(scores_df)

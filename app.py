@@ -302,8 +302,13 @@ def main_app():
             jst = pytz.timezone('Asia/Tokyo')
             st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
 
+            # 変更履歴を表示
+            st.write("変更履歴")
+            st.write("2025/1/19 ランキング表示方法を変更")
+            st.write("2025/1/18 ベストグロススコアトップ20を追加")
+
         conn.close()
-        st.write("データベース接続を閉じました")
+        #st.write("データベース接続を閉じました")
     
     if st.button("設定画面へ"):
         st.session_state.page = "admin"

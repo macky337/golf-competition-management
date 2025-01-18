@@ -161,13 +161,21 @@ def display_winner_count_ranking(scores_df):
         year = st.selectbox("表示する年度を選択してください:", sorted(available_years))
         scores_df = scores_df[scores_df['日付'].str.startswith(year)]
 
-    rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
-    rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False).reset_index(drop=True)
-    rank_one_winners.index += 1
-    rank_one_winners.index.name = '順位'
+    # 優勝回数を計算
+    rank_one_winners = (
+        scores_df[scores_df['順位'] == 1]
+        .groupby('プレイヤー名')
+        .size()
+        .reset_index(name='優勝回数')
+        .sort_values(by='優勝回数', ascending=False)
+    )
+
+    # 順位を計算（同順位を処理するロジック）
+    rank_one_winners["順位"] = rank_one_winners["優勝回数"].rank(method="dense", ascending=False).astype(int)
 
     st.dataframe(rank_one_winners, use_container_width=True)
 
+    # グラフ描画
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
     ax.set_ylabel("優勝回数")
@@ -257,19 +265,15 @@ def main_app():
                 use_container_width=True
             )
 
-            
-            # ベストグロススコアトップ10を準備
-            st.subheader("ベストグロススコアトップ10")
-
-            # 競技IDが41でないデータのみを対象にする
+            # ベスグロトップ10（10位までを表示）
             filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
 
-            # 合計スコアでソートし、トップ10を取得
-            best_gross_scores = filtered_scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
-            best_gross_scores.index += 1
-            best_gross_scores.index.name = '順位'
+            best_gross_scores = filtered_scores_df.copy()
+            best_gross_scores = best_gross_scores.dropna(subset=["合計スコア"])
+            best_gross_scores["順位"] = best_gross_scores["合計スコア"].rank(method="min", ascending=True).astype(int)
+            best_gross_scores = best_gross_scores.sort_values(by=["順位", "合計スコア"]).head(20)
 
-            # ベストグロススコアトップ10のフォーマットを適用
+            st.subheader("ベストグロススコアトップ20")
             st.dataframe(
                 best_gross_scores.style.format({
                     "ハンディキャップ": "{:.2f}",
@@ -279,8 +283,8 @@ def main_app():
                     "合計スコア": "{:.0f}",
                     "順位": "{:.0f}",
                     "競技ID": "{:.0f}"
-                }), 
-                height=None, 
+                }),
+                height=None,
                 use_container_width=True
             )
 

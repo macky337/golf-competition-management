@@ -164,7 +164,7 @@ def display_winner_count_ranking(scores_df):
     # 優勝回数を計算
     rank_one_winners = (
         scores_df[scores_df['順位'] == 1]
-        .groupby('プレイヤー名')
+        .groupby('プレイヤー名')    # プレイヤー名でグループ化      
         .size()
         .reset_index(name='優勝回数')
         .sort_values(by='優勝回数', ascending=False)
@@ -172,6 +172,10 @@ def display_winner_count_ranking(scores_df):
 
     # 順位を計算（同順位を処理するロジック）
     rank_one_winners["順位"] = rank_one_winners["優勝回数"].rank(method="dense", ascending=False).astype(int)
+
+    # 優勝回数ランキングの表示において、カラム名の一番左に順位を表示
+    columns_order = ['順位'] + [col for col in rank_one_winners.columns if col != '順位']
+    rank_one_winners = rank_one_winners[columns_order]
 
     st.dataframe(rank_one_winners, use_container_width=True)
 
@@ -246,9 +250,10 @@ def main_app():
             # 過去データを準備
             past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
             past_data_df = past_data_df.reset_index()
-            columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
+            # 過去データの表示において、カラム名の一番左に競技IDを表示
+            columns_order = ['競技ID', '順位'] + [col for col in past_data_df.columns if col not in ['競技ID', '順位', 'index']] + ['index']
             past_data_df = past_data_df[columns_order]
-            
+
             st.subheader("過去データ")
             # 過去データのフォーマットを適用
             st.dataframe(
@@ -265,13 +270,17 @@ def main_app():
                 use_container_width=True
             )
 
-            # ベスグロトップ10（10位までを表示）
+            # ベスグロトップ20（20位までを表示）
             filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
 
             best_gross_scores = filtered_scores_df.copy()
             best_gross_scores = best_gross_scores.dropna(subset=["合計スコア"])
             best_gross_scores["順位"] = best_gross_scores["合計スコア"].rank(method="min", ascending=True).astype(int)
             best_gross_scores = best_gross_scores.sort_values(by=["順位", "合計スコア"]).head(20)
+
+            # ベストグロストップ20の表示において、カラム名の一番左に順位を表示
+            columns_order = ['順位'] + [col for col in best_gross_scores.columns if col != '順位']
+            best_gross_scores = best_gross_scores[columns_order]
 
             st.subheader("ベストグロススコアトップ20")
             st.dataframe(

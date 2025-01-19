@@ -154,6 +154,9 @@ def display_visualizations(scores_df, players_df):
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
 
+    # 競技ID 100 と 101 を除外
+    scores_df = scores_df[~scores_df["競技ID"].isin([100, 101])]
+
     ranking_type = st.radio("ランキングの種類を選択してください:", ["トータルランキング", "年度ランキング"])
 
     if ranking_type == "年度ランキング":
@@ -164,7 +167,7 @@ def display_winner_count_ranking(scores_df):
     # 優勝回数を計算
     rank_one_winners = (
         scores_df[scores_df['順位'] == 1]
-        .groupby('プレイヤー名')    # プレイヤー名でグループ化      
+        .groupby('プレイヤー名')
         .size()
         .reset_index(name='優勝回数')
         .sort_values(by='優勝回数', ascending=False)
@@ -243,14 +246,23 @@ def main_app():
         players_df = fetch_players(conn)  # 追加: プレイヤーデータの取得
 
         if not scores_df.empty and not players_df.empty:
+            # 順位を正しく算出: ネットスコアが同点の場合はハンディキャップが少ないプレーヤーが上位
+            scores_df = scores_df.sort_values(by=["競技ID", "ネットスコア", "ハンディキャップ"], ascending=[True, True, True])
+            scores_df['順位'] = scores_df.groupby('競技ID').cumcount() + 1
+
             display_aggregations(scores_df)
             display_visualizations(scores_df, players_df)  # 修正: players_df を渡す
             display_winner_count_ranking(scores_df)
 
             # 過去データを準備
-            past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
+            # ネットスコアが同点の場合はハンディキャップが少ないプレーヤーが上位になるようにソート
+            past_data_df = scores_df.sort_values(by=["競技ID", "ネットスコア", "ハンディキャップ"], ascending=[True, True, True])
             past_data_df = past_data_df.reset_index()
-            # 過去データの表示において、カラム名の一番左に競技IDを表示
+
+            # 各競技IDごとに順位を割り当てる
+            past_data_df['順位'] = past_data_df.groupby('競技ID').cumcount() + 1
+
+            # 過去データの表示において、カラム名の一番左に競技IDと順位を表示
             columns_order = ['競技ID', '順位'] + [col for col in past_data_df.columns if col not in ['競技ID', '順位', 'index']] + ['index']
             past_data_df = past_data_df[columns_order]
 
@@ -304,15 +316,16 @@ def main_app():
 
             # 変更履歴を表示
             st.write("変更履歴")
+            st.write("2025/1/19 優勝回数カウントのロジックを修正")
             st.write("2025/1/19 ランキング表示方法を変更")
-            st.write("2025/1/18 ベストグロススコアトップ20を追加")
+            st.write("2025/1/18 ベストグロススコアトップ20に変更")
 
         conn.close()
         #st.write("データベース接続を閉じました")
-    
+
     if st.button("設定画面へ"):
         st.session_state.page = "admin"
-        # st.experimental_rerun() を削除
+        # st.experimental_rerun()
 
     if st.button("ログアウト"):
         st.session_state.logged_in = False

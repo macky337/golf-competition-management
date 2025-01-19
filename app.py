@@ -23,6 +23,7 @@ import japanize_matplotlib
 from datetime import datetime
 import pytz 
 import shutil
+import subprocess
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"
@@ -290,10 +291,30 @@ def main_app():
                 use_container_width=True
             )
 
-            # 最終更新日時を表示
+            # 最終更新日時を表示（mainリポジトリにpushした最終日時）
             st.subheader("最終更新日時")
-            jst = pytz.timezone('Asia/Tokyo')
-            st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+
+            try:
+                # Gitコマンドを使用してmainブランチの最新コミット日時を取得
+                last_push = subprocess.check_output(
+                    ["git", "log", "-1", "--format=%ci", "main"],
+                    cwd=os.path.dirname(__file__)
+                ).decode('utf-8').strip()
+                
+                # 日付文字列をdatetimeオブジェクトに変換
+                last_push_datetime = datetime.strptime(last_push, "%Y-%m-%d %H:%M:%S %z")
+                
+                # タイムゾーンをAsia/Tokyoに設定
+                jst = pytz.timezone('Asia/Tokyo')
+                last_push_jst = last_push_datetime.astimezone(jst)
+                
+                # 表示形式にフォーマット
+                st.write(last_push_jst.strftime("%Y-%m-%d %H:%M:%S"))
+                
+            except subprocess.CalledProcessError:
+                st.write("最終更新日時の取得に失敗しました。Gitリポジトリが正しく設定されているか確認してください。")
+            except Exception as e:
+                st.write(f"エラーが発生しました: {e}")
 
             # 変更履歴を表示
             st.subheader("変更履歴")
@@ -310,6 +331,7 @@ def main_app():
             - ネットスコアが同点の場合、ハンディキャップが低いプレイヤーを上位とします。
             - ベストグロススコアトップ20は競技ID41のデータを除外しています。（競技ID41は大雨で午後中止のため）
             - ランキングの計算には、同点の場合は同順位とし、次の順位は飛ばす方式を採用しています。
+            - 過去データはダウンロード可能です。データの整合性を確認するためにご利用ください。   
             """)
 
         conn.close()

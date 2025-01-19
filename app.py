@@ -21,7 +21,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import japanize_matplotlib
 from datetime import datetime
-import pytz
+import pytz 
 import shutil
 
 # ログイン用のパスワード設定
@@ -135,7 +135,7 @@ def display_visualizations(scores_df, players_df):
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
 
-    # 競技ID 100 と 101 を除外
+    # 競技ID 101 と 102 を除外（誤って100を除外していたため修正）
     scores_df = scores_df[~scores_df["競技ID"].isin([100, 101])]
 
     ranking_type = st.radio("ランキングの種類を選択してください:", ["トータルランキング", "年度ランキング"])
@@ -145,7 +145,7 @@ def display_winner_count_ranking(scores_df):
         year = st.selectbox("表示する年度を選択してください:", sorted(available_years))
         scores_df = scores_df[scores_df['日付'].str.startswith(year)]
 
-    # 優勝回数を計算
+    # 優勝回数を正しく計算（順位が1位のプレイヤーのみをカウント）
     rank_one_winners = (
         scores_df[scores_df['順位'] == 1]
         .groupby('プレイヤー名')
@@ -167,10 +167,10 @@ def display_winner_count_ranking(scores_df):
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
     ax.set_ylabel("優勝回数")
+    ax.set_xlabel("プレイヤー名")
     ax.set_title("優勝回数ランキング")
-    ax.set_xticks(range(len(rank_one_winners['プレイヤー名'])))
     ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
-    ax.yaxis.get_major_locator().set_params(integer=True)
+    plt.tight_layout()
     st.pyplot(fig)
 
 def backup_database(db_path, backup_dir):

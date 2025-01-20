@@ -170,7 +170,6 @@ def display_winner_count_ranking(scores_df):
     ax.set_ylabel("優勝回数")
     ax.set_xlabel("プレイヤー名")
     ax.set_title("優勝回数ランキング")
-    ax.set_xticks(range(len(rank_one_winners['プレイヤー名'])))
     ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
     plt.tight_layout()
     st.pyplot(fig)

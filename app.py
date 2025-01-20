@@ -170,7 +170,6 @@ def display_winner_count_ranking(scores_df):
     ax.set_ylabel("優勝回数")
     ax.set_xlabel("プレイヤー名")
     ax.set_title("優勝回数ランキング")
-    ax.set_xticks(range(len(rank_one_winners['プレイヤー名'])))
     ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
     plt.tight_layout()
     st.pyplot(fig)
@@ -328,7 +327,7 @@ def main_app():
             
             st.subheader("ランキング計算ロジックの説明")
             st.markdown("""
-            - 競技ID101と102のデータはランキングの対象外としました。
+            - 競技ID101と102のデータは優勝回数ランキングの対象外としました。
             - ネットスコアが同点の場合、ハンディキャップが低いプレイヤーを上位とします。
             - ベストグロススコアトップ20は競技ID41のデータを除外しています。（競技ID41は大雨で午後中止のため）
             - ランキングの計算には、同点の場合は同順位とし、次の順位は飛ばす方式を採用しています。

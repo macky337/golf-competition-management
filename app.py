@@ -24,6 +24,7 @@ from datetime import datetime
 import pytz 
 import shutil
 import subprocess
+import matplotlib.ticker as ticker
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"
@@ -88,18 +89,21 @@ def display_aggregations(scores_df):
         valid_scores_df = scores_df.dropna(subset=["合計スコア"])
         overall_ranking = valid_scores_df.groupby("プレイヤー名")["合計スコア"].mean().sort_values(ascending=True)
         
-        plt.figure(figsize=(10,6))
-        ax = overall_ranking.plot(kind='bar', color='skyblue')
-        plt.xlabel("プレイヤー名")
-        plt.ylabel("平均合計スコア")
-        plt.title("プレイヤーごとの平均合計スコア (昇順)")
-        plt.xticks(rotation=45, ha='right')
-        
-        for container in ax.containers:
-            ax.bar_label(container, fmt='%.2f', padding=3)
-        
-        plt.tight_layout()
-        st.pyplot(plt)
+        try:
+            plt.figure(figsize=(10,6))
+            ax = overall_ranking.plot(kind='bar', color='skyblue')
+            plt.xlabel("プレイヤー名")
+            plt.ylabel("平均合計スコア")
+            plt.title("プレイヤーごとの平均合計スコア (昇順)")
+            plt.xticks(rotation=45, ha='right')
+            
+            for container in ax.containers:
+                ax.bar_label(container, fmt='%.2f', padding=3)
+            
+            plt.tight_layout()
+            st.pyplot(plt)
+        except Exception as e:
+            st.error(f"グラフの描画に失敗しました: {e}")
     else:
         st.error("必要なカラムがデータフレームに存在しません。")
 
@@ -123,15 +127,18 @@ def display_visualizations(scores_df, players_df):
         st.warning(f"{selected_player} のスコアデータがありません。")
         return
     
-    # スコア推移のプロット
-    plt.figure(figsize=(10, 5))
-    plt.plot(player_scores['日付'], player_scores['合計スコア'], marker='o', linestyle='-')
-    plt.title(f"{selected_player} のスコア推移")
-    plt.xlabel("日付")
-    plt.ylabel("合計スコア")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(plt)
+    try:
+        # スコア推移のプロット
+        plt.figure(figsize=(10, 5))
+        plt.plot(player_scores['日付'], player_scores['合計スコア'], marker='o', linestyle='-')
+        plt.title(f"{selected_player} のスコア推移")
+        plt.xlabel("日付")
+        plt.ylabel("合計スコア")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        st.pyplot(plt)
+    except Exception as e:
+        st.error(f"グラフの描画に失敗しました: {e}")
 
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
@@ -165,14 +172,25 @@ def display_winner_count_ranking(scores_df):
     st.dataframe(rank_one_winners, use_container_width=True)
 
     # グラフ描画
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
-    ax.set_ylabel("優勝回数")
-    ax.set_xlabel("プレイヤー名")
-    ax.set_title("優勝回数ランキング")
-    ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
-    plt.tight_layout()
-    st.pyplot(fig)
+    if not rank_one_winners.empty:
+        try:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
+
+            ax.set_ylabel("優勝回数")
+            ax.set_xlabel("プレイヤー名")
+            ax.set_title("優勝回数ランキング")
+
+            # FixedLocatorを使用してティック位置を設定
+            ax.xaxis.set_major_locator(ticker.FixedLocator(range(len(rank_one_winners['プレイヤー名']))))
+            ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
+
+            plt.tight_layout()
+            st.pyplot(fig)
+        except Exception as e:
+            st.error(f"グラフの描画に失敗しました: {e}")
+    else:
+        st.warning("優勝データが存在しません。")
 
 def backup_database(db_path, backup_dir):
     if not os.path.exists(backup_dir):

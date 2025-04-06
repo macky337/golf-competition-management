@@ -302,19 +302,25 @@ def main_app():
             try:
                 # Gitコマンドを使用してmainブランチの最新コミット日時を取得
                 last_push = subprocess.check_output(
-                    ["git", "log", "-1", "--format=%ci", "main"],
+                    ["git", "rev-parse", "HEAD"],  # コミットハッシュを取得
+                    cwd=os.path.dirname(__file__)
+                ).decode('utf-8').strip()
+                
+                commit_date = subprocess.check_output(
+                    ["git", "show", "-s", "--format=%ci", last_push],
                     cwd=os.path.dirname(__file__)
                 ).decode('utf-8').strip()
                 
                 # 日付文字列をdatetimeオブジェクトに変換
-                last_push_datetime = datetime.strptime(last_push, "%Y-%m-%d %H:%M:%S %z")
+                last_push_datetime = datetime.strptime(commit_date, "%Y-%m-%d %H:%M:%S %z")
                 
                 # タイムゾーンをAsia/Tokyoに設定
                 jst = pytz.timezone('Asia/Tokyo')
                 last_push_jst = last_push_datetime.astimezone(jst)
                 
                 # 表示形式にフォーマット
-                st.write(last_push_jst.strftime("%Y-%m-%d %H:%M:%S"))
+                st.write(f"最終更新: {last_push_jst.strftime('%Y-%m-%d %H:%M:%S')} (JST)")
+                st.write(f"コミットID: {last_push[:7]}")  # 短いハッシュを表示
                 
             except subprocess.CalledProcessError:
                 st.write("最終更新日時の取得に失敗しました。Gitリポジトリが正しく設定されているか確認してください。")

@@ -25,6 +25,11 @@ import pytz
 import shutil
 import subprocess
 
+# Matplotlibの設定
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['MS Gothic']  # Windows用
+plt.style.use('default')
+
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"
 ADMIN_PASSWORD = "admin88"

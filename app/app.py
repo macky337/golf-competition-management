@@ -43,6 +43,31 @@ import pytz
 import json
 from supabase import create_client
 from dotenv import load_dotenv
+import subprocess
+
+# ファイル先頭付近に変数定義を追加
+APP_VERSION = "1.0.0"
+APP_LAST_UPDATE = "2025-04-06"
+
+# ページ最上部に追加（st.titleの前）
+st.markdown("""
+<style>
+    .footer-container {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.8);
+        border-top: 1px solid #ddd;
+        z-index: 999;
+    }
+    .footer-text {
+        font-size: 0.8rem;
+        color: #666;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # 環境変数の読み込み
 load_dotenv()
@@ -448,3 +473,66 @@ if not st.session_state.logged_in and not st.session_state.admin_logged_in:
     st.session_state.page = "login"
 
 page_router()
+
+# Supabase接続状況を取得
+def get_supabase_status():
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            # 軽量な接続テスト
+            test_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            test_client.table("players").select("count").limit(1).execute()
+            return "🟢 接続済"
+        except Exception:
+            return "🔴 未接続"
+    else:
+        return "🔴 設定なし"
+
+def get_git_revision():
+    """現在のGitリビジョン（コミットハッシュ）を取得する"""
+    try:
+        return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+    except Exception:
+        return "dev"  # Git情報が取得できない場合
+
+def get_git_date():
+    """最新コミットの日付を取得する"""
+    try:
+        return subprocess.check_output(['git', 'log', '-1', '--format=%cd', '--date=short']).decode('ascii').strip()
+    except Exception:
+        return APP_LAST_UPDATE  # Git情報が取得できない場合は固定の日付を返す
+
+# CSS調整（縦配置用）
+st.markdown("""
+<style>
+    .vertical-footer {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        z-index: 999;
+        text-align: right;
+        line-height: 1.5;
+    }
+    .footer-item {
+        font-size: 0.75rem;
+        color: #666;
+        display: block;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# フッターを右下に縦に配置
+connection_status = get_supabase_status()
+git_rev = get_git_revision()
+git_date = get_git_date()
+
+st.markdown(f"""
+<div class="vertical-footer">
+    <span class="footer-item">Ver {APP_VERSION} ({git_rev})</span>
+    <span class="footer-item">最終更新: {git_date}</span>
+    <span class="footer-item">Supabase: {connection_status}</span>
+</div>
+""", unsafe_allow_html=True)

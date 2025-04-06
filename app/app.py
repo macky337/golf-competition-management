@@ -47,7 +47,7 @@ from dotenv import load_dotenv
 import subprocess
 
 # ファイル先頭付近に変数定義を追加
-APP_VERSION = "1.0.6"
+APP_VERSION = "1.0.7"
 APP_LAST_UPDATE = "2025-04-06"
 
 # ページ最上部に追加（st.titleの前）
@@ -537,5 +537,7 @@ st.markdown(f"""
     <span class="footer-item">Supabase: {connection_status}</span>
 </div>
 """, unsafe_allow_html=True)
+
+
 
 

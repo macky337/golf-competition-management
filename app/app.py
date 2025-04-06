@@ -106,7 +106,10 @@ if "page" not in st.session_state:
 
 def get_supabase_client():
     """Supabaseクライアントを取得"""
-    # 接続情報のデバッグ表示を削除
+    # デバッグ情報を表示する（開発時のみ）
+    st.write("接続情報確認:")
+    st.write(f"URL設定: {'あり' if SUPABASE_URL else 'なし'}")
+    st.write(f"KEY設定: {'あり' if SUPABASE_KEY else 'なし'}")
     
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.error("Supabase接続情報が設定されていません。.streamlit/secrets.tomlまたは.envファイルを確認してください。")
@@ -116,7 +119,7 @@ def get_supabase_client():
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         # 接続テスト
         test_response = supabase.table("players").select("count").limit(1).execute()
-        # 接続成功メッセージも削除
+        st.success("Supabase接続成功！")
         return supabase
     except Exception as e:
         st.error(f"Supabase接続エラー: {e}")

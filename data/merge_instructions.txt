@@ -1,0 +1,22 @@
+# メインブランチに切り替え
+git checkout main
+
+# メインブランチを最新の状態に更新
+git pull origin main
+
+# feature-branch をメインブランチにマージ
+git merge feature-branch
+
+# コンフリクトが発生した場合は解決し、変更をステージングしてコミット
+git add .
+git commit -m "コンフリクトを解決"
+
+# メインブランチをリモートリポジトリにプッシュ
+git push origin main
+
+# 古いブランチを削除
+git branch -d feature-branch
+git push origin --delete feature-branch
+
+# 新しいブランチを作成して開発を続ける
+git checkout -b feature-branch

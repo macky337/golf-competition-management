@@ -1,20 +1,21 @@
+﻿# -*- coding: utf-8 -*-
 """
 88会ゴルフコンペ・スコア管理システム (Supabase版)
 
 このスクリプトは、88会ゴルフコンペのスコアを管理するためのStreamlitアプリケーションです。
-ユーザーはスコアデータを閲覧し、データの集計や可視化を行うことができます。
+ユーザーはスコアデータを閲覧し、データの分析や可視化を行うことができます。
 また、管理者はデータベースのバックアップおよびリストアを行うことができます。
 
 機能:
 - ユーザー認証
 - スコアデータの取得と表示
-- データの集計と可視化
+- データの分析と可視化
 - 優勝回数ランキングの表示
 - データベースのバックアップとリストア
 
 使用方法:
 1. Streamlitをインストールします。
-2. このスクリプトを実行します: `streamlit run app_supabase.py`
+2. このスクリプトを実行します `streamlit run app.py`
 3. ブラウザで表示されるアプリケーションにアクセスします。
 
 必要なライブラリ:
@@ -29,8 +30,8 @@
 - dotenv
 
 ログイン情報:
-- ユーザー用パスワード: "88"
-- 管理者用パスワード: "admin88"
+- ユーザー用パスワード "88"
+- 管理者用パスワード "admin88"
 """
 
 import os
@@ -46,7 +47,7 @@ from dotenv import load_dotenv
 import subprocess
 
 # ファイル先頭付近に変数定義を追加
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.6"
 APP_LAST_UPDATE = "2025-04-06"
 
 # ページ最上部に追加（st.titleの前）
@@ -94,7 +95,7 @@ if "logged_in" not in st.session_state:
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 if "page" not in st.session_state:
-    st.session_state.page = "login"  # デフォルトはログイン画面
+    st.session_state.page = "login"  # デフォルト：ログイン画面
 
 def get_supabase_client():
     """Supabaseクライアントを取得"""
@@ -175,7 +176,7 @@ def fetch_players():
         return pd.DataFrame()
 
 def display_aggregations(scores_df):
-    st.subheader("データ集計")
+    st.subheader("データ分析")
     
     st.markdown("### 総合ランキング")
     if "プレイヤー名" in scores_df.columns and "合計スコア" in scores_df.columns:
@@ -186,7 +187,7 @@ def display_aggregations(scores_df):
         ax = overall_ranking.plot(kind='bar', color='skyblue')
         plt.xlabel("プレイヤー名")
         plt.ylabel("平均合計スコア")
-        plt.title("プレイヤーごとの平均合計スコア (昇順)")
+        plt.title("プレイヤーごとの平均合計スコア (低いほど良い)")
         plt.xticks(rotation=45, ha='right')
         
         for container in ax.containers:
@@ -327,7 +328,7 @@ def restore_database():
             supabase.table("competitions").insert(backup_data["competitions"]).execute()
             supabase.table("players").insert(backup_data["players"]).execute()
             
-            # スコアデータは量が多い可能性があるのでチャンクに分割
+            # スコアデータは量が多い可能性があるのでチャンクに分ける
             scores = backup_data["scores"]
             chunk_size = 100
             for i in range(0, len(scores), chunk_size):
@@ -536,3 +537,5 @@ st.markdown(f"""
     <span class="footer-item">Supabase: {connection_status}</span>
 </div>
 """, unsafe_allow_html=True)
+
+

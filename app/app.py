@@ -47,9 +47,17 @@ from dotenv import load_dotenv
 # 環境変数の読み込み
 load_dotenv()
 
-# Supabase接続情報
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Supabase接続情報 - Streamlit secretsと環境変数の両方をサポート
+try:
+    # まずStreamlit secretsを試す
+    SUPABASE_URL = st.secrets["supabase"]["url"]
+    SUPABASE_KEY = st.secrets["supabase"]["key"]
+    print("Streamlit secretsからSupabase接続情報を読み込みました")
+except Exception:
+    # 次に環境変数を試す
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    print("環境変数からSupabase接続情報を読み込みました")
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"
@@ -65,12 +73,28 @@ if "page" not in st.session_state:
 
 def get_supabase_client():
     """Supabaseクライアントを取得"""
+    st.write("Supabase接続情報の確認中...")
+    
+    # 接続情報の一部を表示（セキュリティを考慮）
+    if SUPABASE_URL:
+        st.write(f"URL: {SUPABASE_URL[:15]}...（セキュリティのため一部のみ表示）")
+    else:
+        st.write("URL: 設定されていません")
+        
+    if SUPABASE_KEY:
+        st.write(f"KEY: {SUPABASE_KEY[:5]}...（セキュリティのため一部のみ表示）")
+    else:
+        st.write("KEY: 設定されていません")
+    
     if not SUPABASE_URL or not SUPABASE_KEY:
-        st.error("Supabase接続情報が設定されていません。.envファイルを確認してください。")
+        st.error("Supabase接続情報が設定されていません。.streamlit/secrets.tomlまたは.envファイルを確認してください。")
         return None
     
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        # 接続テスト
+        test_response = supabase.table("players").select("count").limit(1).execute()
+        st.success(f"Supabase接続成功！")
         return supabase
     except Exception as e:
         st.error(f"Supabase接続エラー: {e}")
@@ -374,7 +398,11 @@ def main_app():
         jst = pytz.timezone('Asia/Tokyo')
         st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
     else:
-        st.warning("データの取得に失敗したか、データが存在しません。")
+        if scores_df.empty:
+            st.warning("スコアデータが取得できませんでした。")
+        if players_df.empty:
+            st.warning("プレイヤーデータが取得できませんでした。")
+        st.error("データの取得に失敗しました。Supabase接続情報とRLS設定を確認してください。")
     
     if st.button("設定画面へ"):
         st.session_state.page = "admin"

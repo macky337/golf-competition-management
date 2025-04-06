@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 88会ゴルフコンペ・スコア管理システム (Supabase版)
 
@@ -106,20 +106,15 @@ if "page" not in st.session_state:
 
 def get_supabase_client():
     """Supabaseクライアントを取得"""
-    # デバッグ情報を表示する（開発時のみ）
-    st.write("接続情報確認:")
-    st.write(f"URL設定: {'あり' if SUPABASE_URL else 'なし'}")
-    st.write(f"KEY設定: {'あり' if SUPABASE_KEY else 'なし'}")
-    
+    # デバッグ情報は本番環境では非表示にする
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.error("Supabase接続情報が設定されていません。.streamlit/secrets.tomlまたは.envファイルを確認してください。")
         return None
     
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        # 接続テスト
+        # 接続テスト（静かに実行、成功メッセージは表示しない）
         test_response = supabase.table("players").select("count").limit(1).execute()
-        st.success("Supabase接続成功！")
         return supabase
     except Exception as e:
         st.error(f"Supabase接続エラー: {e}")
@@ -132,12 +127,29 @@ def fetch_scores():
         return pd.DataFrame()
     
     try:
+        # スコアデータを取得
+        st.info("スコアデータを取得中...")
         response = supabase.table("scores").select("*").execute()
+        
+        # レスポンスの検証
+        if not response.data:
+            st.warning("スコアデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
+            return pd.DataFrame()
+        
         scores = response.data
+        st.success(f"スコアデータ取得成功: {len(scores)}件")
         
         # プレイヤー情報を取得
+        st.info("プレイヤーデータを取得中...")
         players_response = supabase.table("players").select("*").execute()
-        players = {player["id"]: player["name"] for player in players_response.data}
+        
+        # プレイヤーレスポンスの検証
+        if not players_response.data:
+            st.warning("プレイヤーデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
+            players = {}
+        else:
+            players = {player["id"]: player["name"] for player in players_response.data}
+            st.success(f"プレイヤーデータ取得成功: {len(players)}件")
         
         # スコアデータを整形
         scores_list = []
@@ -158,7 +170,7 @@ def fetch_scores():
         
         return pd.DataFrame(scores_list)
     except Exception as e:
-        st.error(f"データ取得エラー: {e}")
+        st.error(f"データ取得エラー詳細: {type(e).__name__} - {e}")
         return pd.DataFrame()
 
 def fetch_players():
@@ -168,10 +180,18 @@ def fetch_players():
         return pd.DataFrame()
     
     try:
+        st.info("プレイヤーマスターデータを取得中...")
         response = supabase.table("players").select("*").execute()
+        
+        # レスポンスの検証
+        if not response.data:
+            st.warning("プレイヤーマスターデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
+            return pd.DataFrame()
+        
+        st.success(f"プレイヤーマスターデータ取得成功: {len(response.data)}件")
         return pd.DataFrame(response.data)
     except Exception as e:
-        st.error(f"プレイヤーデータ取得エラー: {e}")
+        st.error(f"プレイヤーデータ取得エラー詳細: {type(e).__name__} - {e}")
         return pd.DataFrame()
 
 def display_aggregations(scores_df):
@@ -398,25 +418,52 @@ def main_app():
         # 競技IDが41でないデータのみを対象にする
         filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
         
-        # 合計スコアでソートし、トップ10を取得
-        best_gross_scores = filtered_scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
-        best_gross_scores.index += 1
-        best_gross_scores.index.name = '順位'
+        # 合計スコアが0以上のデータのみを対象にする（不正なデータの除外）
+        filtered_scores_df = filtered_scores_df[filtered_scores_df["合計スコア"] > 0]
         
-        # ベストグロススコアトップ10のフォーマットを適用
-        st.dataframe(
-            best_gross_scores.style.format({
-                "ハンディキャップ": "{:.2f}",
-                "ネットスコア": "{:.2f}",
-                "アウトスコア": "{:.0f}",
-                "インスコア": "{:.0f}",
-                "合計スコア": "{:.0f}",
-                "順位": "{:.0f}",
-                "競技ID": "{:.0f}"
-            }), 
-            height=None, 
-            use_container_width=True
-        )
+        # 各プレイヤーのベストスコア（最小の合計スコア）を取得
+        best_player_scores = filtered_scores_df.groupby("プレイヤー名")["合計スコア"].min().reset_index()
+        
+        # プレイヤーごとのベストスコアを合計スコアでソート（昇順）し、トップ10を取得
+        best_gross_scores = best_player_scores.sort_values(by="合計スコア").head(10).reset_index(drop=True)
+        
+        # 各ベストスコアの詳細情報を取得
+        best_scores_with_details = []
+        for _, row in best_gross_scores.iterrows():
+            player_name = row["プレイヤー名"]
+            best_score = row["合計スコア"]
+            
+            # 該当プレイヤーの該当スコアの詳細データを検索（最初の一致を使用）
+            player_best_score_records = filtered_scores_df[
+                (filtered_scores_df["プレイヤー名"] == player_name) & 
+                (filtered_scores_df["合計スコア"] == best_score)
+            ]
+            
+            if not player_best_score_records.empty:
+                best_scores_with_details.append(player_best_score_records.iloc[0].to_dict())
+        
+        # データフレームに変換し、インデックスを1から始める連番に設定
+        if best_scores_with_details:
+            best_gross_scores_detailed = pd.DataFrame(best_scores_with_details).reset_index(drop=True)
+            best_gross_scores_detailed.index += 1
+            best_gross_scores_detailed.index.name = '順位'
+            
+            # ベストグロススコアトップ10のフォーマットを適用
+            st.dataframe(
+                best_gross_scores_detailed.style.format({
+                    "ハンディキャップ": "{:.2f}",
+                    "ネットスコア": "{:.2f}",
+                    "アウトスコア": "{:.0f}",
+                    "インスコア": "{:.0f}",
+                    "合計スコア": "{:.0f}",
+                    "順位": "{:.0f}",
+                    "競技ID": "{:.0f}"
+                }), 
+                height=None, 
+                use_container_width=True
+            )
+        else:
+            st.warning("有効なスコアデータが見つかりませんでした。")
         
         # 最終更新日時を表示
         st.subheader("最終更新日時")

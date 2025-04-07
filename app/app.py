@@ -265,7 +265,7 @@ def backup_database():
     if not os.path.exists(backup_dir):
         # 一つ上の階層のbackupディレクトリを試す
         parent_backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backup'))
-        if os.path.exists(parent_backup_dir):
+        if (os.path.exists(parent_backup_dir)):
             backup_dir = parent_backup_dir
         else:
             os.makedirs(backup_dir)
@@ -348,6 +348,7 @@ def restore_database():
         return
     
     # リストア方法の選択
+    st.subheader("データベースのリストア")
     restore_method = st.radio(
         "リストア方法を選択してください:",
         ["ローカルJSONファイルから", "Supabaseバックアップテーブルから"]
@@ -392,35 +393,65 @@ def restore_database():
     
     else:  # Supabaseバックアップテーブルから
         try:
-            # backupsテーブルからバックアップ一覧を取得
-            response = supabase.table("backups").select("id, backup_id, backup_date").order('backup_date', desc=True).execute()
-            backups = response.data
-            
-            if not backups:
-                st.warning("Supabaseバックアップテーブルにバックアップが見つかりません。")
-                return
-            
-            # バックアップ選択用のオプションリストを作成
-            backup_options = [f"{b['backup_id']} ({b['backup_date']})" for b in backups]
-            selected_backup_option = st.selectbox("リストアするバックアップを選択してください", backup_options)
-            
-            if st.button("リストア実行"):
-                # 選択されたバックアップのIDを取得
-                selected_backup_id = selected_backup_option.split(" ")[0]
+            # backupsテーブルの存在確認を先に行う
+            try:
+                # backupsテーブルからバックアップ一覧を取得
+                response = supabase.table("backups").select("id, backup_id, backup_date").order('backup_date', desc=True).execute()
+                backups = response.data
                 
-                # 選択されたバックアップのデータを取得
-                backup_response = supabase.table("backups").select("data").eq("backup_id", selected_backup_id).execute()
-                
-                if not backup_response.data:
-                    st.error("選択されたバックアップが見つかりません。")
+                if not backups:
+                    st.warning("Supabaseバックアップテーブルにバックアップが見つかりません。")
+                    st.info("先にバックアップを実行するか、Supabase管理画面でbackupsテーブルが正しく設定されているか確認してください。")
                     return
                 
-                backup_data = backup_response.data[0]["data"]
+                # バックアップ選択用のオプションリストを作成
+                backup_options = [f"{b['backup_id']} ({b['backup_date']})" for b in backups]
+                selected_backup_option = st.selectbox("リストアするバックアップを選択してください", backup_options)
                 
-                # リストア処理を実行
-                perform_restore(backup_data)
-                
-                st.success(f"Supabaseバックアップテーブルからデータがリストアされました: {selected_backup_option}")
+                if st.button("リストア実行"):
+                    # 選択されたバックアップのIDを取得
+                    selected_backup_id = selected_backup_option.split(" ")[0]
+                    
+                    # 選択されたバックアップのデータを取得
+                    backup_response = supabase.table("backups").select("data").eq("backup_id", selected_backup_id).execute()
+                    
+                    if not backup_response.data:
+                        st.error("選択されたバックアップが見つかりません。")
+                        return
+                    
+                    backup_data = backup_response.data[0]["data"]
+                    
+                    # リストア処理を実行
+                    perform_restore(backup_data)
+                    
+                    st.success(f"Supabaseバックアップテーブルからデータがリストアされました: {selected_backup_option}")
+            
+            except Exception as table_error:
+                # バックアップテーブルが存在しない場合やアクセス権限がない場合
+                st.warning("Supabaseバックアップテーブルにアクセスできないか、テーブルが存在しません。")
+                st.error(f"エラー詳細: {table_error}")
+                st.info("以下のSQLクエリをSupabaseの管理画面で実行してbackupsテーブルを作成してください:")
+                st.code("""
+-- テーブルの作成
+CREATE TABLE IF NOT EXISTS backups (
+    id serial PRIMARY KEY,
+    backup_id text NOT NULL,
+    backup_date text NOT NULL,
+    data jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- RLSを有効化
+ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
+
+-- 既存のポリシーがある場合は削除
+DROP POLICY IF EXISTS "管理者のみbackupsテーブルにアクセス可能" ON backups;
+
+-- 管理者のみがアクセスできるポリシーを作成
+CREATE POLICY "管理者のみbackupsテーブルにアクセス可能" ON backups
+    USING (auth.role() = 'authenticated');
+                """, language="sql")
+        
         except Exception as e:
             st.error(f"Supabaseバックアップからのリストア中にエラーが発生しました: {e}")
             import traceback
@@ -563,22 +594,34 @@ def main_app():
 def admin_app():
     st.title("管理者設定画面")
     
-    # バックアップボタン
-    if st.button("データベースをバックアップ"):
-        backup_database()
+    # タブを追加してUIを整理
+    tabs = st.tabs(["バックアップ", "リストア", "その他"])
     
-    # リストアセクション
-    st.subheader("データベースのリストア")
-    restore_database()
+    with tabs[0]:
+        st.subheader("データベースのバックアップ")
+        if st.button("データベースをバックアップ"):
+            backup_database()
     
-    if st.button("本体画面へ"):
-        st.session_state.page = "main"
-        st.rerun()  # ページを強制的に再読み込み
+    with tabs[1]:
+        # リストアセクションはタブに移動
+        restore_database()
     
-    if st.button("ログアウト"):
-        st.session_state.admin_logged_in = False
-        st.session_state.page = "login"
-        st.rerun()  # ページを強制的に再読み込み
+    with tabs[2]:
+        st.subheader("その他の設定")
+        # 将来的に追加される可能性のある設定用のスペース
+    
+    # ナビゲーションボタン
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("本体画面へ"):
+            st.session_state.page = "main"
+            st.rerun()  # ページを強制的に再読み込み
+    
+    with col2:
+        if st.button("ログアウト"):
+            st.session_state.admin_logged_in = False
+            st.session_state.page = "login"
+            st.rerun()  # ページを強制的に再読み込み
 
 def page_router():
     if st.session_state.page == "main":

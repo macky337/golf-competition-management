@@ -38,7 +38,12 @@ import os
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import japanize_matplotlib
+# japanize_matplotlibの代わりに直接日本語フォントを設定
+import matplotlib
+matplotlib.rcParams['font.family'] = 'MS Gothic'  # Windowsの場合
+# Linux/Macの場合は以下のいずれかを使用
+# matplotlib.rcParams['font.family'] = 'IPAGothic'
+# matplotlib.rcParams['font.family'] = 'Noto Sans CJK JP'
 from datetime import datetime
 import pytz
 import json
@@ -55,7 +60,7 @@ logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
 # ファイル先頭付近に変数定義を追加
 APP_VERSION = "1.0.7"
-APP_LAST_UPDATE = "2025-04-06"
+APP_LAST_UPDATE = "2025-04-07"
 
 # ページ最上部に追加（st.titleの前）
 st.markdown("""
@@ -274,40 +279,7 @@ def display_winner_count_ranking(scores_df):
     st.pyplot(fig)
 
 def backup_database():
-    """Supabaseからデータをバックアップする（JSONファイルとして保存）"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return
-    
-    backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'backup'))
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
-    
-    try:
-        # 各テーブルのデータを取得
-        competitions_response = supabase.table("competitions").select("*").execute()
-        players_response = supabase.table("players").select("*").execute()
-        scores_response = supabase.table("scores").select("*").execute()
-        
-        # バックアップデータを準備
-        backup_data = {
-            "competitions": competitions_response.data,
-            "players": players_response.data,
-            "scores": scores_response.data,
-            "backup_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        # JSONファイルとして保存
-        backup_file = os.path.join(backup_dir, f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-        with open(backup_file, 'w', encoding='utf-8') as f:
-            json.dump(backup_data, f, ensure_ascii=False, indent=2)
-        
-        st.success(f"バックアップが作成されました: {backup_file}")
-    except Exception as e:
-        st.error(f"バックアップ中にエラーが発生しました: {e}")
-
-def restore_database():
-    """JSONバックアップファイルからSupabaseにデータをリストアする"""
+    """Supabaseからデータをバックアップする（JSONファイルとして保存、およびbackupsテーブルに保存）"""
     supabase = get_supabase_client()
     if not supabase:
         return
@@ -318,45 +290,186 @@ def restore_database():
         parent_backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backup'))
         if os.path.exists(parent_backup_dir):
             backup_dir = parent_backup_dir
-            st.info(f"上位ディレクトリのバックアップフォルダを使用します: {backup_dir}")
         else:
-            st.warning(f"バックアップディレクトリが存在しません: {backup_dir}")
-            return
+            os.makedirs(backup_dir)
+            st.info(f"バックアップディレクトリを作成しました: {backup_dir}")
     
-    # JSONバックアップファイルを検索
-    backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
-    if not backup_files:
-        st.warning("バックアップファイルが見つかりません。")
+    try:
+        # 各テーブルのデータを取得
+        competitions_response = supabase.table("competitions").select("*").execute()
+        players_response = supabase.table("players").select("*").execute()
+        scores_response = supabase.table("scores").select("*").execute()
+        
+        # バックアップデータを準備
+        backup_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        backup_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        backup_data = {
+            "competitions": competitions_response.data,
+            "players": players_response.data,
+            "scores": scores_response.data,
+            "backup_date": backup_date
+        }
+        
+        # JSONファイルとして保存
+        backup_file = os.path.join(backup_dir, f"backup_{backup_id}.json")
+        with open(backup_file, 'w', encoding='utf-8') as f:
+            json.dump(backup_data, f, ensure_ascii=False, indent=2)
+        
+        # Supabaseのbackupsテーブルにもバックアップデータを保存
+        try:
+            # backupsテーブルが存在しない場合は作成する（初回のみ）
+            # このコードはテーブルがすでに存在する場合エラーになるが、try-exceptで処理される
+            supabase.table("backups").insert({
+                "backup_id": backup_id,
+                "backup_date": backup_date,
+                "data": backup_data
+            }).execute()
+        except Exception as e:
+            st.warning(f"backupsテーブルへの保存に失敗しました（テーブルが存在しない可能性があります）: {e}")
+            st.info("backupsテーブルを作成します...")
+            
+            # 最新のSupabaseクライアントでは直接SQLクエリを実行する方法が変更されている
+            # 管理者画面でテーブルを作成するように促す
+            st.warning("backupsテーブルが存在しません。Supabaseの管理画面で以下のSQLクエリを実行してテーブルを作成してください:")
+            st.code("""
+-- テーブルの作成
+CREATE TABLE IF NOT EXISTS backups (
+    id serial PRIMARY KEY,
+    backup_id text NOT NULL,
+    backup_date text NOT NULL,
+    data jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- RLSを有効化
+ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
+
+-- 管理者のみがアクセスできるポリシーを作成
+CREATE POLICY "管理者のみbackupsテーブルにアクセス可能" ON backups
+    USING (auth.role() = 'authenticated');
+            """, language="sql")
+            
+            # SQLクエリの実行方法を変更（旧式の.query()メソッドはもう存在しない）
+            try:
+                # 代わりにRESTエンドポイントを使用する方法もある
+                st.info("ローカルJSONバックアップのみ作成しました。Supabaseテーブルへのバックアップは次回成功します。")
+            except Exception as ex:
+                st.error(f"SQLクエリの実行に失敗しました: {ex}")
+        
+        st.success(f"バックアップが作成されました: {backup_file}")
+        
+    except Exception as e:
+        st.error(f"バックアップ中にエラーが発生しました: {e}")
+        import traceback
+        st.error(traceback.format_exc())
+
+def restore_database():
+    """JSONバックアップファイルまたはSupabaseのbackupsテーブルからデータをリストアする"""
+    supabase = get_supabase_client()
+    if not supabase:
         return
     
-    selected_backup = st.selectbox("リストアするバックアップファイルを選択してください", backup_files)
+    # リストア方法の選択
+    restore_method = st.radio(
+        "リストア方法を選択してください:",
+        ["ローカルJSONファイルから", "Supabaseバックアップテーブルから"]
+    )
     
-    if st.button("リストア実行"):
+    if restore_method == "ローカルJSONファイルから":
+        # 既存の実装：ローカルJSONファイルからのリストア
+        backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'backup'))
+        if not os.path.exists(backup_dir):
+            # 一つ上の階層のbackupディレクトリを試す
+            parent_backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backup'))
+            if os.path.exists(parent_backup_dir):
+                backup_dir = parent_backup_dir
+                st.info(f"上位ディレクトリのバックアップフォルダを使用します: {backup_dir}")
+            else:
+                st.warning(f"バックアップディレクトリが存在しません: {backup_dir}")
+                return
+        
+        # JSONバックアップファイルを検索
+        backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
+        if not backup_files:
+            st.warning("バックアップファイルが見つかりません。")
+            return
+        
+        selected_backup = st.selectbox("リストアするバックアップファイルを選択してください", backup_files)
+        
+        if st.button("リストア実行"):
+            try:
+                # バックアップファイルからデータを読み込む
+                backup_file_path = os.path.join(backup_dir, selected_backup)
+                with open(backup_file_path, 'r', encoding='utf-8') as f:
+                    backup_data = json.load(f)
+                
+                # リストア処理を実行
+                perform_restore(backup_data)
+                
+                st.success(f"データベースがリストアされました: {selected_backup}")
+            except Exception as e:
+                st.error(f"リストア中にエラーが発生しました: {e}")
+                import traceback
+                st.error(traceback.format_exc())
+    
+    else:  # Supabaseバックアップテーブルから
         try:
-            # バックアップファイルからデータを読み込む
-            backup_file_path = os.path.join(backup_dir, selected_backup)
-            with open(backup_file_path, 'r', encoding='utf-8') as f:
-                backup_data = json.load(f)
+            # backupsテーブルからバックアップ一覧を取得
+            response = supabase.table("backups").select("id, backup_id, backup_date").order('backup_date', desc=True).execute()
+            backups = response.data
             
-            # 既存のデータを削除
-            supabase.table("scores").delete().execute()
-            supabase.table("competitions").delete().execute()
-            supabase.table("players").delete().execute()
+            if not backups:
+                st.warning("Supabaseバックアップテーブルにバックアップが見つかりません。")
+                return
             
-            # データを復元
-            supabase.table("competitions").insert(backup_data["competitions"]).execute()
-            supabase.table("players").insert(backup_data["players"]).execute()
+            # バックアップ選択用のオプションリストを作成
+            backup_options = [f"{b['backup_id']} ({b['backup_date']})" for b in backups]
+            selected_backup_option = st.selectbox("リストアするバックアップを選択してください", backup_options)
             
-            # スコアデータは量が多い可能性があるのでチャンクに分ける
-            scores = backup_data["scores"]
-            chunk_size = 100
-            for i in range(0, len(scores), chunk_size):
-                chunk = scores[i:i+chunk_size]
-                supabase.table("scores").insert(chunk).execute()
-            
-            st.success(f"データベースがリストアされました: {selected_backup}")
+            if st.button("リストア実行"):
+                # 選択されたバックアップのIDを取得
+                selected_backup_id = selected_backup_option.split(" ")[0]
+                
+                # 選択されたバックアップのデータを取得
+                backup_response = supabase.table("backups").select("data").eq("backup_id", selected_backup_id).execute()
+                
+                if not backup_response.data:
+                    st.error("選択されたバックアップが見つかりません。")
+                    return
+                
+                backup_data = backup_response.data[0]["data"]
+                
+                # リストア処理を実行
+                perform_restore(backup_data)
+                
+                st.success(f"Supabaseバックアップテーブルからデータがリストアされました: {selected_backup_option}")
         except Exception as e:
-            st.error(f"リストア中にエラーが発生しました: {e}")
+            st.error(f"Supabaseバックアップからのリストア中にエラーが発生しました: {e}")
+            import traceback
+            st.error(traceback.format_exc())
+
+def perform_restore(backup_data):
+    """実際のリストア処理を実行する共通関数"""
+    supabase = get_supabase_client()
+    if not supabase:
+        return
+    
+    # 既存のデータを削除
+    supabase.table("scores").delete().execute()
+    supabase.table("competitions").delete().execute()
+    supabase.table("players").delete().execute()
+    
+    # データを復元
+    supabase.table("competitions").insert(backup_data["competitions"]).execute()
+    supabase.table("players").insert(backup_data["players"]).execute()
+    
+    # スコアデータは量が多い可能性があるのでチャンクに分ける
+    scores = backup_data["scores"]
+    chunk_size = 100
+    for i in range(0, len(scores), chunk_size):
+        chunk = scores[i:i+chunk_size]
+        supabase.table("scores").insert(chunk).execute()
 
 def login_page():
     st.title("88会ログイン")

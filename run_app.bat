@@ -1,28 +1,40 @@
 @echo off
-:: filepath: c:\Users\user\Documents\GitHub\golf-competition-management\run_app.bat
-:: 88会ゴルフコンペ管理システム起動バッチファイル
+echo 88会ゴルフコンペ・スコア管理システム - アプリケーション起動
+echo =============================================
 
-echo 88会ゴルフコンペ管理システムを起動します...
-echo.
+REM 現在のディレクトリをバッチファイルの場所に設定
+cd /d %~dp0
 
-:: 仮想環境が存在するか確認
-if not exist venv (
-    echo 仮想環境が見つかりません。setup_venv.ps1を実行してください。
+REM 仮想環境を有効化
+if exist .venv\Scripts\activate.bat (
+    echo 仮想環境を有効化しています...
+    call .venv\Scripts\activate.bat
+) else if exist venv\Scripts\activate.bat (
+    echo 仮想環境を有効化しています...
+    call venv\Scripts\activate.bat
+) else (
+    echo 警告: 仮想環境が見つかりません。
+    echo 最初に setup_env.bat を実行してください。
+    pause
     exit /b 1
 )
 
-:: 仮想環境をアクティベート
-call venv\Scripts\activate.bat
-
-:: アクティベートに成功したか確認
-if not defined VIRTUAL_ENV (
-    echo 仮想環境のアクティベートに失敗しました。
-    exit /b 1
+REM .streamlitディレクトリがなければ作成
+if not exist .streamlit (
+    mkdir .streamlit
+    echo .streamlitディレクトリを作成しました。
 )
 
-:: アプリケーション起動
+REM secrets.tomlがなければサンプルを作成
+if not exist .streamlit\secrets.toml (
+    echo [supabase] > .streamlit\secrets.toml
+    echo url = "あなたのSupabaseのURL" >> .streamlit\secrets.toml
+    echo key = "あなたのSupabaseのAPIキー" >> .streamlit\secrets.toml
+    echo .streamlit\secrets.toml を作成しました。実際の接続情報で更新してください。
+)
+
+REM アプリケーションを起動
 echo アプリケーションを起動しています...
-streamlit run app.py
+streamlit run app\app.py
 
-:: 終了時に仮想環境を非アクティベート
-call deactivate
+pause

@@ -342,6 +342,7 @@ def login_page():
         if password == USER_PASSWORD:
             st.session_state.logged_in = True
             st.session_state.page = "main"
+            st.rerun()  # ページを強制的に再読み込み
         else:
             st.error("パスワードが間違っています")
 
@@ -352,6 +353,7 @@ def admin_login_page():
         if password == ADMIN_PASSWORD:
             st.session_state.admin_logged_in = True
             st.session_state.page = "admin"
+            st.rerun()  # ページを強制的に再読み込み
         else:
             st.error("パスワードが間違っています")
 
@@ -395,6 +397,16 @@ def main_app():
         # 競技IDが41でないデータのみを対象にする
         filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
         
+        # 合計スコアが0または欠損値のデータを除外する
+        filtered_scores_df = filtered_scores_df[
+            (filtered_scores_df["合計スコア"] > 0) & 
+            (~filtered_scores_df["合計スコア"].isna()) &
+            (filtered_scores_df["アウトスコア"] > 0) & 
+            (~filtered_scores_df["アウトスコア"].isna()) &
+            (filtered_scores_df["インスコア"] > 0) & 
+            (~filtered_scores_df["インスコア"].isna())
+        ]
+        
         # 合計スコアでソートし、トップ10を取得
         best_gross_scores = filtered_scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
         best_gross_scores.index += 1
@@ -428,10 +440,12 @@ def main_app():
     
     if st.button("設定画面へ"):
         st.session_state.page = "admin"
+        st.rerun()  # ページを強制的に再読み込み
     
     if st.button("ログアウト"):
         st.session_state.logged_in = False
         st.session_state.page = "login"
+        st.rerun()  # ページを強制的に再読み込み
 
 def admin_app():
     st.title("管理者設定画面")
@@ -446,10 +460,12 @@ def admin_app():
     
     if st.button("本体画面へ"):
         st.session_state.page = "main"
+        st.rerun()  # ページを強制的に再読み込み
     
     if st.button("ログアウト"):
         st.session_state.admin_logged_in = False
         st.session_state.page = "login"
+        st.rerun()  # ページを強制的に再読み込み
 
 def page_router():
     if st.session_state.page == "main":

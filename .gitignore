@@ -2,6 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyd
+*.pyo
+**/**.cpython-*
 
 # C extensions
 *.so
@@ -17,33 +21,19 @@ eggs/
 # 仮想環境
 venv/
 .venv/
+**/venv/
+**/.venv/
 
 # データベース
 data/golf_competition.db
 
-# Excel一時ファイル
+# Excel 一時ファイル
 data/~$*.xlsx
 
-# 他のパターン
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-eggs/
-*.egg
-venv/
-.venv/
-scripts/__pycache__/
+# システムファイル
+**/*~
+**/.DS_Store
 
-# 環境変数と機密情報
-.env
-.env.*
-.streamlit/
-.streamlit/*
-*.toml
-!pyproject.toml
-!poetry.toml
+# Jupyter Notebook
+**/*.ipynb_checkpoints/
+**/*.ipynb_checkpoints/**

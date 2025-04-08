@@ -167,21 +167,44 @@ def fetch_scores():
         # スコアデータを整形
         scores_list = []
         for score in scores:
+            # null/Noneチェックを追加
+            out_score = score["out_score"] if score["out_score"] is not None else 0
+            in_score = score["in_score"] if score["in_score"] is not None else 0
+            
+            # 合計スコアを計算（両方のスコアが有効な場合のみ）
+            if out_score > 0 and in_score > 0:
+                total_score = out_score + in_score
+            else:
+                total_score = None  # 無効な場合はNoneを設定
+            
             score_dict = {
                 "競技ID": score["competition_id"],
                 "日付": score["date"],
                 "コース": score["course"],
                 "プレイヤー名": players.get(score["player_id"], "不明"),
-                "アウトスコア": score["out_score"],
-                "インスコア": score["in_score"],
-                "合計スコア": score["out_score"] + score["in_score"],
+                "アウトスコア": out_score,
+                "インスコア": in_score,
+                "合計スコア": total_score,
                 "ハンディキャップ": score["handicap"],
                 "ネットスコア": score["net_score"],
                 "順位": score["ranking"]
             }
             scores_list.append(score_dict)
         
-        return pd.DataFrame(scores_list)
+        # データフレームに変換
+        result_df = pd.DataFrame(scores_list)
+        
+        # デバッグ情報（開発中のみ使用）
+        # 異常値の確認（本番環境では削除またはコメントアウト）
+        """
+        for player in result_df['プレイヤー名'].unique():
+            player_data = result_df[result_df['プレイヤー名'] == player]
+            if player_data['合計スコア'].isnull().all() or (player_data['合計スコア'] == 0).all():
+                print(f"警告: {player}のスコアがすべてnullまたは0です")
+                print(player_data[['アウトスコア', 'インスコア', '合計スコア']])
+        """
+            
+        return result_df
     except Exception as e:
         st.error(f"データ取得エラー詳細: {type(e).__name__} - {e}")
         return pd.DataFrame()
@@ -212,18 +235,47 @@ def display_aggregations(scores_df):
     
     st.markdown("### 総合ランキング")
     if "プレイヤー名" in scores_df.columns and "合計スコア" in scores_df.columns:
+        # データのフィルタリングを強化
+        # 合計スコアが0または異常に低い値、または欠損値のデータを除外
         valid_scores_df = scores_df.dropna(subset=["合計スコア"])
+        valid_scores_df = valid_scores_df[
+            (valid_scores_df["合計スコア"] >= 50) &  # スコアの最小妥当値（通常は50以上が妥当）
+            (valid_scores_df["アウトスコア"] > 0) & 
+            (valid_scores_df["インスコア"] > 0)
+        ]
+        
+        # 平均スコアの計算
         overall_ranking = valid_scores_df.groupby("プレイヤー名")["合計スコア"].mean().sort_values(ascending=True)
         
-        plt.figure(figsize=(10,6))
-        ax = overall_ranking.plot(kind='bar', color='skyblue')
-        plt.xlabel("プレイヤー名")
-        plt.ylabel("平均合計スコア")
-        plt.title("プレイヤーごとの平均合計スコア (低いほど良い)")
-        plt.xticks(rotation=45, ha='right')
+        # プレイヤー数に基づいてグラフの幅を動的に調整
+        fig_width = max(10, len(overall_ranking) * 0.5)  # 最小幅は10インチ
         
-        for container in ax.containers:
-            ax.bar_label(container, fmt='%.2f', padding=3)
+        plt.figure(figsize=(fig_width, 8))
+        ax = plt.gca()
+        
+        # 垂直棒グラフに変更（横棒ではなく縦棒）
+        bars = ax.bar(overall_ranking.index, overall_ranking.values, color='skyblue')
+        
+        # グラフのタイトルと軸ラベルを設定
+        plt.title("プレイヤーごとの平均合計スコア (低いほど良い)", fontsize=14, pad=20)
+        plt.ylabel("平均合計スコア", fontsize=12)
+        plt.xlabel("プレイヤー名", fontsize=12)
+        
+        # X軸（プレイヤー名）のフォントサイズと回転を調整
+        plt.xticks(rotation=45, ha='right', fontsize=10)
+        
+        # Y軸（スコア）のフォントサイズと間隔を調整
+        plt.yticks(fontsize=10)
+        
+        # 各バーにスコア値を表示
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2, height + 0.5, f'{height:.2f}',
+                    ha='center', va='bottom', fontsize=9)
+        
+        # 表示範囲を調整（値のラベルが見切れないように）
+        if len(overall_ranking) > 0:
+            plt.ylim(0, max(overall_ranking.values) * 1.1)
         
         plt.tight_layout()
         st.pyplot(plt)
@@ -780,7 +832,7 @@ st.markdown("""
         position: fixed;
         bottom: 10px;
         right: 10px;
-        background-color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(255, 255, 白, 0.8);
         padding: 10px;
         border-radius: 5px;
         box-shadow: 0 0 5px rgba(0,0,0,0.1);

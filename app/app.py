@@ -54,6 +54,17 @@ import warnings
 import logging
 import japanize_matplotlib
 
+import matplotlib
+import platform
+
+# 実行環境に応じてフォントを設定
+if platform.system() == 'Windows':
+    matplotlib.rcParams['font.family'] = 'MS Gothic'
+elif platform.system() == 'Darwin':  # Macの場合
+    matplotlib.rcParams['font.family'] = 'Hiragino Maru Gothic Pro'
+else:  # Linux（Streamlit Cloud含む）
+    matplotlib.rcParams['font.family'] = 'IPAexGothic'  # あるいは 'Noto Sans CJK JP'
+
 # 警告メッセージを非表示にする
 warnings.filterwarnings('ignore')
 # ログレベルを設定してmatplotlibの警告を抑制

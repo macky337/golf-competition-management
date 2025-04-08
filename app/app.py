@@ -52,6 +52,7 @@ from dotenv import load_dotenv
 import subprocess
 import warnings
 import logging
+import japanize_matplotlib
 
 # 警告メッセージを非表示にする
 warnings.filterwarnings('ignore')

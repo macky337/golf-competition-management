@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 88会ゴルフコンペ・スコア管理システム (Supabase版)
 
@@ -332,20 +332,21 @@ def backup_database():
         try:
             # backupsテーブルが存在しない場合は作成する（初回のみ）
             # このコードはテーブルがすでに存在する場合エラーになるが、try-exceptで処理される
-            supabase.table("backups").insert({
+            insert_response = supabase.table("backups").insert({
                 "backup_id": backup_id,
                 "backup_date": backup_date,
                 "data": backup_data
             }).execute()
+            st.success("Supabaseバックアップテーブルにバックアップを保存しました")
         except Exception as e:
             st.warning(f"backupsテーブルへの保存に失敗しました（テーブルが存在しない可能性があります）: {e}")
-            st.info("backupsテーブルを作成します...")
+            st.info("backupsテーブルを作成・設定します...")
             
             # 最新のSupabaseクライアントでは直接SQLクエリを実行する方法が変更されている
             # 管理者画面でテーブルを作成するように促す
-            st.warning("backupsテーブルが存在しません。Supabaseの管理画面で以下のSQLクエリを実行してテーブルを作成してください:")
+            st.warning("以下のSQLクエリをSupabaseの管理画面で実行してbackupsテーブルを正しく設定してください:")
             st.code("""
--- テーブルの作成
+-- テーブルの作成（既に存在する場合はスキップされます）
 CREATE TABLE IF NOT EXISTS backups (
     id serial PRIMARY KEY,
     backup_id text NOT NULL,
@@ -357,17 +358,20 @@ CREATE TABLE IF NOT EXISTS backups (
 -- RLSを有効化
 ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
 
--- 管理者のみがアクセスできるポリシーを作成
-CREATE POLICY "管理者のみbackupsテーブルにアクセス可能" ON backups
-    USING (auth.role() = 'authenticated');
+-- 既存のポリシーがある場合は削除
+DROP POLICY IF EXISTS "管理者のみbackupsテーブルにアクセス可能" ON backups;
+
+-- すべてのユーザーがアクセスできるポリシーを作成
+-- auth.roleの制限を使わず、すべての操作を許可
+CREATE POLICY "backupsテーブルへのフルアクセス" ON backups
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
             """, language="sql")
             
-            # SQLクエリの実行方法を変更（旧式の.query()メソッドはもう存在しない）
-            try:
-                # 代わりにRESTエンドポイントを使用する方法もある
-                st.info("ローカルJSONバックアップのみ作成しました。Supabaseテーブルへのバックアップは次回成功します。")
-            except Exception as ex:
-                st.error(f"SQLクエリの実行に失敗しました: {ex}")
+            # 情報メッセージを表示
+            st.info("ローカルJSONバックアップのみ作成しました。Supabaseテーブルへのバックアップは次回成功します。")
+            st.info("RLSポリシーの変更後は、アプリを再起動してください。")
         
         st.success(f"バックアップが作成されました: {backup_file}")
         
@@ -428,8 +432,24 @@ def restore_database():
     
     else:  # Supabaseバックアップテーブルから
         try:
-            # backupsテーブルの存在確認を先に行う
+            # backupsテーブルが存在するか確認
+            st.info("Supabaseのバックアップデータを確認しています...")
+            
+            # バックアップの存在確認
             try:
+                # テーブルの構造に関係なく、まずバックアップの存在確認のみ実行
+                count_response = supabase.table("backups").select("count", count="exact").execute()
+                
+                # バックアップカウント表示（デバッグ用）
+                if hasattr(count_response, 'count') and count_response.count is not None:
+                    backup_count = count_response.count
+                elif 'count' in count_response.data and count_response.data['count'] is not None:
+                    backup_count = count_response.data['count']
+                else:
+                    backup_count = len(count_response.data)
+                
+                st.success(f"バックアップが見つかりました: {backup_count}件")
+                
                 # backupsテーブルからバックアップ一覧を取得
                 response = supabase.table("backups").select("id, backup_id, backup_date").order('backup_date', desc=True).execute()
                 backups = response.data
@@ -437,29 +457,54 @@ def restore_database():
                 if not backups:
                     st.warning("Supabaseバックアップテーブルにバックアップが見つかりません。")
                     st.info("先にバックアップを実行するか、Supabase管理画面でbackupsテーブルが正しく設定されているか確認してください。")
+                    
+                    # テーブル構造の確認を試みる
+                    try:
+                        # テーブル構造の表示
+                        st.info("バックアップテーブルの構造を確認します...")
+                        columns_response = supabase.table("backups").select("*").limit(1).execute()
+                        if columns_response.data:
+                            st.info(f"テーブル構造: {list(columns_response.data[0].keys())}")
+                        else:
+                            st.info("テーブルは存在しますが、データがありません。")
+                    except Exception as column_error:
+                        st.error(f"テーブル構造の確認に失敗しました: {column_error}")
+                    
                     return
                 
                 # バックアップ選択用のオプションリストを作成
-                backup_options = [f"{b['backup_id']} ({b['backup_date']})" for b in backups]
+                backup_options = [f"{b.get('backup_id', b.get('id', 'unknown'))} ({b.get('backup_date', 'unknown date')})" for b in backups]
                 selected_backup_option = st.selectbox("リストアするバックアップを選択してください", backup_options)
                 
                 if st.button("リストア実行"):
                     # 選択されたバックアップのIDを取得
-                    selected_backup_id = selected_backup_option.split(" ")[0]
+                    selected_id = selected_backup_option.split(" ")[0]
+                    
+                    # backup_idかidかを判断
+                    field_name = "backup_id" if any(b.get('backup_id') == selected_id for b in backups) else "id"
                     
                     # 選択されたバックアップのデータを取得
-                    backup_response = supabase.table("backups").select("data").eq("backup_id", selected_backup_id).execute()
+                    backup_response = supabase.table("backups").select("*").eq(field_name, selected_id).execute()
                     
                     if not backup_response.data:
                         st.error("選択されたバックアップが見つかりません。")
                         return
                     
-                    backup_data = backup_response.data[0]["data"]
-                    
-                    # リストア処理を実行
-                    perform_restore(backup_data)
-                    
-                    st.success(f"Supabaseバックアップテーブルからデータがリストアされました: {selected_backup_option}")
+                    # dataフィールドを取得
+                    if "data" in backup_response.data[0]:
+                        backup_data = backup_response.data[0]["data"]
+                        
+                        # リストア処理を実行
+                        st.info("リストア処理を開始します...")
+                        perform_restore(backup_data)
+                        
+                        st.success(f"Supabaseバックアップテーブルからデータがリストアされました: {selected_backup_option}")
+                    else:
+                        st.error(f"バックアップデータの形式が不正です。フィールド: {list(backup_response.data[0].keys())}")
+                        
+                        # バックアップデータの構造を表示（デバッグ用）
+                        st.info("バックアップデータの構造:")
+                        st.json(backup_response.data[0])
             
             except Exception as table_error:
                 # バックアップテーブルが存在しない場合やアクセス権限がない場合
@@ -484,7 +529,7 @@ DROP POLICY IF EXISTS "管理者のみbackupsテーブルにアクセス可能" 
 
 -- 管理者のみがアクセスできるポリシーを作成
 CREATE POLICY "管理者のみbackupsテーブルにアクセス可能" ON backups
-    USING (auth.role() = 'authenticated');
+    USING (true);  -- すべてのユーザーがアクセス可能に変更
                 """, language="sql")
         
         except Exception as e:

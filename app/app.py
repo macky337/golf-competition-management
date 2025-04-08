@@ -145,7 +145,6 @@ def fetch_scores():
     
     try:
         # スコアデータを取得
-        st.info("スコアデータを取得中...")
         response = supabase.table("scores").select("*").execute()
         
         # レスポンスの検証
@@ -154,10 +153,8 @@ def fetch_scores():
             return pd.DataFrame()
         
         scores = response.data
-        st.success(f"スコアデータ取得成功: {len(scores)}件")
         
         # プレイヤー情報を取得
-        st.info("プレイヤーデータを取得中...")
         players_response = supabase.table("players").select("*").execute()
         
         # プレイヤーレスポンスの検証
@@ -166,7 +163,6 @@ def fetch_scores():
             players = {}
         else:
             players = {player["id"]: player["name"] for player in players_response.data}
-            st.success(f"プレイヤーデータ取得成功: {len(players)}件")
         
         # スコアデータを整形
         scores_list = []
@@ -197,7 +193,7 @@ def fetch_players():
         return pd.DataFrame()
     
     try:
-        st.info("プレイヤーマスターデータを取得中...")
+        # st.info("プレイヤーマスターデータを取得中...") - 表示を削除
         response = supabase.table("players").select("*").execute()
         
         # レスポンスの検証
@@ -205,7 +201,7 @@ def fetch_players():
             st.warning("プレイヤーマスターデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
             return pd.DataFrame()
         
-        st.success(f"プレイヤーマスターデータ取得成功: {len(response.data)}件")
+        # st.success(f"プレイヤーマスターデータ取得成功: {len(response.data)}件") - 表示を削除
         return pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"プレイヤーデータ取得エラー詳細: {type(e).__name__} - {e}")

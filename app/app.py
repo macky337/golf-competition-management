@@ -620,6 +620,12 @@ def perform_restore(backup_data):
 
 def login_page():
     st.title("88会ログイン")
+    
+    # ログイン画面に画像を表示
+    image_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'image', '01205972-9563-43D7-B862-5B2B8DECF9FA.png')
+    if os.path.exists(image_path):
+        st.image(image_path, use_column_width=True)
+    
     password = st.text_input("パスワードを入力してください", type="password")
     if st.button("ログイン"):
         if password == USER_PASSWORD:

@@ -100,14 +100,16 @@ load_dotenv()
 # Supabase接続情報 - Streamlit secretsと環境変数の両方をサポート
 try:
     # まずStreamlit secretsを試す
-    SUPABASE_URL = st.secrets["supabase"]["url"]
-    SUPABASE_KEY = st.secrets["supabase"]["key"]
-    # ログ出力を削除
+    SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
+    SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "")
 except Exception:
     # 次に環境変数を試す
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-    # ログ出力を削除
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+# 接続情報が不足している場合の対応
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.warning("Supabase接続情報が設定されていません。デプロイ環境では適切な環境変数の設定が必要です。")
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"
@@ -194,15 +196,7 @@ def fetch_scores():
         # データフレームに変換
         result_df = pd.DataFrame(scores_list)
         
-        # デバッグ情報（開発中のみ使用）
-        # 異常値の確認（本番環境では削除またはコメントアウト）
-        """
-        for player in result_df['プレイヤー名'].unique():
-            player_data = result_df[result_df['プレイヤー名'] == player]
-            if player_data['合計スコア'].isnull().all() or (player_data['合計スコア'] == 0).all():
-                print(f"警告: {player}のスコアがすべてnullまたは0です")
-                print(player_data[['アウトスコア', 'インスコア', '合計スコア']])
-        """
+        # debug用のprint文を削除
             
         return result_df
     except Exception as e:
@@ -668,6 +662,9 @@ def main_app():
         
         # 競技IDが41でないデータのみを対象にする
         filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
+        
+        # 競技IDが100未満のデータのみを対象にする（要件に基づく）
+        filtered_scores_df = filtered_scores_df[filtered_scores_df["競技ID"] < 100]
         
         # 合計スコアが0または欠損値のデータを除外する
         filtered_scores_df = filtered_scores_df[

@@ -109,7 +109,24 @@ except Exception:
 
 # 接続情報が不足している場合の対応
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.warning("Supabase接続情報が設定されていません。デプロイ環境では適切な環境変数の設定が必要です。")
+    st.warning("""
+    Supabase接続情報が見つかりません。以下のいずれかの方法で設定してください：
+    
+    1. ローカル開発環境: プロジェクトルートに `.env` ファイルを作成し、以下を設定
+       ```
+       SUPABASE_URL=あなたのSupabaseのURL
+       SUPABASE_KEY=あなたのSupabaseのAPIキー
+       ```
+    
+    2. Streamlit Cloud: `.streamlit/secrets.toml` ファイルを作成、または Streamlit Cloud の設定画面で以下を設定
+       ```
+       [supabase]
+       url = "あなたのSupabaseのURL"
+       key = "あなたのSupabaseのAPIキー"
+       ```
+    
+    3. その他のデプロイ環境: 環境変数 `SUPABASE_URL` および `SUPABASE_KEY` を設定
+    """)
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"

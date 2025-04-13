@@ -809,6 +809,13 @@ def main_app():
         # ベストグロススコアトップ10を準備
         st.subheader("ベストグロススコアトップ10")
         
+        # 表示方法の選択（ユニークユーザーか純粋なトップ10か）
+        display_mode = st.radio(
+            "表示方法を選択してください：",
+            ["ユニークユーザー（各プレイヤーの最高スコアのみ表示）", "純粋なトップ10（同じプレイヤーが複数回登場する可能性あり）"],
+            key="best_score_display_mode"
+        )
+        
         # 競技IDが41でないデータのみを対象にする
         filtered_scores_df = scores_df[scores_df["競技ID"] != 41]
         
@@ -828,33 +835,45 @@ def main_app():
         # 合計スコアが0以上のデータのみを対象にする（不正なデータの除外）
         filtered_scores_df = filtered_scores_df[filtered_scores_df["合計スコア"] > 0]
         
-        # 各プレイヤーのベストスコア（最小の合計スコア）を取得
-        best_player_scores = filtered_scores_df.groupby("プレイヤー名")["合計スコア"].min().reset_index()
-        
-        # プレイヤーごとのベストスコアを合計スコアでソート（昇順）し、トップ10を取得
-        best_gross_scores = best_player_scores.sort_values(by="合計スコア").head(10).reset_index(drop=True)
-        
-        # 各ベストスコアの詳細情報を取得
-        best_scores_with_details = []
-        for _, row in best_gross_scores.iterrows():
-            player_name = row["プレイヤー名"]
-            best_score = row["合計スコア"]
+        # 表示方法に応じたデータ処理
+        if display_mode.startswith("ユニークユーザー"):
+            # 各プレイヤーのベストスコア（最小の合計スコア）を取得
+            best_player_scores = filtered_scores_df.groupby("プレイヤー名")["合計スコア"].min().reset_index()
             
-            # 該当プレイヤーの該当スコアの詳細データを検索（最初の一致を使用）
-            player_best_score_records = filtered_scores_df[
-                (filtered_scores_df["プレイヤー名"] == player_name) & 
-                (filtered_scores_df["合計スコア"] == best_score)
-            ]
+            # プレイヤーごとのベストスコアを合計スコアでソート（昇順）し、トップ10を取得
+            best_gross_scores = best_player_scores.sort_values(by="合計スコア").head(10).reset_index(drop=True)
             
-            if not player_best_score_records.empty:
-                best_scores_with_details.append(player_best_score_records.iloc[0].to_dict())
-        
-        # データフレームに変換し、インデックスを1から始める連番に設定
-        if best_scores_with_details:
-            best_gross_scores_detailed = pd.DataFrame(best_scores_with_details).reset_index(drop=True)
+            # 各ベストスコアの詳細情報を取得
+            best_scores_with_details = []
+            for _, row in best_gross_scores.iterrows():
+                player_name = row["プレイヤー名"]
+                best_score = row["合計スコア"]
+                
+                # 該当プレイヤーの該当スコアの詳細データを検索（最初の一致を使用）
+                player_best_score_records = filtered_scores_df[
+                    (filtered_scores_df["プレイヤー名"] == player_name) & 
+                    (filtered_scores_df["合計スコア"] == best_score)
+                ]
+                
+                if not player_best_score_records.empty:
+                    best_scores_with_details.append(player_best_score_records.iloc[0].to_dict())
+            
+            # データフレームに変換し、インデックスを1から始める連番に設定
+            if best_scores_with_details:
+                best_gross_scores_detailed = pd.DataFrame(best_scores_with_details).reset_index(drop=True)
+                best_gross_scores_detailed.index += 1
+                best_gross_scores_detailed.index.name = '順位'
+            else:
+                best_gross_scores_detailed = pd.DataFrame()
+        else:
+            # 純粋なトップ10（同じプレイヤーが複数回登場する可能性あり）
+            # 合計スコアで昇順ソートし、純粋にトップ10のスコアを取得
+            best_gross_scores_detailed = filtered_scores_df.sort_values(by="合計スコア").head(10).reset_index(drop=True)
             best_gross_scores_detailed.index += 1
             best_gross_scores_detailed.index.name = '順位'
-            
+        
+        # 結果の表示
+        if not best_gross_scores_detailed.empty:
             # ベストグロススコアトップ10のフォーマットを適用
             st.dataframe(
                 best_gross_scores_detailed.style.format({

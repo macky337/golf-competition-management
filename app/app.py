@@ -749,21 +749,22 @@ def admin_login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     
-    # タイトルの下に画像を追加（複数のパスを試行）
+    # タイトルの下に画像を追加（複数の可能性を試す）
     try:
         # 本番環境とローカル環境の両方に対応するパス解決
         image_found = False
+        
+        # 利用可能なパスを試す（本番環境と開発環境の両方をサポート）
         possible_paths = [
-            # ローカル環境のパス (相対パス)
-            os.path.join("image", "2025-04-13 172536.png"),
-            # 絶対パス
+            # ローカル環境の場合の目的の画像
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", "2025-04-13 172536.png"),
-            # Streamlit Cloud環境のパス
-            os.path.join("/mount/src/golf-competition-management/image", "2025-04-13 172536.png"),
-            # 代替ファイル名（スペースなし）
-            os.path.join("image", "2025-04-13_172536.png"),
-            # 相対パス（上の階層を指定）
-            os.path.join("..", "image", "2025-04-13 172536.png")
+            # 本番環境では既知の画像ファイルを使用
+            os.path.join("/mount/src/golf-competition-management/image", "01205972-9563-43D7-B862-5B2B8DECF9FA.png"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", "01205972-9563-43D7-B862-5B2B8DECF9FA.png"),
+            # 相対パスでの試行
+            "image/2025-04-13 172536.png",
+            "image/01205972-9563-43D7-B862-5B2B8DECF9FA.png",
+            "../image/01205972-9563-43D7-B862-5B2B8DECF9FA.png"
         ]
         
         # 各パスを順番に試す
@@ -771,28 +772,37 @@ def main_app():
             if os.path.exists(img_path):
                 image_found = True
                 st.image(img_path, use_container_width=True)
+                # 記念大会の見出しを表示
+                st.markdown("### 第50回記念大会")
                 break
         
         # すべてのパスが失敗した場合
         if not image_found:
-            # パスの詳細情報をログに記録
+            # 代わりに記念大会のタイトルだけを表示
+            st.markdown("## 第50回記念大会")
             current_dir = os.getcwd()
             st.info(f"現在の作業ディレクトリ: {current_dir}")
             
-            # image ディレクトリが存在するか確認
-            image_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image")
-            if os.path.exists(image_dir):
-                # ディレクトリ内のファイル一覧を表示
-                files = os.listdir(image_dir)
-                st.info(f"image ディレクトリ内のファイル: {files}")
-            
-            # 代わりにタイトルを表示
-            st.markdown("### 第50回記念大会")
+            # 環境情報を取得して表示
+            try:
+                # imageディレクトリが見つかれば内容を表示
+                image_dirs = [
+                    "/mount/src/golf-competition-management/image",
+                    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image"),
+                    "image"
+                ]
+                
+                for image_dir in image_dirs:
+                    if os.path.exists(image_dir):
+                        files = os.listdir(image_dir)
+                        st.info(f"image ディレクトリ ({image_dir}) 内のファイル: {files}")
+                        break
+            except Exception as dir_error:
+                st.warning(f"ディレクトリ情報の取得中にエラー: {dir_error}")
     except Exception as e:
-        # エラー情報をログに記録
+        # エラー発生時も記念大会のタイトルだけは表示
+        st.markdown("## 第50回記念大会")
         st.error(f"画像の表示中にエラーが発生しました: {e}")
-        # 代わりにタイトルを表示
-        st.markdown("### 第50回記念大会")
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()

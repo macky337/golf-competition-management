@@ -749,6 +749,21 @@ def admin_login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     
+    # タイトルの下に画像を追加
+    try:
+        # 絶対パスを使用してファイルを読み込む
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(script_dir)
+        image_path = os.path.join(parent_dir, 'image', '2025-04-13 172536.png')
+        
+        # ファイルが存在するか確認
+        if (os.path.exists(image_path)):
+            st.image(image_path, use_container_width=True)
+        else:
+            st.warning(f"画像が見つかりません: {image_path}")
+    except Exception as e:
+        st.error(f"画像の表示中にエラーが発生しました: {e}")
+    
     # Supabaseからデータを取得
     scores_df = fetch_scores()
     players_df = fetch_players()
@@ -1431,71 +1446,55 @@ def player_management_tab():
             # 表示用にプレイヤーをソート
             players_df = players_df.sort_values(by="name")
             
-            # アクティブと非アクティブプレイヤーを分けて表示
-            active_filter = st.radio(
-                "表示するプレイヤー",
-                ["全てのプレイヤー", "アクティブのみ", "非アクティブのみ"],
-                horizontal=True,
-                key="player_filter"
-            )
-            
-            if active_filter == "アクティブのみ":
-                filtered_players = players_df[players_df["active"] == True] if "active" in players_df.columns else players_df
-            elif active_filter == "非アクティブのみ":
-                filtered_players = players_df[players_df["active"] == False] if "active" in players_df.columns else pd.DataFrame()
-            else:
-                filtered_players = players_df
+            for _, player in players_df.iterrows():
+                player_id = player["id"]
+                name = player["name"]
+                handicap = player["handicap"] if "handicap" in player.index else 0.0
+                active_status = player["active"] if "active" in player.index else True
                 
-            if not filtered_players.empty:
-                for _, player in filtered_players.iterrows():
-                    player_id = player["id"]
-                    name = player["name"]
-                    handicap = player["handicap"] if "handicap" in player.index else 0
-                    active_status = player["active"] if "active" in player.index else True
-                    
-                    # アクティブ状態によって行の色を変える
-                    row_color = "" if active_status else "color: gray;"
-                    
-                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                    
-                    with col1:
-                        display_name = name
-                        if not active_status:
-                            display_name += "（非アクティブ）"
-                        st.markdown(f"<span style='{row_color}'>{display_name}</span>", unsafe_allow_html=True)
-                    
-                    with col2:
-                        st.markdown(f"<span style='{row_color}'>HCP: {handicap:.1f}</span>", unsafe_allow_html=True)
-                    
-                    with col3:
-                        if st.button("編集", key=f"edit_player_{player_id}"):
-                            st.session_state.edit_mode_player = True
-                            st.session_state.selected_player = player_id
-                            st.rerun()
-                    
-                    with col4:
-                        # 削除ボタン
-                        if st.session_state.delete_confirm_player == player_id:
-                            # 削除確認中
-                            col4a, col4b = st.columns(2)
-                            with col4a:
-                                if st.button("はい", key=f"confirm_yes_player_{player_id}"):
-                                    success, message = delete_player(player_id)
-                                    if success:
-                                        st.session_state.delete_message_player = message
-                                        st.session_state.delete_confirm_player = None
-                                        st.rerun()
-                                    else:
-                                        st.error(message)
-                            with col4b:
-                                if st.button("いいえ", key=f"confirm_no_player_{player_id}"):
+                # アクティブ状態によって行の色を変える
+                row_color = "" if active_status else "color: gray;"
+                
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+                
+                with col1:
+                    display_name = name
+                    if not active_status:
+                        display_name += "（非アクティブ）"
+                    st.markdown(f"<span style='{row_color}'>{display_name}</span>", unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"<span style='{row_color}'>HCP: {handicap:.1f}</span>", unsafe_allow_html=True)
+                
+                with col3:
+                    if st.button("編集", key=f"edit_player_{player_id}"):
+                        st.session_state.edit_mode_player = True
+                        st.session_state.selected_player = player_id
+                        st.rerun()
+                
+                with col4:
+                    # 削除ボタン
+                    if st.session_state.delete_confirm_player == player_id:
+                        # 削除確認中
+                        col4a, col4b = st.columns(2)
+                        with col4a:
+                            if st.button("はい", key=f"confirm_yes_player_{player_id}"):
+                                success, message = delete_player(player_id)
+                                if success:
+                                    st.session_state.delete_message_player = message
                                     st.session_state.delete_confirm_player = None
                                     st.rerun()
-                        else:
-                            # 削除ボタン（確認前）
-                            if st.button("削除", key=f"delete_player_{player_id}"):
-                                st.session_state.delete_confirm_player = player_id
+                                else:
+                                    st.error(message)
+                        with col4b:
+                            if st.button("いいえ", key=f"confirm_no_player_{player_id}"):
+                                st.session_state.delete_confirm_player = None
                                 st.rerun()
+                    else:
+                        # 削除ボタン（確認前）
+                        if st.button("削除", key=f"delete_player_{player_id}"):
+                            st.session_state.delete_confirm_player = player_id
+                            st.rerun()
             else:
                 st.info("条件に合うプレイヤーはいません")
         else:

@@ -37,6 +37,12 @@ if not defined VIRTUAL_ENV (
     exit /b 1
 )
 
+<<<<<<< HEAD
+=======
+:: バージョン情報を更新
+echo バージョン情報を自動更新中...
+
+>>>>>>> feature-branch
 :: アプリケーション起動
 echo アプリケーションを起動しています...
 streamlit run app/app.py

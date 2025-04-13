@@ -70,9 +70,48 @@ warnings.filterwarnings('ignore')
 # ログレベルを設定してmatplotlibの警告を抑制
 logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
-# ファイル先頭付近に変数定義を追加
-APP_VERSION = "1.0.7"
-APP_LAST_UPDATE = "2025-04-07"
+# Gitからバージョン情報を取得する関数
+def get_git_revision():
+    """現在のGitリビジョン（コミットハッシュ）を取得する"""
+    try:
+        return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+    except Exception:
+        return "dev"  # Git情報が取得できない場合
+
+def get_git_count():
+    """Gitのコミット数を取得する"""
+    try:
+        return subprocess.check_output(['git', 'rev-list', '--count', 'HEAD']).decode('ascii').strip()
+    except Exception:
+        return "0"  # Git情報が取得できない場合
+
+def get_git_date():
+    """最新コミットの日付を取得する"""
+    try:
+        return subprocess.check_output(['git', 'log', '-1', '--format=%cd', '--date=short']).decode('ascii').strip()
+    except Exception:
+        return datetime.now().strftime('%Y-%m-%d')  # Git情報が取得できない場合は現在日付
+
+def get_app_version():
+    """アプリのバージョンを動的に取得する"""
+    major = 1
+    minor = 0
+    try:
+        patch = get_git_count()
+        return f"{major}.{minor}.{patch}"
+    except Exception:
+        return "1.0.7"  # デフォルトバージョン
+
+def get_app_last_update():
+    """アプリの最終更新日を動的に取得する"""
+    try:
+        return get_git_date()
+    except Exception:
+        return datetime.now().strftime('%Y-%m-%d')  # 現在の日付
+
+# バージョン情報を動的に設定
+APP_VERSION = get_app_version()
+APP_LAST_UPDATE = get_app_last_update()
 
 # ページ最上部に追加（st.titleの前）
 st.markdown("""

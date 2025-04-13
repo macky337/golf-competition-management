@@ -42,6 +42,12 @@ catch {
     exit 1
 }
 
+<<<<<<< HEAD
+=======
+# バージョン情報を自動更新
+Write-Host "バージョン情報を自動更新中..." -ForegroundColor Cyan
+
+>>>>>>> feature-branch
 # アプリケーション起動
 Write-Host "アプリケーションを起動しています..." -ForegroundColor Cyan
 streamlit run app/app.py

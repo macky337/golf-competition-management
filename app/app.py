@@ -56,6 +56,7 @@ import subprocess
 import warnings
 import logging
 import japanize_matplotlib
+import re
 
 import matplotlib
 import platform
@@ -95,13 +96,51 @@ def get_git_date():
     except Exception:
         return datetime.now().strftime('%Y-%m-%d')  # Git情報が取得できない場合は現在日付
 
-def get_app_version():
-    """アプリのバージョンを動的に取得する"""
+def get_git_latest_commit_message():
+    """最新のコミットメッセージを取得する"""
+    try:
+        return subprocess.check_output(['git', 'log', '-1', '--pretty=%B']).decode('utf-8').strip()
+    except Exception:
+        return ""  # Git情報が取得できない場合は空文字列
+
+def parse_version_from_commit_history():
+    """コミット履歴を解析し、適切なバージョン番号を計算する"""
+    # バージョン番号の初期値
     major = 1
     minor = 0
+    patch = 0
+    
     try:
-        patch = get_git_count()
+        # まず最新のコミットメッセージを取得
+        latest_commit_message = get_git_latest_commit_message()
+        
+        # コミットメッセージに基づいてバージョンタイプを判断
+        if re.search(r'^(major:|MAJOR:|!:)', latest_commit_message):
+            # メジャーバージョンアップ
+            major += 1
+            minor = 0
+            patch = 0
+        elif re.search(r'^(feature:|feat:|FEATURE:)', latest_commit_message):
+            # マイナーバージョンアップ
+            minor += 1
+            patch = 0
+        elif re.search(r'^(fix:|bugfix:|FIX:)', latest_commit_message):
+            # パッチバージョンアップ
+            patch += 1
+        else:
+            # 特に指定がない場合はパッチバージョン
+            patch = int(get_git_count())
+            
         return f"{major}.{minor}.{patch}"
+    except Exception:
+        # デフォルトバージョン
+        return "1.0.7"
+
+def get_app_version():
+    """アプリのバージョンを動的に取得する"""
+    try:
+        # コミット履歴に基づいてバージョン番号を解析
+        return parse_version_from_commit_history()
     except Exception:
         return "1.0.7"  # デフォルトバージョン
 

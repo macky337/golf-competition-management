@@ -757,8 +757,6 @@ def main_app():
         project_root = os.path.dirname(script_dir)
         image_path = os.path.join(project_root, "image", image_file)
         
-        st.write(f"画像パス: {image_path}")  # デバッグ用
-        
         # 画像ファイルが存在するか確認
         if os.path.exists(image_path):
             st.image(image_path, use_container_width=True)

@@ -33,6 +33,10 @@ if not exist .streamlit\secrets.toml (
     echo .streamlit\secrets.toml を作成しました。実際の接続情報で更新してください。
 )
 
+REM バージョン情報を更新
+echo バージョン情報を更新中...
+call .\venv\Scripts\activate.bat
+
 REM アプリケーションを起動
 echo アプリケーションを起動しています...
 streamlit run app\app.py

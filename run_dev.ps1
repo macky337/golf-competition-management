@@ -42,6 +42,9 @@ catch {
     exit 1
 }
 
+# バージョン情報を自動更新
+Write-Host "バージョン情報を自動更新中..." -ForegroundColor Cyan
+
 # アプリケーション起動
 Write-Host "アプリケーションを起動しています..." -ForegroundColor Cyan
 streamlit run app/app.py

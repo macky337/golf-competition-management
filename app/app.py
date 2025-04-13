@@ -749,20 +749,50 @@ def admin_login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     
-    # タイトルの下に画像を追加
+    # タイトルの下に画像を追加（複数のパスを試行）
     try:
-        # 絶対パスを使用してファイルを読み込む
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(script_dir)
-        image_path = os.path.join(parent_dir, 'image', '2025-04-13 172536.png')
+        # 本番環境とローカル環境の両方に対応するパス解決
+        image_found = False
+        possible_paths = [
+            # ローカル環境のパス (相対パス)
+            os.path.join("image", "2025-04-13 172536.png"),
+            # 絶対パス
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", "2025-04-13 172536.png"),
+            # Streamlit Cloud環境のパス
+            os.path.join("/mount/src/golf-competition-management/image", "2025-04-13 172536.png"),
+            # 代替ファイル名（スペースなし）
+            os.path.join("image", "2025-04-13_172536.png"),
+            # 相対パス（上の階層を指定）
+            os.path.join("..", "image", "2025-04-13 172536.png")
+        ]
         
-        # ファイルが存在するか確認
-        if (os.path.exists(image_path)):
-            st.image(image_path, use_container_width=True)
-        else:
-            st.warning(f"画像が見つかりません: {image_path}")
+        # 各パスを順番に試す
+        for img_path in possible_paths:
+            if os.path.exists(img_path):
+                image_found = True
+                st.image(img_path, use_container_width=True)
+                break
+        
+        # すべてのパスが失敗した場合
+        if not image_found:
+            # パスの詳細情報をログに記録
+            current_dir = os.getcwd()
+            st.info(f"現在の作業ディレクトリ: {current_dir}")
+            
+            # image ディレクトリが存在するか確認
+            image_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image")
+            if os.path.exists(image_dir):
+                # ディレクトリ内のファイル一覧を表示
+                files = os.listdir(image_dir)
+                st.info(f"image ディレクトリ内のファイル: {files}")
+            
+            # 代わりにタイトルを表示
+            st.markdown("### 第50回記念大会")
     except Exception as e:
+        # エラー情報をログに記録
         st.error(f"画像の表示中にエラーが発生しました: {e}")
+        # 代わりにタイトルを表示
+        st.markdown("### 第50回記念大会")
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()

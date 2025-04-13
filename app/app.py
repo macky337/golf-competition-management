@@ -759,12 +759,12 @@ def main_app():
             # ローカル環境の場合の目的の画像
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", "2025-04-13 172536.png"),
             # 本番環境では既知の画像ファイルを使用
-            os.path.join("/mount/src/golf-competition-management/image", "01205972-9563-43D7-B862-5B2B8DECF9FA.png"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", "01205972-9563-43D7-B862-5B2B8DECF9FA.png"),
+            os.path.join("/mount/src/golf-competition-management/image", "2025-04-13 172536.png"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", "2025-04-13 172536.png"),
             # 相対パスでの試行
             "image/2025-04-13 172536.png",
-            "image/01205972-9563-43D7-B862-5B2B8DECF9FA.png",
-            "../image/01205972-9563-43D7-B862-5B2B8DECF9FA.png"
+            "image/2025-04-13 172536.png",
+            "../image/2025-04-13 172536.png"
         ]
         
         # 各パスを順番に試す

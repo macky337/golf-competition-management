@@ -751,34 +751,30 @@ def main_app():
     
     # タイトルの下に画像を追加
     try:
-        # 複数の画像ファイル名を試す（最新の画像を優先）
-        image_files = [
-            "2025-04-13 172536.png",  # 新しい画像（優先）
-            "01205972-9563-43D7-B862-5B2B8DECF9FA.png"  # 既存の画像（バックアップ）
-        ]
+        # 環境に依存しない正確なパスの取得
+        image_file = "2025-04-13 172536.png"
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        image_path = os.path.join(project_root, "image", image_file)
         
-        # 複数のパターンのパスを試す
-        image_found = False
-        for image_file in image_files:
-            image_paths = [
-                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "image", image_file),
-                os.path.join("/mount/src/golf-competition-management/image", image_file),
-                os.path.join("image", image_file)
-            ]
-            
-            for path in image_paths:
-                if (os.path.exists(path)):
-                    st.image(path, use_container_width=True)
-                    image_found = True
-                    break
-            
-            if image_found:
-                break
+        st.write(f"画像パス: {image_path}")  # デバッグ用
         
-        # 画像が見つからなくても記念大会のタイトルは表示
-        st.markdown("### 第50回記念大会 (2025年4月13日)")
+        # 画像ファイルが存在するか確認
+        if os.path.exists(image_path):
+            st.image(image_path, use_container_width=True)
+            st.markdown("### 第50回記念大会 (2025年4月13日)")
+        else:
+            # 代替画像を試す
+            alt_image_file = "01205972-9563-43D7-B862-5B2B8DECF9FA.png"
+            alt_image_path = os.path.join(project_root, "image", alt_image_file)
+            
+            if os.path.exists(alt_image_path):
+                st.image(alt_image_path, use_container_width=True)
+            
+            st.markdown("### 第50回記念大会 (2025年4月13日)")
+            st.info(f"目的の画像が見つかりません。パス: {image_path}")
     except Exception as e:
-        st.error(f"画像の表示中にエラーが発生しました: {e}")
+        st.error(f"画像表示エラー: {e}")
         st.markdown("### 第50回記念大会 (2025年4月13日)")
     
     # Supabaseからデータを取得

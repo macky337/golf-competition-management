@@ -42,3 +42,7 @@ data/~$*.xlsx
 .env
 .env.local
 .streamlit/secrets.toml
+
+# 追跡対象に含めるディレクトリ（通常は無視されるものを明示的に含める）
+!image/
+!image/*

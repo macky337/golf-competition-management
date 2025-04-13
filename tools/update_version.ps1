@@ -33,7 +33,7 @@ try {
     if (Test-Path $appPath) {
         $content = Get-Content -Path $appPath -Raw -Encoding UTF8
         if ($content -match 'APP_VERSION = "([0-9\.]+)"') {
-            $currentVersion = $Matches[1]
+            $currentVersion = $matches[1]
             Write-Host "現在のバージョン: $currentVersion"
         }
     }
@@ -92,7 +92,7 @@ try {
 
         # 現在のバージョンを取得（シンプルな正規表現パターン）
         if ($content -match 'APP_VERSION = "([0-9\.]+)"') {
-            $currentVersion = $Matches[1]
+            $currentVersion = $matches[1]
             Write-Host "現在のバージョン: $currentVersion"
             
             # バージョン番号を更新（シンプルな置換パターン）

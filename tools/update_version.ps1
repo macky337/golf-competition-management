@@ -7,9 +7,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 Write-Host "バージョン自動更新スクリプトを実行しています..."
 Write-Host "現在の作業ディレクトリ: $(Get-Location)"
 
-# 日付と時刻の取得
+# 日付の取得
 $currentDate = Get-Date -Format "yyyy-MM-dd"
-$currentDateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
 try {
     # コミット数を取得
@@ -178,7 +177,7 @@ try {
 }
 
 # バージョン更新を自動化するための Git hook を設定する関数
-function Setup-GitHooks {
+function Install-GitHooks {
     $hooksDir = ".git\hooks"
     $postCommitHook = "$hooksDir\post-commit"
     
@@ -214,5 +213,5 @@ powershell -ExecutionPolicy Bypass -File "tools\update_version.ps1"
 
 # 引数に --setup-hooks が指定されている場合はGit hooksを設定
 if ($args -contains "--setup-hooks") {
-    Setup-GitHooks
+    Install-GitHooks
 }

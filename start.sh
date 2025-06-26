@@ -9,8 +9,26 @@ echo "現在のディレクトリ: $(pwd)"
 echo "=== 環境変数の確認 ==="
 echo "RAILWAY_ENVIRONMENT_NAME: ${RAILWAY_ENVIRONMENT_NAME:-未設定}"
 echo "PORT: ${PORT:-未設定}"
-echo "SUPABASE_URL: ${SUPABASE_URL:+設定済み}"
-echo "SUPABASE_KEY: ${SUPABASE_KEY:+設定済み}"
+
+# Supabase環境変数の詳細チェック
+echo "=== Supabase環境変数の詳細チェック ==="
+if [ -n "$SUPABASE_URL" ]; then
+    echo "✅ SUPABASE_URL: 設定済み (${#SUPABASE_URL} 文字)"
+    echo "   値の先頭: ${SUPABASE_URL:0:20}..."
+else
+    echo "❌ SUPABASE_URL: 未設定"
+fi
+
+if [ -n "$SUPABASE_KEY" ]; then
+    echo "✅ SUPABASE_KEY: 設定済み (${#SUPABASE_KEY} 文字)"
+    echo "   値の先頭: ${SUPABASE_KEY:0:20}..."
+else
+    echo "❌ SUPABASE_KEY: 未設定"
+fi
+
+# 環境変数一覧の表示（Railway関連）
+echo "=== Railway関連環境変数 ==="
+env | grep -E "(RAILWAY|SUPABASE)" | sort
 
 # Streamlit設定ディレクトリを作成
 echo "=== Streamlit設定ディレクトリの作成 ==="

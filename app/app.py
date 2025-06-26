@@ -175,15 +175,39 @@ load_dotenv()
 
 # Supabase接続情報 - 環境変数を優先し、Streamlit secretsもサポート
 # Railway環境では環境変数が優先される
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+# より確実な環境変数読み込み
+import sys
+
+# デバッグ: 環境変数の状態を確認
+if os.getenv('RAILWAY_ENVIRONMENT_NAME'):
+    print("=== Railway環境での環境変数デバッグ ===")
+    print(f"RAILWAY_ENVIRONMENT_NAME: {os.getenv('RAILWAY_ENVIRONMENT_NAME')}")
+    print(f"SUPABASE_URL in os.environ: {'SUPABASE_URL' in os.environ}")
+    print(f"SUPABASE_KEY in os.environ: {'SUPABASE_KEY' in os.environ}")
+    if 'SUPABASE_URL' in os.environ:
+        print(f"SUPABASE_URL value length: {len(os.environ['SUPABASE_URL'])}")
+    if 'SUPABASE_KEY' in os.environ:
+        print(f"SUPABASE_KEY value length: {len(os.environ['SUPABASE_KEY'])}")
+    print("=" * 40)
+
+# 環境変数を取得（複数の方法で試行）
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
+
+# 空文字列の場合は未設定と見なす
+if SUPABASE_URL == "" or SUPABASE_KEY == "":
+    SUPABASE_URL = ""
+    SUPABASE_KEY = ""
 
 # 環境変数が設定されていない場合、Streamlit secretsを試す
 if not SUPABASE_URL or not SUPABASE_KEY:
     try:
-        SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "") or SUPABASE_URL
-        SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "") or SUPABASE_KEY
-    except Exception:
+        secrets_url = st.secrets.get("supabase", {}).get("url", "")
+        secrets_key = st.secrets.get("supabase", {}).get("key", "")
+        SUPABASE_URL = secrets_url or SUPABASE_URL
+        SUPABASE_KEY = secrets_key or SUPABASE_KEY
+    except Exception as e:
         pass
 
 # 接続情報が不足している場合の対応
@@ -221,8 +245,29 @@ if not SUPABASE_URL or not SUPABASE_KEY:
             st.write("**環境変数:**")
             st.write(f"- RAILWAY_ENVIRONMENT_NAME: {os.getenv('RAILWAY_ENVIRONMENT_NAME', 'Not Set')}")
             st.write(f"- PORT: {os.getenv('PORT', 'Not Set')}")
-            st.write(f"- SUPABASE_URL: {'設定済み' if os.getenv('SUPABASE_URL') else '未設定'}")
-            st.write(f"- SUPABASE_KEY: {'設定済み' if os.getenv('SUPABASE_KEY') else '未設定'}")
+            
+            # より詳細な環境変数チェック
+            st.write("**Supabase環境変数の詳細:**")
+            supabase_url_exists = 'SUPABASE_URL' in os.environ
+            supabase_key_exists = 'SUPABASE_KEY' in os.environ
+            
+            st.write(f"- SUPABASE_URL exists in os.environ: {supabase_url_exists}")
+            st.write(f"- SUPABASE_KEY exists in os.environ: {supabase_key_exists}")
+            
+            if supabase_url_exists:
+                url_val = os.environ['SUPABASE_URL']
+                st.write(f"- SUPABASE_URL length: {len(url_val)} chars")
+                st.write(f"- SUPABASE_URL preview: {url_val[:20]}..." if len(url_val) > 20 else f"- SUPABASE_URL: {url_val}")
+            
+            if supabase_key_exists:
+                key_val = os.environ['SUPABASE_KEY']
+                st.write(f"- SUPABASE_KEY length: {len(key_val)} chars")
+                st.write(f"- SUPABASE_KEY preview: {key_val[:20]}..." if len(key_val) > 20 else "- SUPABASE_KEY: Too short")
+            
+            # 最終的な値の確認
+            st.write("**最終的な設定値:**")
+            st.write(f"- Final SUPABASE_URL: {'設定済み' if SUPABASE_URL else '未設定'}")
+            st.write(f"- Final SUPABASE_KEY: {'設定済み' if SUPABASE_KEY else '未設定'}")
             
             st.write("**ファイルシステム:**")
             st.write(f"- 現在のディレクトリ: {os.getcwd()}")
@@ -249,14 +294,20 @@ if not SUPABASE_URL or not SUPABASE_KEY:
                     st.write(f"  - エラー: {e}")
             
             # 環境変数の詳細表示
-            st.write("**全環境変数:**")
+            st.write("**関連する環境変数:**")
             env_vars = dict(os.environ)
-            railway_vars = {k: v for k, v in env_vars.items() if 'RAILWAY' in k or 'SUPABASE' in k or k in ['PORT', 'PATH']}
-            for key, value in railway_vars.items():
+            relevant_vars = {k: v for k, v in env_vars.items() if any(keyword in k.upper() for keyword in ['RAILWAY', 'SUPABASE', 'PORT', 'STREAMLIT'])}
+            for key, value in relevant_vars.items():
                 if 'KEY' in key or 'SECRET' in key:
                     st.write(f"- {key}: {'*' * len(value) if value else '未設定'}")
                 else:
                     st.write(f"- {key}: {value}")
+            
+            # Railway Variables の確認ヒント
+            st.write("**Railway Variables 確認:**")
+            st.write("1. Railway ダッシュボード → Variables タブ")
+            st.write("2. SUPABASE_URL と SUPABASE_KEY が設定されているか確認")
+            st.write("3. 変数の値に余分なスペースや引用符が含まれていないか確認")
     
     # 環境変数が設定されていない場合は警告を表示するが、アプリケーションは継続
     if not SUPABASE_URL or not SUPABASE_KEY:

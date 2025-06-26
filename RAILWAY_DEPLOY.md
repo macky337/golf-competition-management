@@ -138,12 +138,31 @@ Railwayの Variables タブで以下の環境変数を設定：
 
 #### 6. Railway固有のエラー
 
-**症状**: "No secrets found" エラー
+**症状**: "No secrets found" エラー、環境変数が未設定と表示される
 
-**解決方法**:
-- Railway Variables で `SUPABASE_URL` と `SUPABASE_KEY` が設定されているか確認
-- 変数名にタイポがないか確認
-- デプロイ後に環境変数を追加した場合は、手動で再デプロイを実行
+**原因と解決方法**:
+
+1. **Railway Variables の設定確認**:
+   - [Railway](https://railway.app) → プロジェクト → "Variables" タブ
+   - `SUPABASE_URL` と `SUPABASE_KEY` が表示されているか確認
+   - 変数名にタイポがないか確認（大文字小文字も正確に）
+
+2. **変数値の確認**:
+   - 値に余分なスペース、改行、引用符が含まれていないか確認
+   - Supabase URL形式: `https://xxxxx.supabase.co`
+   - Supabase Key形式: `eyJhbGciOiJIUzI1NiI...` (長い文字列)
+
+3. **デプロイの確認**:
+   - 環境変数を保存した後、自動デプロイが開始されたか確認
+   - "Deployments" タブで最新のデプロイが成功しているか確認
+
+4. **手動再デプロイ**:
+   - 自動デプロイされない場合、手動で "Redeploy" を実行
+   - ビルドログで環境変数が正しく読み込まれているか確認
+
+5. **アプリケーションログの確認**:
+   - "View Logs" でアプリケーションの起動ログを確認
+   - 環境変数の値が正しく表示されているか確認
 
 **症状**: "Permission denied" エラー
 

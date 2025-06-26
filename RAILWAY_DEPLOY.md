@@ -26,12 +26,17 @@ Railwayの Variables タブで以下の環境変数を設定：
 |--------|-----|------|
 | `SUPABASE_URL` | `https://your-project-ref.supabase.co` | SupabaseプロジェクトのURL |
 | `SUPABASE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI...` | Supabaseのanon/public key |
-| `PORT` | `8501` | Streamlitポート（自動設定される場合は不要） |
+| `STREAMLIT_CONFIG_DIR` | `/app/.streamlit` | Streamlit設定ディレクトリ（オプション） |
+| `PYTHONPATH` | `/app` | Pythonモジュール検索パス（オプション） |
 
 **環境変数の設定方法:**
 1. Railwayのプロジェクトダッシュボードを開く
 2. "Variables" タブをクリック
 3. "New Variable" で上記の変数を追加
+
+**必須の環境変数:**
+- `SUPABASE_URL` と `SUPABASE_KEY` は必須です
+- その他の変数は起動スクリプトが自動設定します
 
 ### 4. Supabase接続情報の取得
 
@@ -94,13 +99,27 @@ Railwayの Variables タブで以下の環境変数を設定：
 - 不要な依存関係を削除
 - Python バージョンの互換性を確認
 
-#### 5. 日本語フォントの問題
+#### 6. Railway固有のエラー
 
-**症状**: グラフで日本語が文字化け
+**症状**: "No secrets found" エラー
 
-**現在の対応**:
-- `japanize_matplotlib` パッケージを使用
-- Linux環境で適切なフォントを自動選択
+**解決方法**:
+- Railway Variables で `SUPABASE_URL` と `SUPABASE_KEY` が設定されているか確認
+- 変数名にタイポがないか確認
+- デプロイ後に環境変数を追加した場合は、手動で再デプロイを実行
+
+**症状**: "Permission denied" エラー
+
+**解決方法**:
+- `start.sh` ファイルに実行権限があることを確認
+- Gitリポジトリで `chmod +x start.sh` を実行してコミット
+
+**症状**: Streamlit設定エラー
+
+**解決方法**:
+- アプリケーションのデバッグ情報を確認
+- `/app/.streamlit` ディレクトリが正しく作成されているか確認
+- 起動スクリプトが正常に実行されているかログで確認
 
 ---
 
@@ -108,7 +127,41 @@ Railwayの Variables タブで以下の環境変数を設定：
 
 ### Procfile
 ```
-web: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false
+web: ./start.sh
+```
+
+### start.sh (起動スクリプト)
+```bash
+#!/bin/bash
+# Railway デプロイ用の起動スクリプト
+
+# Streamlit設定ディレクトリを作成
+mkdir -p /app/.streamlit
+
+# Streamlit設定ファイルを作成（Railway環境用）
+cat > /app/.streamlit/config.toml << EOF
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[logger]
+level = "info"
+EOF
+
+# アプリケーションを起動
+exec streamlit run app.py \
+  --server.port ${PORT:-8501} \
+  --server.address 0.0.0.0 \
+  --server.headless true \
+  --server.enableCORS false \
+  --server.enableXsrfProtection false \
+  --server.fileWatcherType none \
+  --browser.gatherUsageStats false
 ```
 
 ### railway.json
@@ -118,7 +171,7 @@ web: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false",
+    "startCommand": "./start.sh",
     "healthcheckPath": "/_stcore/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
@@ -128,7 +181,36 @@ web: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.
 
 ### runtime.txt
 ```
-python-3.11.9
+python-3.11.12
+```
+
+---
+
+## ⚠️ Railway特有の設定
+
+### コンテナ内でのパス設定
+
+Railwayのコンテナ環境では、アプリケーションは `/app` ディレクトリに配置されます。
+以下の環境変数を追加設定することで、パスの問題を解決できます：
+
+| 変数名 | 値 | 説明 |
+|--------|-----|------|
+| `STREAMLIT_CONFIG_DIR` | `/app/.streamlit` | Streamlit設定ディレクトリ |
+| `PYTHONPATH` | `/app` | Pythonモジュール検索パス |
+
+### Railway専用の起動設定
+
+Railwayコンテナでの最適化されたStreamlit起動オプション：
+
+```bash
+streamlit run app.py \
+  --server.port $PORT \
+  --server.address 0.0.0.0 \
+  --server.headless true \
+  --server.enableCORS false \
+  --server.enableXsrfProtection false \
+  --server.fileWatcherType none \
+  --browser.gatherUsageStats false
 ```
 
 ---

@@ -20,22 +20,30 @@
 
 ### 3. 環境変数の設定
 
+**重要**: 現在Railway環境でアプリケーションは起動していますが、Supabase環境変数が設定されていません。
+
 Railwayの Variables タブで以下の環境変数を設定：
 
-| 変数名 | 値 | 説明 |
-|--------|-----|------|
-| `SUPABASE_URL` | `https://your-project-ref.supabase.co` | SupabaseプロジェクトのURL |
-| `SUPABASE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI...` | Supabaseのanon/public key |
-| `STREAMLIT_CONFIG_DIR` | `/app/.streamlit` | Streamlit設定ディレクトリ（オプション） |
-| `PYTHONPATH` | `/app` | Pythonモジュール検索パス（オプション） |
+| 変数名 | 値 | 説明 | 状況 |
+|--------|-----|------|------|
+| `SUPABASE_URL` | `https://your-project-ref.supabase.co` | SupabaseプロジェクトのURL | ❌ 未設定 |
+| `SUPABASE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI...` | Supabaseのanon/public key | ❌ 未設定 |
+| `STREAMLIT_CONFIG_DIR` | `/app/.streamlit` | Streamlit設定ディレクトリ（オプション） | ✅ 自動設定 |
+| `PYTHONPATH` | `/app` | Pythonモジュール検索パス（オプション） | ✅ 自動設定 |
 
-**環境変数の設定方法:**
-1. Railwayのプロジェクトダッシュボードを開く
-2. "Variables" タブをクリック
-3. "New Variable" で上記の変数を追加
+**今すぐ設定する手順:**
+1. [Railway](https://railway.app) のプロジェクトページを開く
+2. **"Variables"** タブをクリック
+3. **"New Variable"** で以下を追加:
+   ```
+   SUPABASE_URL = https://your-project-ref.supabase.co
+   SUPABASE_KEY = eyJhbGciOiJIUzI1NiI...
+   ```
+4. 保存すると自動的に再デプロイが開始されます
 
 **必須の環境変数:**
 - `SUPABASE_URL` と `SUPABASE_KEY` は必須です
+- 設定しないとデータベース機能が使用できません
 - その他の変数は起動スクリプトが自動設定します
 
 ### 4. Supabase接続情報の取得
@@ -57,6 +65,35 @@ Railwayの Variables タブで以下の環境変数を設定：
 1. Railwayが提供するURLでアプリケーションにアクセス
 2. Supabase接続状況をフッターで確認
 3. ログイン機能が正常に動作することを確認
+
+**✅ 設定完了チェックリスト:**
+- [ ] Railway環境でアプリケーションが起動している
+- [ ] 環境変数 `SUPABASE_URL` と `SUPABASE_KEY` が設定済み
+- [ ] アプリケーション画面で "✅ Railway環境: Supabase接続情報が設定されています" と表示される
+- [ ] Supabase接続テストが成功する
+- [ ] ログイン画面が表示される
+
+### 7. デプロイ成功後の確認
+
+**アプリケーションが正常に動作している場合:**
+
+1. **Railway環境確認**:
+   - "🚂 Railway環境で実行中" が表示される
+   - デバッグ情報で `RAILWAY_ENVIRONMENT_NAME: production` が確認できる
+
+2. **Supabase接続確認**:
+   - "✅ Railway環境: Supabase接続情報が設定されています" が表示される
+   - "🔗 Supabase接続テスト" で接続テストが成功する
+
+3. **機能確認**:
+   - ユーザーログイン (パスワード: 88)
+   - 管理者ログイン (パスワード: admin88)
+   - データの表示と分析機能
+
+**次のステップ:**
+- 初期データの投入
+- ユーザーへのアクセス情報共有
+- 定期バックアップの設定
 
 ---
 

@@ -228,18 +228,170 @@ if not SUPABASE_URL or not SUPABASE_KEY:
             st.write(f"- 現在のディレクトリ: {os.getcwd()}")
             st.write(f"- アプリディレクトリ存在: {os.path.exists('/app')}")
             st.write(f"- .streamlitディレクトリ存在: {os.path.exists('/app/.streamlit')}")
+            st.write(f"- /root/.streamlitディレクトリ存在: {os.path.exists('/root/.streamlit')}")
             
             if os.path.exists('/app/.streamlit'):
-                st.write("- .streamlitディレクトリの内容:")
+                st.write("- /app/.streamlitディレクトリの内容:")
                 try:
                     files = os.listdir('/app/.streamlit')
                     for file in files:
                         st.write(f"  - {file}")
                 except Exception as e:
                     st.write(f"  - エラー: {e}")
+            
+            if os.path.exists('/root/.streamlit'):
+                st.write("- /root/.streamlitディレクトリの内容:")
+                try:
+                    files = os.listdir('/root/.streamlit')
+                    for file in files:
+                        st.write(f"  - {file}")
+                except Exception as e:
+                    st.write(f"  - エラー: {e}")
+            
+            # 環境変数の詳細表示
+            st.write("**全環境変数:**")
+            env_vars = dict(os.environ)
+            railway_vars = {k: v for k, v in env_vars.items() if 'RAILWAY' in k or 'SUPABASE' in k or k in ['PORT', 'PATH']}
+            for key, value in railway_vars.items():
+                if 'KEY' in key or 'SECRET' in key:
+                    st.write(f"- {key}: {'*' * len(value) if value else '未設定'}")
+                else:
+                    st.write(f"- {key}: {value}")
     
-    # アプリケーションを停止（環境変数が設定されていない場合）
-    st.stop()
+    # 環境変数が設定されていない場合は警告を表示するが、アプリケーションは継続
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        st.warning("⚠️ データベース機能は無効です。環境変数を設定してデプロイし直してください。")
+        if st.button("🔄 ページを再読み込み"):
+            st.rerun()
+    else:
+        # Supabase接続情報がある場合は通常のアプリケーション処理を続行
+        if os.getenv('RAILWAY_ENVIRONMENT_NAME'):
+            st.success("✅ Railway環境: Supabase接続情報が設定されています")
+            
+            # Supabase接続テスト
+            with st.expander("🔗 Supabase接続テスト"):
+                if st.button("接続テストを実行"):
+                    try:
+                        from supabase import create_client
+                        test_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+                        # 軽量な接続テスト
+                        response = test_client.table("players").select("count").limit(1).execute()
+                        st.success("✅ Supabase接続テスト成功")
+                        st.info(f"データベースURL: {SUPABASE_URL}")
+                    except Exception as e:
+                        st.error(f"❌ Supabase接続テスト失敗: {e}")
+                        st.warning("環境変数の値を確認してください")
+        else:
+            st.success("✅ Supabase接続情報が設定されています")
+    
+    # デモモードまたは通常モードでアプリケーションを継続
+    # アプリケーションを停止しない
+    # st.stop() を削除
+
+# ログイン用のパスワード設定
+USER_PASSWORD = "88"
+ADMIN_PASSWORD = "admin88"
+
+# セッション状態を初期化
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
+if "page" not in st.session_state:
+    st.session_state.page = "login"  # デフォルト：ログイン画面
+
+# Supabase接続情報がない場合のデモモード
+DEMO_MODE = not SUPABASE_URL or not SUPABASE_KEY
+
+if DEMO_MODE:
+    st.title("🏌️ 88会ゴルフコンペ・スコア管理システム")
+    st.info("📋 デモモード: データベース接続が無効です")
+    
+    # Railway環境では詳細な設定ガイドを表示
+    if os.getenv('RAILWAY_ENVIRONMENT_NAME'):
+        st.error("🚂 Railway環境: 環境変数が設定されていません")
+        
+        st.markdown("""
+        ## ⚠️ 設定が必要です
+        
+        Railway環境でアプリケーションが正常に起動していますが、データベース接続情報が設定されていません。
+        
+        ### 🔧 今すぐ設定する手順:
+        
+        #### 1. Supabase接続情報を取得
+        1. [Supabase](https://app.supabase.com) にアクセス
+        2. プロジェクトを選択  
+        3. Settings → API をクリック
+        4. 以下の情報をコピー:
+           - **Project URL**: `https://xxxxx.supabase.co`
+           - **anon public key**: `eyJhbGciOiJIUzI1NiI...`
+        
+        #### 2. Railway環境変数を設定
+        1. [Railway](https://railway.app) のプロジェクトページを開く
+        2. **"Variables"** タブをクリック
+        3. **"New Variable"** で以下を追加:
+        
+        ```
+        変数名: SUPABASE_URL
+        値: https://your-project-ref.supabase.co
+        
+        変数名: SUPABASE_KEY
+        値: eyJhbGciOiJIUzI1NiI... (anon public key)
+        ```
+        
+        #### 3. 再デプロイ
+        - 環境変数を保存すると自動的に再デプロイされます
+        - 数分後にこのページを再読み込みしてください
+        """)
+        
+        # 環境変数設定のクイックチェック
+        st.markdown("### 🔍 現在の設定状況")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if os.getenv('SUPABASE_URL'):
+                st.success("✅ SUPABASE_URL: 設定済み")
+            else:
+                st.error("❌ SUPABASE_URL: 未設定")
+        
+        with col2:
+            if os.getenv('SUPABASE_KEY'):
+                st.success("✅ SUPABASE_KEY: 設定済み")
+            else:
+                st.error("❌ SUPABASE_KEY: 未設定")
+        
+    else:
+        st.markdown("""
+        ## 🚧 設定が必要です
+        
+        このアプリケーションを使用するには、Supabaseデータベースの接続設定が必要です。
+        
+        ### ローカル開発環境での設定方法:
+        1. プロジェクトルートに `.env` ファイルを作成
+        2. 以下の内容を記述:
+           ```
+           SUPABASE_URL=あなたのSupabaseプロジェクトのURL
+           SUPABASE_KEY=あなたのSupabaseのAPIキー
+           ```
+        
+        ### Supabase接続情報の取得:
+        1. [Supabase](https://app.supabase.com) でプロジェクトを開く
+        2. Settings → API に移動
+        3. Project URL と anon/public key をコピー
+        """)
+    
+    # デモモードでもアプリケーションの基本機能を表示
+    st.markdown("---")
+    st.markdown("### 📖 アプリケーション機能一覧")
+    st.markdown("""
+    - 🏆 歴代優勝者の管理と表示
+    - 📊 優勝回数ランキングの可視化  
+    - ⛳ スコア入力および管理
+    - 💾 データのバックアップ機能
+    - 📈 スコア分析とグラフ表示
+    """)
+    
+    st.stop()  # デモモードの場合はここで停止
 
 
 

@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Pythonの依存関係をコピーしてインストール
@@ -21,10 +22,10 @@ COPY . .
 RUN mkdir -p /app/.streamlit /root/.streamlit
 
 # スクリプトに実行権限を付与
-RUN chmod +x start.sh railway_diagnose.py railway_start.py check-env.sh
+RUN chmod +x start.sh railway_diagnose.py railway_start.py check-env.sh check_vars.py
 
 # ポートを公開
 EXPOSE 8501
 
-# 診断スクリプトで起動
-CMD ["python", "railway_diagnose.py"]
+# 段階的診断と起動
+CMD ["sh", "-c", "echo '=== Railway環境変数チェック ===' && python check_vars.py && echo '=== 詳細診断開始 ===' && python railway_diagnose.py"]

@@ -179,6 +179,136 @@ load_dotenv()
 # より確実な環境変数読み込み
 import sys
 
+# Railway環境での代替環境変数読み込み
+def load_railway_env():
+    """Railwayの複数の方法で環境変数を読み込む"""
+    env_vars = {}
+    
+    # 複数のファイルパスを試行
+    file_paths = [
+        '/tmp/railway_env.txt',
+        '/tmp/railway_env.json',
+        'railway_env.txt',
+        'railway_env.json'
+    ]
+    
+    for env_file_path in file_paths:
+        try:
+            if os.path.exists(env_file_path):
+                print(f"Railway環境ファイル発見: {env_file_path}")
+                
+                if env_file_path.endswith('.json'):
+                    # JSON形式で読み込み
+                    with open(env_file_path, 'r') as f:
+                        data = json.load(f)
+                        for key, value in data.items():
+                            if value and value.strip():  # 空でない場合のみ設定
+                                env_vars[key] = value.strip()
+                                print(f"JSON環境変数読み込み: {key}={'*' * len(value) if 'KEY' in key else value[:30]}...")
+                else:
+                    # テキスト形式で読み込み
+                    with open(env_file_path, 'r') as f:
+                        for line in f:
+                            if '=' in line:
+                                key, value = line.strip().split('=', 1)
+                                if value and value.strip():  # 空でない場合のみ設定
+                                    env_vars[key] = value.strip()
+                                    print(f"テキスト環境変数読み込み: {key}={'*' * len(value) if 'KEY' in key else value[:30]}...")
+                
+                # 最初に見つかったファイルを使用
+                if env_vars:
+                    break
+                    
+        except Exception as e:
+            print(f"Railway環境ファイル読み込みエラー ({env_file_path}): {e}")
+    
+    # プロセス環境から直接読み取りを試行
+    if not env_vars:
+        try:
+            print("プロセス環境から直接読み取りを試行...")
+            with open(f'/proc/{os.getpid()}/environ', 'rb') as f:
+                proc_env = f.read().decode('utf-8', errors='ignore').split('\0')
+                for var in proc_env:
+                    if var and '=' in var:
+                        key, value = var.split('=', 1)
+                        if key in ['SUPABASE_URL', 'SUPABASE_KEY'] and value:
+                            env_vars[key] = value
+                            print(f"プロセス環境変数発見: {key}={'*' * len(value) if 'KEY' in key else value[:30]}...")
+        except Exception as e:
+            print(f"プロセス環境読み取りエラー: {e}")
+    
+    return env_vars
+
+def get_supabase_config():
+    """Supabase設定を複数の方法で取得"""
+    
+    print("=== Supabase設定取得開始 ===")
+    
+    # 方法1: 環境変数から直接取得
+    supabase_url = os.getenv("SUPABASE_URL", "").strip()
+    supabase_key = os.getenv("SUPABASE_KEY", "").strip()
+    
+    print(f"方法1 - 環境変数:")
+    print(f"  SUPABASE_URL: {'設定済み' if supabase_url else '未設定'} ({'*' * len(supabase_url) if supabase_url else 'N/A'})")
+    print(f"  SUPABASE_KEY: {'設定済み' if supabase_key else '未設定'} ({'*' * len(supabase_key) if supabase_key else 'N/A'})")
+    
+    # 方法2: Railway環境でのファイルフォールバック
+    if (not supabase_url or not supabase_key) and os.getenv('RAILWAY_ENVIRONMENT_NAME'):
+        print("方法2 - Railway環境ファイル読み込み:")
+        alt_vars = load_railway_env()
+        if alt_vars:
+            supabase_url = alt_vars.get('SUPABASE_URL', supabase_url)
+            supabase_key = alt_vars.get('SUPABASE_KEY', supabase_key)
+            print(f"  更新後 SUPABASE_URL: {'設定済み' if supabase_url else '未設定'}")
+            print(f"  更新後 SUPABASE_KEY: {'設定済み' if supabase_key else '未設定'}")
+        else:
+            print("  ファイルから追加設定なし")
+    
+    # 方法3: Streamlit secretsから取得
+    if not supabase_url or not supabase_key:
+        print("方法3 - Streamlit secrets:")
+        try:
+            secrets_url = st.secrets.get("supabase", {}).get("url", "")
+            secrets_key = st.secrets.get("supabase", {}).get("key", "")
+            
+            supabase_url = secrets_url.strip() if secrets_url else supabase_url
+            supabase_key = secrets_key.strip() if secrets_key else supabase_key
+            
+            print(f"  secrets SUPABASE_URL: {'設定済み' if secrets_url else '未設定'}")
+            print(f"  secrets SUPABASE_KEY: {'設定済み' if secrets_key else '未設定'}")
+            
+        except Exception as e:
+            print(f"  Streamlit secrets読み込みエラー: {e}")
+    
+    # 方法4: .envファイルから読み込み（ローカル開発用）
+    if not supabase_url or not supabase_key:
+        print("方法4 - .envファイル:")
+        try:
+            load_dotenv()
+            env_url = os.getenv("SUPABASE_URL", "").strip()
+            env_key = os.getenv("SUPABASE_KEY", "").strip()
+            
+            supabase_url = env_url if env_url else supabase_url
+            supabase_key = env_key if env_key else supabase_key
+            
+            print(f"  .env SUPABASE_URL: {'設定済み' if env_url else '未設定'}")
+            print(f"  .env SUPABASE_KEY: {'設定済み' if env_key else '未設定'}")
+            
+        except Exception as e:
+            print(f"  .envファイル読み込みエラー: {e}")
+    
+    # 空文字列の場合は未設定と見なす
+    if supabase_url == "" or supabase_key == "":
+        supabase_url = ""
+        supabase_key = ""
+    
+    print(f"=== 最終設定結果 ===")
+    print(f"SUPABASE_URL: {'✅ 設定済み' if supabase_url else '❌ 未設定'}")
+    print(f"SUPABASE_KEY: {'✅ 設定済み' if supabase_key else '❌ 未設定'}")
+    print("=" * 30)
+    
+    return supabase_url, supabase_key
+
 # デバッグ: 環境変数の状態を確認
 if os.getenv('RAILWAY_ENVIRONMENT_NAME'):
     print("=== Railway環境での環境変数デバッグ ===")
@@ -191,24 +321,8 @@ if os.getenv('RAILWAY_ENVIRONMENT_NAME'):
         print(f"SUPABASE_KEY value length: {len(os.environ['SUPABASE_KEY'])}")
     print("=" * 40)
 
-# 環境変数を取得（複数の方法で試行）
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
-
-# 空文字列の場合は未設定と見なす
-if SUPABASE_URL == "" or SUPABASE_KEY == "":
-    SUPABASE_URL = ""
-    SUPABASE_KEY = ""
-
-# 環境変数が設定されていない場合、Streamlit secretsを試す
-if not SUPABASE_URL or not SUPABASE_KEY:
-    try:
-        secrets_url = st.secrets.get("supabase", {}).get("url", "")
-        secrets_key = st.secrets.get("supabase", {}).get("key", "")
-        SUPABASE_URL = secrets_url or SUPABASE_URL
-        SUPABASE_KEY = secrets_key or SUPABASE_KEY
-    except Exception as e:
-        pass
+# 強化された環境変数取得
+SUPABASE_URL, SUPABASE_KEY = get_supabase_config()
 
 # 接続情報が不足している場合の対応
 if not SUPABASE_URL or not SUPABASE_KEY:

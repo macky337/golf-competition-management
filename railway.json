@@ -3,7 +3,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "./start.sh",
+    "startCommand": "python railway_diagnose.py",
     "healthcheckPath": "/_stcore/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10

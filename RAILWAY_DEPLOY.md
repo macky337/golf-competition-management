@@ -177,6 +177,106 @@ Railwayの Variables タブで以下の環境変数を設定：
 - `/app/.streamlit` ディレクトリが正しく作成されているか確認
 - 起動スクリプトが正常に実行されているかログで確認
 
+### 環境変数診断（高度なトラブルシューティング）
+
+**最新版では詳細な診断機能を追加しました**
+
+#### 1. 詳細診断の実行
+
+新しいバージョンでは `railway_diagnose.py` スクリプトが自動的に実行され、以下の詳細情報がログに出力されます：
+
+```
+=== RAILWAY環境診断レポート ===
+Python実行パス: /opt/venv/bin/python
+Python バージョン: 3.11.x
+現在のディレクトリ: /app
+プロセスID: 123
+
+--- Railway固有情報 ---
+RAILWAY_ENVIRONMENT_NAME: production
+RAILWAY_PROJECT_ID: abcd1234-5678-90ef
+RAILWAY_SERVICE_NAME: web
+...
+
+--- Supabase環境変数詳細 ---
+SUPABASE_URL:
+  - os.environ内存在: True/False
+  - os.getenv()結果: True/False
+  - 長さ: 45 文字
+  - プレビュー: https://abcdefghijklmnopqrstuvwxyz.supabase...
+
+--- Supabase接続テスト ---
+テストURL: https://your-project.supabase.co/rest/v1/
+レスポンスステータス: 200
+✅ Supabase接続成功
+```
+
+#### 2. ログの確認方法
+
+1. **Railway Dashboard**:
+   - プロジェクト → "Deployments" → 最新のデプロイをクリック
+   - "View Logs" で詳細ログを確認
+
+2. **診断情報を確認すべき項目**:
+   - `RAILWAY_ENVIRONMENT_NAME` が `production` になっているか
+   - `SUPABASE_URL` と `SUPABASE_KEY` が `os.environ内存在: True` になっているか
+   - 文字列の長さが適切か（URL: 40-60文字、KEY: 100文字以上）
+   - Supabase接続テストが成功しているか
+
+#### 3. 問題パターン別の対処法
+
+**パターンA: 環境変数が完全に見つからない**
+```
+SUPABASE_URL:
+  - os.environ内存在: False
+  - os.getenv()結果: False
+```
+→ Railway Variables設定を再確認し、手動再デプロイを実行
+
+**パターンB: 環境変数は存在するが値が空**
+```
+SUPABASE_URL:
+  - os.environ内存在: True
+  - os.getenv()結果: False  # 値が空文字列
+```
+→ Railway Variablesの値に余分なスペースや改行がないか確認
+
+**パターンC: 環境変数は設定されているがSupabase接続失敗**
+```
+✅ 環境変数設定済み
+❌ Supabase接続失敗: 401
+```
+→ Supabase APIキーが正しいか、プロジェクトが有効か確認
+
+**パターンD: NIXPACKSビルドエラー**
+```
+Error: Python package installation failed
+```
+→ `requirements.txt` の依存関係を確認し、不要なパッケージを削除
+
+#### 4. 代替診断方法
+
+もし標準の診断で問題が特定できない場合：
+
+1. **手動環境変数確認**:
+   ```bash
+   # Railwayのシェルアクセス機能を使用
+   echo $SUPABASE_URL
+   echo $SUPABASE_KEY
+   env | grep SUPABASE
+   ```
+
+2. **プロセス環境の直接確認**:
+   ```bash
+   cat /proc/self/environ | tr '\0' '\n' | grep SUPABASE
+   ```
+
+3. **ファイルフォールバック確認**:
+   ```bash
+   ls -la /tmp/railway_env*
+   cat /tmp/railway_env.txt
+   ```
+
 ---
 
 ## 📝 設定ファイルの詳細

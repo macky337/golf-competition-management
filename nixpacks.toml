@@ -1,0 +1,33 @@
+# nixpacks.toml - Railway NIXPACKSの設定
+
+[variables]
+# 環境変数を明示的に設定
+PYTHONPATH = "/app"
+STREAMLIT_CONFIG_DIR = "/app/.streamlit"
+PYTHONUNBUFFERED = "1"
+STREAMLIT_SERVER_HEADLESS = "true"
+
+[phases.setup]
+# Python環境のセットアップ
+nixPkgs = ["python3", "python3Packages.pip", "bash"]
+aptPkgs = ["build-essential", "procps"]
+
+[phases.install]
+# 依存関係のインストール
+cmds = [
+  "pip install -r requirements.txt",
+  "pip install requests"
+]
+
+[phases.build]
+# ビルドフェーズ（必要に応じて）
+cmds = [
+  "mkdir -p /app/.streamlit",
+  "mkdir -p /root/.streamlit",
+  "chmod +x start.sh",
+  "chmod +x railway_diagnose.py"
+]
+
+[start]
+# 起動コマンド - 詳細診断スクリプトを使用
+cmd = "python railway_diagnose.py"

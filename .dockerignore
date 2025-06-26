@@ -1,0 +1,52 @@
+# .dockerignore - Docker用除外ファイル
+
+# Git関連
+.git
+.gitignore
+README.md
+.env
+
+# Python関連
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 開発環境
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+backup/
+*.bak
+*.backup
+
+# Log files
+*.log
+app.log
+
+# Local environment files
+.env.local
+.env.*.local
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# Railway関連の一時ファイル
+restore_*.bat
+run_*.bat
+*.ps1
+merge_instructions.txt
+feature_ideas.txt
+
+# 不要なスクリプト（本番では不要）
+test.py
+scripts/python*

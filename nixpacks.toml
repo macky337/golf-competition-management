@@ -6,17 +6,26 @@ PYTHONPATH = "/app"
 STREAMLIT_CONFIG_DIR = "/app/.streamlit"
 PYTHONUNBUFFERED = "1"
 STREAMLIT_SERVER_HEADLESS = "true"
+# Python仮想環境を使用
+PIP_BREAK_SYSTEM_PACKAGES = "1"
 
 [phases.setup]
-# Python環境のセットアップ
-nixPkgs = ["python3", "python3Packages.pip", "bash"]
-aptPkgs = ["build-essential", "procps"]
+# Python環境のセットアップ - より詳細な設定
+nixPkgs = [
+  "python311",
+  "python311Packages.pip", 
+  "python311Packages.virtualenv",
+  "bash",
+  "gcc",
+  "pkg-config"
+]
 
 [phases.install]
-# 依存関係のインストール
+# Python仮想環境を作成して依存関係をインストール
 cmds = [
-  "pip install -r requirements.txt",
-  "pip install requests"
+  "python3 -m venv /opt/venv",
+  ". /opt/venv/bin/activate && pip install --upgrade pip setuptools wheel",
+  ". /opt/venv/bin/activate && pip install -r requirements.txt"
 ]
 
 [phases.build]
@@ -29,5 +38,5 @@ cmds = [
 ]
 
 [start]
-# 起動コマンド - 詳細診断スクリプトを使用
-cmd = "python railway_diagnose.py"
+# 起動コマンド - 仮想環境で詳細診断スクリプトを使用
+cmd = ". /opt/venv/bin/activate && python railway_diagnose.py"

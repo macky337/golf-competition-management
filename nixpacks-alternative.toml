@@ -1,0 +1,36 @@
+# nixpacks-alternative.toml - NIXPACKSの代替設定
+
+[variables]
+# 環境変数を明示的に設定
+PYTHONPATH = "/app"
+STREAMLIT_CONFIG_DIR = "/app/.streamlit"
+PYTHONUNBUFFERED = "1"
+STREAMLIT_SERVER_HEADLESS = "true"
+
+# Nix関連の設定
+NIX_PATH = "nixpkgs=https://github.com/NixOS/nixpkgs/archive/nixos-unstable.tar.gz"
+
+[phases.setup]
+# より基本的なPython環境
+nixPkgs = ["python311", "python311Packages.pip"]
+
+[phases.install]
+# システムパッケージレベルのインストールを使用
+cmds = [
+  # 代替案1: --user フラグを使用
+  "python3 -m pip install --user -r requirements.txt",
+  # 代替案2: 仮想環境の場合
+  # "python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = [
+  "mkdir -p /app/.streamlit",
+  "mkdir -p /root/.streamlit",
+  "chmod +x start.sh",
+  "chmod +x railway_diagnose.py"
+]
+
+[start]
+# ユーザーレベルでインストールしたパッケージを使用
+cmd = "python railway_diagnose.py"

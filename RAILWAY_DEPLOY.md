@@ -404,3 +404,59 @@ streamlit run app.py \
 ### データベースメンテナンス
 1. アプリケーション内のバックアップ機能を定期実行
 2. Supabaseダッシュボードでのモニタリング
+
+---
+
+## 🐳 ビルドシステムの選択（NIXPACKSエラー対策）
+
+**NIXPACKSでPythonパッケージインストールエラーが発生する場合の対処法**
+
+### オプション1: Dockerビルドに変更（推奨）
+
+現在の設定はDockerビルドを使用しています。これが最も確実な方法です：
+
+```json
+// railway.json
+{
+  "build": {
+    "builder": "DOCKERFILE"  // DockerfileでのビルドID
+  }
+}
+```
+
+### オプション2: NIXPACKSを修正して使用
+
+NIXPACKSを使いたい場合は、以下のファイルを置き換えて使用：
+
+1. `railway.json` を以下に変更：
+```json
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "python railway_diagnose.py"
+  }
+}
+```
+
+2. `nixpacks.toml` に仮想環境設定を追加済み
+
+### オプション3: NIXPACKS代替設定
+
+より軽量な設定の場合は `nixpacks-alternative.toml` を `nixpacks.toml` にリネーム：
+
+```bash
+mv nixpacks-alternative.toml nixpacks.toml
+```
+
+### 推奨設定の選択
+
+**現在の状況**: Dockerビルドが設定済み
+- ✅ より確実で予測可能
+- ✅ Python環境の完全な制御
+- ✅ ローカル開発環境との一貫性
+
+**Railway Variables設定は同じ**:
+- `SUPABASE_URL`: あなたのSupabaseプロジェクトURL
+- `SUPABASE_KEY`: あなたのSupabaseAPIキー

@@ -178,35 +178,45 @@ st.markdown("""
 # 環境変数の読み込み
 load_dotenv()
 
-# Supabase接続情報 - Streamlit secretsと環境変数の両方をサポート
-try:
-    # まずStreamlit secretsを試す
-    SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
-    SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "")
-except Exception:
-    # 次に環境変数を試す
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+# Supabase接続情報 - 環境変数を優先し、Streamlit secretsもサポート
+# Railway環境では環境変数が優先される
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+# 環境変数が設定されていない場合、Streamlit secretsを試す
+if not SUPABASE_URL or not SUPABASE_KEY:
+    try:
+        SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "") or SUPABASE_URL
+        SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "") or SUPABASE_KEY
+    except Exception:
+        pass
 
 # 接続情報が不足している場合の対応
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.warning("""
-    Supabase接続情報が見つかりません。以下のいずれかの方法で設定してください：
+    st.error("""
+    🔴 Supabase接続情報が見つかりません。
     
-    1. ローカル開発環境: プロジェクトルートに `.env` ファイルを作成し、以下を設定
-       ```
-       SUPABASE_URL=あなたのSupabaseのURL
-       SUPABASE_KEY=あなたのSupabaseのAPIキー
-       ```
+    **デプロイ環境別の設定方法:**
     
-    2. Streamlit Cloud: `.streamlit/secrets.toml` ファイルを作成、または Streamlit Cloud の設定画面で以下を設定
-       ```
-       [supabase]
-       url = "あなたのSupabaseのURL"
-       key = "あなたのSupabaseのAPIキー"
-       ```
+    📦 **Railway**: 
+    プロジェクト設定の Variables タブで以下の環境変数を設定:
+    - SUPABASE_URL = あなたのSupabaseのURL
+    - SUPABASE_KEY = あなたのSupabaseのAPIキー
     
-    3. その他のデプロイ環境: 環境変数 `SUPABASE_URL` および `SUPABASE_KEY` を設定
+    ☁️ **Streamlit Cloud**: 
+    .streamlit/secrets.toml ファイルまたは設定画面で以下を設定:
+    [supabase]
+    url = "あなたのSupabaseのURL"
+    key = "あなたのSupabaseのAPIキー"
+    
+    💻 **ローカル開発**: 
+    プロジェクトルートに .env ファイルを作成し、以下を設定:
+    SUPABASE_URL=あなたのSupabaseのURL
+    SUPABASE_KEY=あなたのSupabaseのAPIキー
+    
+    **接続情報の取得方法:**
+    1. Supabase でプロジェクトを開く
+    2. Settings > API から URL と anon/public key をコピー
     """)
 
 # ログイン用のパスワード設定

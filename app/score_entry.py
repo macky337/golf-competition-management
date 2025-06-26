@@ -39,15 +39,18 @@ else:  # Linux（Streamlit Cloud含む）
 # 環境変数の読み込み
 load_dotenv()
 
-# Supabase接続情報の取得
-try:
-    # まずStreamlit secretsを試す
-    SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
-    SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "")
-except Exception:
-    # 次に環境変数を試す
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+# Supabase接続情報の取得 - 環境変数を優先し、Streamlit secretsもサポート
+# Railway環境では環境変数が優先される
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+# 環境変数が設定されていない場合、Streamlit secretsを試す
+if not SUPABASE_URL or not SUPABASE_KEY:
+    try:
+        SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "") or SUPABASE_URL
+        SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "") or SUPABASE_KEY
+    except Exception:
+        pass
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"

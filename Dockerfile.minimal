@@ -1,0 +1,13 @@
+# 超シンプルDockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 基本パッケージのみ
+RUN pip install streamlit
+
+# シンプルアプリをコピー
+COPY simple_app.py .
+
+# 直接Streamlitを起動
+CMD streamlit run simple_app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true

@@ -1,4 +1,4 @@
-# Railway最終手段Dockerfile - ENTRYPOINT使用
+# Render最適化Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -13,12 +13,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # アプリケーション
 COPY . .
 
-# 最終起動スクリプト作成
-RUN echo '#!/bin/bash\nset -e\nexport PORT=8080\nunset RAILWAY_PORT 2>/dev/null || true\nunset NIXPACKS_PORT 2>/dev/null || true\necho "=== FINAL RAILWAY STARTUP ==="\necho "Environment cleaned, starting Streamlit..."\nmkdir -p .streamlit\necho "[server]\nheadless=true\nport=8080\naddress=\"0.0.0.0\"\n[browser]\ngatherUsageStats=false" > .streamlit/config.toml\npython -m streamlit run app.py --server.port=8080 --server.address=0.0.0.0 --server.headless=true' > final_start.sh
+# Streamlit設定とポート動的対応
+RUN mkdir -p .streamlit
+RUN echo '[server]\nheadless=true\naddress="0.0.0.0"\n[browser]\ngatherUsageStats=false' > .streamlit/config.toml
 
-RUN chmod +x final_start.sh
+# 起動スクリプト作成（ポート動的対応）
+RUN echo '#!/bin/bash\nPORT=${PORT:-8080}\npython -m streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true' > start.sh
+RUN chmod +x start.sh
 
-EXPOSE 8080
+EXPOSE $PORT
 
-# ENTRYPOINTを使用してCMD上書きを防ぐ
-ENTRYPOINT ["bash", "final_start.sh"]
+# 動的ポートで起動
+CMD ["bash", "start.sh"]

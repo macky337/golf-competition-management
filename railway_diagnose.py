@@ -248,9 +248,17 @@ def main():
         
         # Streamlit起動
         port = os.getenv('PORT', '8501')
+        
+        # ポート番号が文字列の場合、数値に変換
+        try:
+            port_int = int(port)
+        except (ValueError, TypeError):
+            print(f"⚠️ 無効なポート値: {port}, デフォルト8501を使用")
+            port_int = 8501
+        
         cmd = [
             'streamlit', 'run', 'app.py',
-            '--server.port', port,
+            '--server.port', str(port_int),
             '--server.address', '0.0.0.0',
             '--server.headless', 'true',
             '--server.enableCORS', 'false',

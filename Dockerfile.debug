@@ -1,0 +1,29 @@
+# Railway超シンプルDockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 必要最小限のパッケージをインストール
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+
+# 依存関係をインストール
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# アプリケーションをコピー
+COPY . .
+
+# ファイル構造を確認（デバッグ用）
+RUN ls -la /app/ && echo "--- app/ directory ---" && ls -la /app/app/ 2>/dev/null || echo "app/ directory not found"
+
+# ポート8080を公開
+EXPOSE 8080
+
+# Streamlit設定ディレクトリを作成
+RUN mkdir -p /app/.streamlit
+
+# Streamlit設定ファイルを作成
+RUN echo '[server]\nheadless = true\nport = 8080\naddress = "0.0.0.0"\n\n[browser]\ngatherUsageStats = false' > /app/.streamlit/config.toml
+
+# 直接streamlitを起動（環境変数は一切使用しない）
+CMD ["python", "-m", "streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true"]

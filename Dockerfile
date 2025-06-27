@@ -18,7 +18,7 @@ RUN mkdir -p .streamlit
 RUN echo '[server]\nheadless=true\naddress="0.0.0.0"\n[browser]\ngatherUsageStats=false' > .streamlit/config.toml
 
 # 起動スクリプト作成（ポート動的対応 + デバッグ情報）
-RUN echo '#!/bin/bash\necho "=== Render Startup Debug ==="\necho "Environment variables:"\nenv | grep -E "(PORT|RENDER)" || echo "No PORT/RENDER vars found"\nPORT=${PORT:-8080}\necho "Using port: $PORT"\necho "Starting Streamlit..."\npython -m streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false' > start.sh
+RUN echo '#!/bin/bash\necho "=== Render Startup Debug ==="\necho "Working directory: $(pwd)"\necho "Files in current directory:"\nls -la\necho "Environment variables:"\nenv | grep -E "(PORT|RENDER)" || echo "No PORT/RENDER vars found"\nPORT=${PORT:-8080}\necho "Using port: $PORT"\necho "Starting Streamlit..."\nexec python -m streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false' > start.sh
 RUN chmod +x start.sh
 
 # ポート公開（固定値を使用）

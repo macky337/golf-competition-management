@@ -4,9 +4,13 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    healthCheckPath: /_stcore/health
+    healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
       - key: PORT
         value: 8080
+      - key: SUPABASE_URL
+        value: https://hwnobuqvgmceqjjqmhkb.supabase.co
+      - key: SUPABASE_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3bm9idXF2Z21jZXFqanFtaGtiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5NzQzMzMsImV4cCI6MjA1MDU1MDMzM30.fNKXSjFAKPl6Ye-qRD8nWXXLYkFMTZcClHG6JNu41S4

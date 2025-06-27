@@ -1,31 +1,20 @@
-# Railway用固定ポート起動Dockerfile
+# Railway超シンプルDockerfile
 FROM python:3.11-slim
 
-# 作業ディレクトリを設定
 WORKDIR /app
 
-# システムパッケージを更新・インストール
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    procps \
-    && rm -rf /var/lib/apt/lists/*
+# 必要最小限のパッケージをインストール
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
 
-# Pythonの依存関係をコピーしてインストール
+# 依存関係をインストール
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリケーションコードをコピー
+# アプリケーションをコピー
 COPY . .
 
-# Streamlit設定ディレクトリを作成
-RUN mkdir -p /app/.streamlit /root/.streamlit
-
-# Streamlit設定ファイルを作成
-RUN echo '[server]\nheadless = true\nport = 8080\naddress = "0.0.0.0"\nenableCORS = false\nenableXsrfProtection = false\nfileWatcherType = "none"\n\n[browser]\ngatherUsageStats = false\n\n[logger]\nlevel = "info"' > /app/.streamlit/config.toml
-
-# ポートを公開
+# ポート8080を公開
 EXPOSE 8080
 
-# 環境変数を無視して固定ポートで起動
-CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true"]
+# 直接streamlitを起動（環境変数は一切使用しない）
+CMD ["python", "-m", "streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true"]

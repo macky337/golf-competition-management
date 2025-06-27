@@ -1,1 +1,1 @@
-web: python railway_diagnose.py
+web: python emergency_start.py

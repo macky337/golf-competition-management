@@ -1,38 +1,24 @@
-# Railway緊急対応Dockerfile - 複数起動オプション
+# Railway最終手段Dockerfile - ENTRYPOINT使用
 FROM python:3.11-slim
 
-# 作業ディレクトリ設定
 WORKDIR /app
 
-# 基本パッケージインストール
+# 基本パッケージ
 RUN apt-get update && apt-get install -y gcc && apt-get clean
 
-# 要件ファイルコピーとインストール
+# 依存関係
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 全ファイルコピー
+# アプリケーション
 COPY . .
 
-# すべてのスクリプトに実行権限付与
-RUN chmod +x railway_wrapper.py || true
-RUN chmod +x emergency_start.py || true
+# 最終起動スクリプト作成
+RUN echo '#!/bin/bash\nset -e\nexport PORT=8080\nunset RAILWAY_PORT 2>/dev/null || true\nunset NIXPACKS_PORT 2>/dev/null || true\necho "=== FINAL RAILWAY STARTUP ==="\necho "Environment cleaned, starting Streamlit..."\nmkdir -p .streamlit\necho "[server]\nheadless=true\nport=8080\naddress=\"0.0.0.0\"\n[browser]\ngatherUsageStats=false" > .streamlit/config.toml\npython -m streamlit run app.py --server.port=8080 --server.address=0.0.0.0 --server.headless=true' > final_start.sh
 
-# Streamlit設定ディレクトリ作成
-RUN mkdir -p .streamlit /root/.streamlit
+RUN chmod +x final_start.sh
 
-# 複数の設定ファイルを作成
-RUN echo '[server]\nheadless = true\nport = 8080\naddress = "0.0.0.0"\nenableCORS = false\nenableXsrfProtection = false\nfileWatcherType = "none"\n\n[browser]\ngatherUsageStats = false\n\n[logger]\nlevel = "info"' > .streamlit/config.toml
-
-RUN cp .streamlit/config.toml /root/.streamlit/config.toml
-
-# ポート公開
 EXPOSE 8080
 
-# 起動スクリプト作成
-RUN echo '#!/bin/bash\nset -e\necho "=== Railway Emergency Startup ==="\necho "Trying multiple startup methods..."\n\n# Method 1: Wrapper script\necho "Method 1: Using wrapper script"\npython railway_wrapper.py &\nPID1=$!\n\n# Wait a bit\nsleep 5\n\n# Check if still running\nif kill -0 $PID1 2>/dev/null; then\n    echo "Method 1 successful, waiting..."\n    wait $PID1\nelse\n    echo "Method 1 failed, trying Method 2"\n    # Method 2: Direct streamlit\n    echo "Method 2: Direct streamlit"\n    python -m streamlit run app.py --server.port=8080 --server.address=0.0.0.0 --server.headless=true\nfi' > startup.sh
-
-RUN chmod +x startup.sh
-
-# 緊急起動スクリプトを使用
-CMD ["bash", "startup.sh"]
+# ENTRYPOINTを使用してCMD上書きを防ぐ
+ENTRYPOINT ["bash", "final_start.sh"]

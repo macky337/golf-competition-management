@@ -1,0 +1,14 @@
+# Railway不要ファイル除外
+Procfile
+start.sh*
+railway.json
+nixpacks.toml*
+package.json
+*.backup
+.env*
+.git/
+.vscode/
+*.md
+image/
+tools/
+scripts/

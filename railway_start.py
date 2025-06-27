@@ -50,9 +50,17 @@ def check_railway_env():
     # Streamlitの起動
     print("\n=== Streamlitアプリケーション起動 ===")
     import subprocess
+    
+    # ポート設定の確認
+    port_env = os.getenv('PORT', '8501')
+    try:
+        port = int(port_env)
+    except (ValueError, TypeError):
+        port = 8501
+    
     cmd = [
         'streamlit', 'run', 'app.py',
-        '--server.port', os.getenv('PORT', '8501'),
+        '--server.port', str(port),
         '--server.address', '0.0.0.0',
         '--server.headless', 'true',
         '--server.enableCORS', 'false',

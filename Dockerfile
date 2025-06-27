@@ -22,10 +22,10 @@ COPY . .
 RUN mkdir -p /app/.streamlit /root/.streamlit
 
 # スクリプトに実行権限を付与
-RUN chmod +x start.sh railway_diagnose.py railway_start.py check-env.sh check_vars.py safe_start.py
+RUN chmod +x start.sh railway_diagnose.py railway_start.py check-env.sh check_vars.py safe_start.py minimal_start.py
 
 # ポートを公開
 EXPOSE 8501
 
-# 段階的診断と安全な起動
-CMD ["sh", "-c", "echo '=== Railway環境変数チェック ===' && python check_vars.py && echo '=== 安全な起動開始 ===' && python safe_start.py"]
+# 最小限起動スクリプトを使用
+CMD ["python", "minimal_start.py"]

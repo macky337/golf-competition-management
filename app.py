@@ -1,351 +1,357 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 """
-88会ゴルフコンペ・スコア管理システム - Railway PostgreSQL版
+緊急フォールバック: Flask版ゴルフスコア管理システム
 """
-
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from datetime import datetime
+from flask import Flask, render_template_string, request, jsonify
 import os
-import psycopg2
-from sqlalchemy import create_engine
-import warnings
-warnings.filterwarnings('ignore')
+import json
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # GUI不要
+import matplotlib.pyplot as plt
+import io
+import base64
+from datetime import datetime
 
-# ページ設定
-st.set_page_config(
-    page_title="88会ゴルフコンペ・スコア管理システム", 
-    page_icon="🏌️",
-    layout="wide"
-)
+app = Flask(__name__)
 
-# 日本語フォント設定
-plt.rcParams['font.family'] = ['DejaVu Sans', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'MS Gothic']
+# データファイル
+DATA_FILE = 'golf_scores.json'
 
-@st.cache_resource
-def init_connection():
-    """Railway PostgreSQLデータベース接続"""
-    try:
-        # Railway環境変数からDB接続情報を取得
-        database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            # SQLAlchemy用のエンジンを作成
-            engine = create_engine(database_url)
-            return engine
-        else:
-            # 環境変数がない場合はローカルのサンプルデータを使用
-            return None
-    except Exception as e:
-        st.error(f"データベース接続エラー: {e}")
+def load_data():
+    """スコアデータを読み込み"""
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {'players': [], 'scores': []}
+
+def save_data(data):
+    """スコアデータを保存"""
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def create_score_chart(data):
+    """スコアチャートを作成"""
+    if not data['scores']:
         return None
+    
+    df = pd.DataFrame(data['scores'])
+    
+    # プレイヤー別の合計スコア
+    player_totals = df.groupby('player')['score'].sum().sort_values()
+    
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(player_totals.index, player_totals.values, color=['#4CAF50', '#2196F3', '#FF9800', '#E91E63'])
+    plt.title('🏌️ プレイヤー別合計スコア', fontsize=16, pad=20)
+    plt.xlabel('プレイヤー', fontsize=12)
+    plt.ylabel('合計スコア', fontsize=12)
+    plt.xticks(rotation=45)
+    
+    # バーの上に数値表示
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                f'{int(height)}', ha='center', va='bottom', fontsize=10)
+    
+    plt.tight_layout()
+    
+    # 画像をbase64エンコード
+    img = io.BytesIO()
+    plt.savefig(img, format='png', dpi=100, bbox_inches='tight')
+    img.seek(0)
+    plot_url = base64.b64encode(img.getvalue()).decode()
+    plt.close()
+    
+    return plot_url
 
-def create_tables(engine):
-    """データベーステーブル作成"""
-    try:
-        with engine.connect() as conn:
-            # プレイヤーテーブル
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS players (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # 大会テーブル
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS tournaments (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(200) NOT NULL,
-                    date DATE NOT NULL,
-                    course VARCHAR(200),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # スコアテーブル
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS scores (
-                    id SERIAL PRIMARY KEY,
-                    tournament_id INTEGER REFERENCES tournaments(id),
-                    player_id INTEGER REFERENCES players(id),
-                    gross_score INTEGER NOT NULL,
-                    handicap INTEGER DEFAULT 0,
-                    net_score INTEGER NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            conn.commit()
-            return True
-    except Exception as e:
-        st.error(f"テーブル作成エラー: {e}")
-        return False
-
-def load_data_from_db(engine):
-    """データベースからデータを読み込み"""
-    try:
-        query = """
-        SELECT 
-            p.name as player_name,
-            s.gross_score as score,
-            s.handicap as hdcp,
-            s.net_score as net_score,
-            t.date::text as date,
-            t.course as course
-        FROM scores s
-        JOIN players p ON s.player_id = p.id
-        JOIN tournaments t ON s.tournament_id = t.id
-        ORDER BY t.date DESC, s.net_score ASC
-        """
-        df = pd.read_sql(query, engine)
-        return df
-    except Exception as e:
-        st.error(f"データ読み込みエラー: {e}")
-        return pd.DataFrame()
-
-def load_sample_data():
-    """サンプルデータを生成（DB接続がない場合）"""
-    sample_data = {
-        'player_name': ['田中太郎', '佐藤花子', '山田次郎', '鈴木美咲', '高橋健一', '渡辺良子'],
-        'score': [82, 76, 88, 79, 84, 81],
-        'hdcp': [12, 8, 16, 10, 14, 11],
-        'net_score': [70, 68, 72, 69, 70, 70],
-        'date': ['2025-06-15', '2025-06-15', '2025-06-15', '2025-06-15', '2025-06-15', '2025-06-15'],
-        'course': ['〇〇ゴルフクラブ', '〇〇ゴルフクラブ', '〇〇ゴルフクラブ', '〇〇ゴルフクラブ', '〇〇ゴルフクラブ', '〇〇ゴルフクラブ']
-    }
-    return pd.DataFrame(sample_data)
-
-def insert_sample_data(engine):
-    """初回起動時にサンプルデータをDBに挿入"""
-    try:
-        with engine.connect() as conn:
-            # プレイヤー挿入
-            players = ['田中太郎', '佐藤花子', '山田次郎', '鈴木美咲', '高橋健一', '渡辺良子']
-            for player in players:
-                conn.execute(
-                    "INSERT INTO players (name) VALUES (%s) ON CONFLICT DO NOTHING",
-                    (player,)
-                )
-            
-            # 大会挿入
-            conn.execute("""
-                INSERT INTO tournaments (name, date, course) 
-                VALUES ('第1回88会ゴルフコンペ', '2025-06-15', '〇〇ゴルフクラブ')
-                ON CONFLICT DO NOTHING
-            """)
-            
-            # スコア挿入
-            scores_data = [
-                (1, 1, 82, 12, 70),  # 田中太郎
-                (1, 2, 76, 8, 68),   # 佐藤花子
-                (1, 3, 88, 16, 72),  # 山田次郎
-                (1, 4, 79, 10, 69),  # 鈴木美咲
-                (1, 5, 84, 14, 70),  # 高橋健一
-                (1, 6, 81, 11, 70),  # 渡辺良子
-            ]
-            
-            for score in scores_data:
-                conn.execute("""
-                    INSERT INTO scores (tournament_id, player_id, gross_score, handicap, net_score)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT DO NOTHING
-                """, score)
-            
-            conn.commit()
-            return True
-    except Exception as e:
-        st.error(f"サンプルデータ挿入エラー: {e}")
-        return False
-
-def main():
-    st.title("🏌️ 88会ゴルフコンペ・スコア管理システム")
-    st.markdown("### 📊 Railway PostgreSQL版")
+@app.route('/')
+def home():
+    """メインページ"""
+    data = load_data()
+    chart_data = create_score_chart(data)
     
-    # データベース接続
-    engine = init_connection()
+    # 最新スコア履歴
+    recent_scores = data['scores'][-10:] if data['scores'] else []
     
-    # サイドバー
-    st.sidebar.title("📋 メニュー")
-    page = st.sidebar.selectbox("ページを選択", ["スコア一覧", "ランキング", "統計情報", "システム情報"])
+    html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🏌️ 88会ゴルフコンペ・スコア管理</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; padding: 20px; background: #f5f5f5; 
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { 
+            background: linear-gradient(135deg, #2e7d32, #4caf50); 
+            color: white; padding: 30px; border-radius: 15px; text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 { margin: 0; font-size: 2.5em; }
+        .header p { margin: 10px 0 0 0; opacity: 0.9; }
+        .card { 
+            background: white; padding: 25px; margin: 20px 0; 
+            border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .card h2 { color: #2e7d32; margin-top: 0; }
+        .form-group { margin: 15px 0; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, button { 
+            padding: 12px; margin: 5px; border-radius: 8px; 
+            border: 2px solid #ddd; font-size: 16px;
+        }
+        input:focus, select:focus { border-color: #4caf50; outline: none; }
+        button { 
+            background: #4caf50; color: white; cursor: pointer; 
+            border: none; font-weight: bold; transition: background 0.3s;
+        }
+        button:hover { background: #45a049; }
+        .score-table { 
+            width: 100%; border-collapse: collapse; margin: 20px 0; 
+        }
+        .score-table th, .score-table td { 
+            border: 1px solid #ddd; padding: 12px; text-align: center; 
+        }
+        .score-table th { 
+            background: #f8f9fa; font-weight: bold; color: #2e7d32;
+        }
+        .score-table tr:nth-child(even) { background: #f8f9fa; }
+        .stats-grid { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; margin: 20px 0; 
+        }
+        .stat-card { 
+            background: #e8f5e8; padding: 20px; border-radius: 10px; text-align: center; 
+        }
+        .stat-number { font-size: 2em; font-weight: bold; color: #2e7d32; }
+        .stat-label { color: #666; margin-top: 5px; }
+        .chart-container { text-align: center; margin: 20px 0; }
+        .player-list { 
+            display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; 
+        }
+        .player-tag { 
+            background: #e3f2fd; color: #1976d2; padding: 8px 16px; 
+            border-radius: 20px; font-size: 14px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏌️ 88会ゴルフコンペ・スコア管理システム</h1>
+            <p>📱 Flask版 - Railway完全対応 | {{ datetime.now().strftime('%Y年%m月%d日 %H:%M') }}</p>
+        </div>
+        
+        {% if players %}
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ players|length }}</div>
+                <div class="stat-label">参加プレイヤー</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ scores|length }}</div>
+                <div class="stat-label">記録スコア数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ (scores|map(attribute='hole')|list|unique|list|length) or 0 }}</div>
+                <div class="stat-label">プレイホール数</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="card">
+            <h2>🆕 プレイヤー追加</h2>
+            <div class="form-group">
+                <label for="playerName">プレイヤー名</label>
+                <input type="text" id="playerName" placeholder="プレイヤー名を入力" />
+                <button onclick="addPlayer()">プレイヤー追加</button>
+            </div>
+        </div>
+        
+        {% if players %}
+        <div class="card">
+            <h2>👥 参加プレイヤー ({{ players|length }}名)</h2>
+            <div class="player-list">
+                {% for player in players %}
+                <div class="player-tag">{{ player }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if players %}
+        <div class="card">
+            <h2>⛳ スコア入力</h2>
+            <div class="form-group">
+                <label for="scorePlayer">プレイヤー</label>
+                <select id="scorePlayer">
+                    <option value="">プレイヤーを選択</option>
+                    {% for player in players %}
+                    <option value="{{ player }}">{{ player }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="scoreHole">ホール番号</label>
+                <input type="number" id="scoreHole" placeholder="1-18" min="1" max="18" />
+            </div>
+            <div class="form-group">
+                <label for="scoreValue">スコア</label>
+                <input type="number" id="scoreValue" placeholder="スコアを入力" />
+            </div>
+            <button onclick="addScore()">スコア記録</button>
+        </div>
+        {% endif %}
+        
+        {% if chart_data %}
+        <div class="card">
+            <h2>📊 スコアチャート</h2>
+            <div class="chart-container">
+                <img src="data:image/png;base64,{{ chart_data }}" style="max-width: 100%; height: auto;" />
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if recent_scores %}
+        <div class="card">
+            <h2>� 最新スコア履歴</h2>
+            <table class="score-table">
+                <tr>
+                    <th>プレイヤー</th>
+                    <th>ホール</th>
+                    <th>スコア</th>
+                    <th>記録時刻</th>
+                </tr>
+                {% for score in recent_scores|reverse %}
+                <tr>
+                    <td>{{ score.player }}</td>
+                    <td>{{ score.hole }}</td>
+                    <td>{{ score.score }}</td>
+                    <td>{{ score.time }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+    </div>
     
-    # データ読み込み
-    if engine:
-        # DBテーブル作成
-        if create_tables(engine):
-            st.sidebar.success("✅ データベース接続完了")
+    <script>
+        function addPlayer() {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name) return alert('プレイヤー名を入力してください');
             
-            # 初回データ確認・挿入
-            df = load_data_from_db(engine)
-            if df.empty:
-                if insert_sample_data(engine):
-                    df = load_data_from_db(engine)
-                    st.sidebar.info("📝 サンプルデータを挿入しました")
-        else:
-            st.sidebar.error("❌ データベース初期化失敗")
-            df = load_sample_data()
-    else:
-        st.sidebar.warning("⚠️ DB未接続 - サンプルデータ使用")
-        df = load_sample_data()
-    
-    if page == "スコア一覧":
-        st.header("📊 最新スコア一覧")
-        st.dataframe(df, use_container_width=True)
-        
-        # 基本統計
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("参加者数", len(df))
-        with col2:
-            st.metric("平均スコア", f"{df['score'].mean():.1f}")
-        with col3:
-            st.metric("ベストスコア", df['score'].min())
-        with col4:
-            st.metric("平均ネット", f"{df['net_score'].mean():.1f}")
-    
-    elif page == "ランキング":
-        st.header("🏆 ランキング")
-        
-        # ネットスコアランキング
-        st.subheader("ネットスコアランキング")
-        ranking_df = df.sort_values('net_score').reset_index(drop=True)
-        ranking_df.index += 1
-        
-        # 順位列を追加
-        ranking_display = ranking_df[['player_name', 'score', 'hdcp', 'net_score']].copy()
-        ranking_display.columns = ['プレイヤー名', 'グロススコア', 'ハンディキャップ', 'ネットスコア']
-        
-        st.dataframe(ranking_display, use_container_width=True)
-        
-        # 上位3位表彰
-        st.subheader("🥇 表彰台")
-        if len(ranking_df) >= 3:
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("### 🥇 1位")
-                st.write(f"**{ranking_df.iloc[0]['player_name']}**")
-                st.write(f"ネット: {ranking_df.iloc[0]['net_score']}")
-            with col2:
-                st.markdown("### 🥈 2位")
-                st.write(f"**{ranking_df.iloc[1]['player_name']}**")
-                st.write(f"ネット: {ranking_df.iloc[1]['net_score']}")
-            with col3:
-                st.markdown("### 🥉 3位")
-                st.write(f"**{ranking_df.iloc[2]['player_name']}**")
-                st.write(f"ネット: {ranking_df.iloc[2]['net_score']}")
-    
-    elif page == "統計情報":
-        st.header("📈 統計情報")
-        
-        # スコア分布グラフ
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-        
-        # グロススコア分布
-        ax1.hist(df['score'], bins=8, alpha=0.7, color='skyblue', edgecolor='black')
-        ax1.set_title('グロススコア分布')
-        ax1.set_xlabel('スコア')
-        ax1.set_ylabel('人数')
-        ax1.grid(True, alpha=0.3)
-        
-        # ネットスコア分布
-        ax2.hist(df['net_score'], bins=8, alpha=0.7, color='lightgreen', edgecolor='black')
-        ax2.set_title('ネットスコア分布')
-        ax2.set_xlabel('ネットスコア')
-        ax2.set_ylabel('人数')
-        ax2.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        st.pyplot(fig)
-        
-        # スコア比較
-        st.subheader("📊 スコア比較")
-        comparison_df = df[['player_name', 'score', 'net_score']].copy()
-        comparison_df.columns = ['プレイヤー名', 'グロス', 'ネット']
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(comparison_df))
-        width = 0.35
-        
-        ax.bar(x - width/2, comparison_df['グロス'], width, label='グロススコア', alpha=0.8)
-        ax.bar(x + width/2, comparison_df['ネット'], width, label='ネットスコア', alpha=0.8)
-        
-        ax.set_xlabel('プレイヤー')
-        ax.set_ylabel('スコア')
-        ax.set_title('グロス vs ネットスコア比較')
-        ax.set_xticks(x)
-        ax.set_xticklabels(comparison_df['プレイヤー名'], rotation=45, ha='right')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        st.pyplot(fig)
-    
-    elif page == "システム情報":
-        st.header("🔧 システム情報")
-        
-        # デプロイ環境情報
-        st.subheader("📱 デプロイメント情報")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**環境:**")
-            platform = "Railway" if os.getenv('RAILWAY_ENVIRONMENT') else "ローカル"
-            st.write(f"- プラットフォーム: {platform}")
-            st.write(f"- ポート: {os.getenv('PORT', '8501')}")
-            st.write(f"- Python: 利用可能")
-            st.write(f"- Streamlit: 利用可能")
-        
-        with col2:
-            st.write("**データベース:**")
-            if engine:
-                st.write("- タイプ: PostgreSQL (Railway)")
-                st.write("- 状態: ✅ 接続済み")
-                st.write("- URL: 設定済み")
-                st.write("- エラー: なし")
-            else:
-                st.write("- タイプ: インメモリ（サンプル）")
-                st.write("- 状態: ⚠️ DB未接続")
-                st.write("- 外部依存: なし")
-                st.write("- モード: ローカル開発")
-        
-        # 機能状況
-        st.subheader("⚙️ 機能状況")
-        features = {
-            "スコア表示": "✅ 正常",
-            "ランキング表示": "✅ 正常", 
-            "統計グラフ": "✅ 正常",
-            "日本語表示": "✅ 正常",
-            "レスポンシブデザイン": "✅ 正常",
-            "データベース": "✅ 正常" if engine else "⚠️ 未接続"
+            fetch('/add_player', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert(data.message || 'エラーが発生しました');
+                }
+            });
         }
         
-        for feature, status in features.items():
-            st.write(f"- {feature}: {status}")
-        
-        # 成功メッセージ
-        if engine:
-            st.success("🎉 Railway PostgreSQLに接続成功！本格的なデータベースで動作中です。")
-        else:
-            st.info("ℹ️ ローカル環境ではサンプルデータで動作しています。Railwayデプロイ時にPostgreSQLが利用されます。")
-        
-        # デバッグ情報
-        with st.expander("🔍 詳細情報"):
-            st.write("**環境変数:**")
-            env_vars = {k: v for k, v in os.environ.items() 
-                       if any(keyword in k.upper() for keyword in ['RAILWAY', 'PORT', 'DATABASE', 'PYTHON'])}
-            for key, value in env_vars.items():
-                if 'DATABASE' in key:
-                    st.write(f"- {key}: ***設定済み***")
-                else:
-                    st.write(f"- {key}: {value}")
+        function addScore() {
+            const player = document.getElementById('scorePlayer').value;
+            const hole = document.getElementById('scoreHole').value;
+            const score = document.getElementById('scoreValue').value;
             
-            st.write("**システム:**")
-            st.write(f"- 作業ディレクトリ: {os.getcwd()}")
-            st.write(f"- データフレーム行数: {len(df)}")
-            st.write(f"- 最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            if (!player || !hole || !score) {
+                return alert('すべての項目を入力してください');
+            }
+            
+            if (hole < 1 || hole > 18) {
+                return alert('ホール番号は1-18の範囲で入力してください');
+            }
+            
+            fetch('/add_score', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    player: player, 
+                    hole: parseInt(hole), 
+                    score: parseInt(score)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('scoreHole').value = '';
+                    document.getElementById('scoreValue').value = '';
+                    location.reload();
+                } else {
+                    alert(data.message || 'エラーが発生しました');
+                }
+            });
+        }
+        
+        // 自動更新（30秒ごと）
+        setInterval(() => {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
+    """
+    
+    return render_template_string(html, 
+                                players=data['players'], 
+                                scores=data['scores'], 
+                                recent_scores=recent_scores,
+                                chart_data=chart_data,
+                                datetime=datetime)
 
-if __name__ == "__main__":
-    main()
+@app.route('/add_player', methods=['POST'])
+def add_player():
+    """プレイヤー追加"""
+    try:
+        data = load_data()
+        player_name = request.json['name'].strip()
+        
+        if not player_name:
+            return jsonify({'status': 'error', 'message': 'プレイヤー名が空です'})
+        
+        if player_name in data['players']:
+            return jsonify({'status': 'error', 'message': 'そのプレイヤーは既に登録されています'})
+        
+        data['players'].append(player_name)
+        save_data(data)
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/add_score', methods=['POST'])
+def add_score():
+    """スコア追加"""
+    try:
+        data = load_data()
+        score_data = request.json
+        score_data['time'] = datetime.now().strftime('%H:%M:%S')
+        
+        data['scores'].append(score_data)
+        save_data(data)
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/health')
+def health():
+    """ヘルスチェック"""
+    return jsonify({'status': 'healthy', 'app': 'golf-score-management'})
+
+if __name__ == '__main__':
+    port = int(os.getenv('PORT', 5000))
+    print("🏌️ 88会ゴルフコンペ・スコア管理システム Flask版")
+    print(f"🚀 起動ポート: {port}")
+    print("✅ STREAMLIT_SERVER_PORT問題を完全回避")
+    app.run(host='0.0.0.0', port=port, debug=False)

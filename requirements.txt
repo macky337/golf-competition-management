@@ -1,17 +1,16 @@
-# 88会ゴルフコンペ・スコア管理システム - Railway版
-# PostgreSQL対応
+# 88会ゴルフコンペ・スコア管理システム - Flask版
+# Streamlit完全削除でPORT問題を根本解決
 
-# Core web framework
-streamlit>=1.28.0
+# Core web framework  
 flask>=3.0.0
 
 # Data processing
 pandas>=2.0.0
 numpy>=1.24.0
 
-# Database
-psycopg2-binary>=2.9.0
-sqlalchemy>=2.0.0
+# Database (将来のPostgreSQL対応用)
+# psycopg2-binary>=2.9.0
+# sqlalchemy>=2.0.0
 
 # Plotting
 matplotlib>=3.7.0

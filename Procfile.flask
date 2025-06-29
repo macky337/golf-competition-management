@@ -1,0 +1,5 @@
+# メイン: Flask版
+web: python3 flask_emergency.py
+
+# 診断版（問題発生時用）
+# web: python3 railway_emergency_diag.py

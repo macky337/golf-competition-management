@@ -1,0 +1,15 @@
+# 88会ゴルフコンペ・スコア管理システム - DB不要版
+# 最小限の依存関係のみ
+
+# Core web framework
+streamlit>=1.28.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Plotting
+matplotlib>=3.7.0
+
+# Standard libraries (通常は不要だが明示的に記載)
+# datetime, json, os は標準ライブラリなので不要

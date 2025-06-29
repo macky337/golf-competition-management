@@ -1,1 +1,1 @@
-web: python3 emergency_start_final.py
+web: python3 simple_start.py

@@ -1,1 +1,1 @@
-web: python3 no_streamlit_cmd.py
+web: python3 flask_emergency.py

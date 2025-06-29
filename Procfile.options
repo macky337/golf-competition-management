@@ -1,0 +1,11 @@
+# メイン: Streamlit直接制御
+web: python3 no_streamlit_cmd.py
+
+# フォールバック1: シンプル版
+# web: python3 simple_start.py
+
+# フォールバック2: デバッグ版
+# web: python3 debug_railway.py
+
+# 緊急手段: Flask版
+# web: python3 flask_emergency.py

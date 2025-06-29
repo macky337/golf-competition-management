@@ -3,6 +3,7 @@
 
 # Core web framework
 streamlit>=1.28.0
+flask>=3.0.0
 
 # Data processing
 pandas>=2.0.0

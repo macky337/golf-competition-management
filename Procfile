@@ -1,1 +1,1 @@
-web: python3 debug_railway.py
+web: python3 no_streamlit_cmd.py

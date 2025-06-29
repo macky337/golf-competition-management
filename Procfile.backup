@@ -1,0 +1,6 @@
+# Primary: 強化版最終手段スクリプト
+web: python3 emergency_start_final.py
+
+# Backup options (コメントアウト):
+# web: python3 streamlit_direct.py
+# web: python3 emergency_start_subprocess.py

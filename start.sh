@@ -1,17 +1,12 @@
 #!/bin/bash
-# Railway デプロイ用起動スクリプト
+# ローカル開発用起動スクリプト
 
 unset STREAMLIT_SERVER_PORT
 export PORT=${PORT:-8501}
-export PYTHONPATH=/app:$PYTHONPATH
 
 echo "🏌️ 88会ゴルフコンペ・スコア管理システム を起動しています..."
 echo "📱 ポート: $PORT"
-echo "🔧 環境: Railway"
+echo "🔧 環境: ローカル開発"
 
-# Streamlit設定
-export STREAMLIT_SERVER_ENABLE_CORS=false
-export STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
-
-# アプリ起動
-streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+# アプリ起動（ローカル用）
+streamlit run app.py --server.port $PORT

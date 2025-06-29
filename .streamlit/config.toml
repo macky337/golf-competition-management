@@ -4,6 +4,13 @@ address = "0.0.0.0"
 headless = true
 enableCORS = false
 enableXsrfProtection = false
+runOnSave = false
+allowRunOnSave = false
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+serverPort = 8501
+
+[logger]
+level = "info"

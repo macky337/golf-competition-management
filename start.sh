@@ -1,6 +1,7 @@
 #!/bin/bash
 # Railway デプロイ用起動スクリプト
 
+unset STREAMLIT_SERVER_PORT
 export PORT=${PORT:-8501}
 export PYTHONPATH=/app:$PYTHONPATH
 

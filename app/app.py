@@ -2079,7 +2079,7 @@ st.markdown("""
         position: fixed;
         bottom: 10px;
         right: 10px;
-        background-color: rgba(255, 255, 255, 0.8);
+        background-color: transparent;
         padding: 10px;
         border-radius: 5px;
         box-shadow: 0 0 5px rgba(0,0,0,0.1);

@@ -228,6 +228,155 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 USER_PASSWORD = "88"
 ADMIN_PASSWORD = "admin88"
 
+# 次回開催告知情報
+NEXT_TOURNAMENT_INFO = {
+    "tournament_number": "第51回",
+    "event_name": "88会",
+    "date": "2025年9月6日（土）",
+    "course": "未定",
+    "course_note": "※千葉県のゴルフ場の予定",
+    "start_time": "未定（早い時間のスタート予定）",
+    "groups": "4組",
+    "briefing_time": "未定",
+    "cost": "未定",
+    "organizers": "福澤・関野"
+}
+
+# セッション状態を初期化
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
+if "page" not in st.session_state:
+    st.session_state.page = "login"  # デフォルト：ログイン画面
+
+def display_next_tournament_announcement():
+    """次回開催のお知らせを表示"""
+    st.markdown("---")
+    
+    # 告知ヘッダーをカラフルに
+    st.markdown("""
+    <div style="
+        background: linear-gradient(90deg, #1f4e79, #2980b9);
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        text-align: center;
+    ">
+        <h2 style="color: white; margin: 0; font-weight: bold;">
+            🏌️ 次回開催のお知らせ 🏌️
+        </h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 開催情報を見やすく表示
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown(f"""
+        <div style="
+            background-color: #f8f9fa;
+            border-left: 5px solid #28a745;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 10px 0;
+        ">
+            <h3 style="color: #28a745; margin-top: 0;">
+                {NEXT_TOURNAMENT_INFO['tournament_number']} {NEXT_TOURNAMENT_INFO['event_name']}
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div style="
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        ">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057; width: 25%;">📅 開催日：</td>
+                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['date']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">🏌️ コース：</td>
+                    <td style="padding: 8px 0; color: #212529;">
+                        {NEXT_TOURNAMENT_INFO['course']}<br>
+                        <small style="color: #6c757d;">{NEXT_TOURNAMENT_INFO['course_note']}</small>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">⏰ スタート時間：</td>
+                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['start_time']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">👥 組数：</td>
+                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['groups']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">📋 朝礼時間：</td>
+                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['briefing_time']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">💰 費用：</td>
+                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['cost']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">👔 幹事：</td>
+                    <td style="padding: 8px 0; color: #212529; font-weight: bold;">{NEXT_TOURNAMENT_INFO['organizers']}</td>
+                </tr>
+            </table>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 注意事項・お願い
+    st.info("📝 詳細が決まり次第、改めてご連絡いたします。皆様のご参加をお待ちしております！")
+    
+    st.markdown("---")
+
+# Supabase接続情報が設定されているか確認
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.warning("""
+    Supabase接続情報が見つかりません。以下のいずれかの方法で設定してください：
+    
+    1. ローカル開発環境: プロジェクトルートに `.env` ファイルを作成し、以下を設定
+       ```
+       SUPABASE_URL=あなたのSupabaseのURL
+       SUPABASE_KEY=あなたのSupabaseのAPIキー
+       ```
+    
+    2. Streamlit Cloud: `.streamlit/secrets.toml` ファイルを作成、または Streamlit Cloud の設定画面で以下を設定
+       ```
+       [supabase]
+       url = "あなたのSupabaseのURL"
+       key = "あなたのSupabaseのAPIキー"
+       ```
+    
+    3. その他のデプロイ環境: 環境変数 `SUPABASE_URL` および `SUPABASE_KEY` を設定
+    """)
+
+# ログイン用のパスワード設定
+USER_PASSWORD = "88"
+ADMIN_PASSWORD = "admin88"
+
+# 次回開催告知情報
+NEXT_TOURNAMENT_INFO = {
+    "tournament_number": "第51回",
+    "event_name": "88会",
+    "date": "2025年9月6日（土）",
+    "course": "未定",
+    "course_note": "※千葉県のゴルフ場の予定",
+    "start_time": "未定（早い時間のスタート予定）",
+    "groups": "4組",
+    "briefing_time": "未定",
+    "cost": "未定",
+    "organizers": "福澤・関野"
+}
+
 # セッション状態を初期化
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -775,7 +924,7 @@ def main_app():
         # 画像ファイルが存在するか確認
         if os.path.exists(image_path):
             st.image(image_path, use_container_width=True)
-            st.markdown("### 第50回記念大会 (2025年4月13日)")
+            st.markdown("### 第50回記念大会 (2025年4月12日)")
         else:
             # 代替画像を試す
             alt_image_file = "01205972-9563-43D7-B862-5B2B8DECF9FA.png"
@@ -789,6 +938,9 @@ def main_app():
     except Exception as e:
         st.error(f"画像表示エラー: {e}")
         st.markdown("### 第50回記念大会 (2025年4月13日)")
+    
+    # 次回開催告知を表示
+    display_next_tournament_announcement()
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()

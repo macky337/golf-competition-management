@@ -6,5 +6,5 @@ cmd = "streamlit run app/app.py --server.port=$PORT --server.address=0.0.0.0 --s
 
 [variables]
 PYTHONPATH = "."
-APP_VERSION = "1.15.15"
+APP_VERSION = "1.15.12"
 # Force cache clear - updated 2025-07-05

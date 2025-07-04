@@ -57,6 +57,7 @@ import warnings
 import logging
 import japanize_matplotlib
 import re
+import traceback
 
 import matplotlib
 import platform
@@ -112,7 +113,12 @@ def parse_version_from_commit_history():
                               capture_output=True, text=True, cwd='.')
         
         if result.returncode != 0:
-            return '1.0.0'
+            # Gitコマンドが失敗した場合、環境変数から取得を試す
+            env_version = os.environ.get('APP_VERSION')
+            if env_version:
+                return env_version
+            # 最後の手段として、固定バージョンを返す
+            return '1.15.15'  # 最後に確認できた正確なバージョン
         
         commits = result.stdout.strip().split('\n')
         
@@ -142,8 +148,12 @@ def parse_version_from_commit_history():
         return f'{major}.{minor}.{patch}'
     
     except Exception as e:
-        # Git情報が取得できない場合はデフォルトバージョン
-        return '1.0.0'
+        # 例外が発生した場合も環境変数から取得を試す
+        env_version = os.environ.get('APP_VERSION')
+        if env_version:
+            return env_version
+        # Git情報が取得できない場合は最後に確認できたバージョン
+        return '1.15.15'
 
 def get_app_version():
     """アプリのバージョンを動的に取得する"""
@@ -153,7 +163,11 @@ def get_app_version():
             st.session_state.app_version = parse_version_from_commit_history()
         return st.session_state.app_version
     except Exception:
-        return "1.0.0"  # デフォルトバージョン
+        # 環境変数から取得を試す
+        env_version = os.environ.get('APP_VERSION')
+        if env_version:
+            return env_version
+        return "1.15.15"  # 最後に確認できた正確なバージョン
 
 def get_app_last_update():
     """アプリの最終更新日を動的に取得する"""
@@ -1113,6 +1127,27 @@ def admin_app():
     with tabs[5]:
         st.subheader("その他の設定")
         # 将来的に追加される可能性のある設定用のスペース
+    with tabs[5]:
+        st.subheader("システム情報")
+        
+        # バージョン情報表示
+        st.write("**バージョン情報**")
+        current_version = get_app_version()
+        st.info(f"現在のバージョン: {current_version}")
+        
+        # デバッグ情報表示
+        if st.button("デバッグ情報を表示"):
+            debug_info = get_version_debug_info()
+            st.write("**デバッグ情報**")
+            for info in debug_info:
+                st.text(info)
+        
+        # バージョン情報の更新ボタン
+        if st.button("バージョン情報を更新"):
+            if 'app_version' in st.session_state:
+                del st.session_state.app_version
+            st.success("バージョン情報を更新しました")
+            st.rerun()
     
     # ナビゲーションボタン
     col1, col2 = st.columns(2)
@@ -1501,7 +1536,6 @@ def save_competition(competition_data, participants_data):
         return True, f"コンペデータを{'登録' if is_new else '更新'}しました。コンペID: {competition_id}"
     
     except Exception as e:
-        import traceback
         st.error(traceback.format_exc())
         return False, f"データ保存エラー: {e}"
 
@@ -2045,7 +2079,7 @@ st.markdown("""
         position: fixed;
         bottom: 10px;
         right: 10px;
-        background-color: rgba(255, 255, 白, 0.8);
+        background-color: rgba(255, 255, 255, 0.8);
         padding: 10px;
         border-radius: 5px;
         box-shadow: 0 0 5px rgba(0,0,0,0.1);
@@ -2075,169 +2109,42 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# コンペデータを取得する関数
-def fetch_competitions():
-    """コンペティション一覧をSupabaseから取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return pd.DataFrame()
+# バージョン取得のデバッグ情報を返す
+def get_version_debug_info():
+    debug_info = []
     
+    # 環境変数の確認
+    env_version = os.environ.get('APP_VERSION')
+    if env_version:
+        debug_info.append(f"環境変数 APP_VERSION: {env_version}")
+    else:
+        debug_info.append("環境変数 APP_VERSION: 設定されていません")
+    
+    # Gitコマンドの確認
     try:
-        response = supabase.table("competitions").select("*").execute()
-        
-        if not response.data:
-            st.warning("コンペティションデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
-            return pd.DataFrame()
-        
-        competitions_df = pd.DataFrame(response.data)
-        return competitions_df
+        import subprocess
+        result = subprocess.run(['git', '--version'], 
+                              capture_output=True, text=True, cwd='.')
+        if result.returncode == 0:
+            debug_info.append(f"Git利用可能: {result.stdout.strip()}")
+        else:
+            debug_info.append("Git利用不可: コマンドが失敗しました")
     except Exception as e:
-        st.error(f"コンペティションデータ取得エラー: {e}")
-        return pd.DataFrame()
-
-# プレイヤーデータを取得する関数
-def fetch_players():
-    """Supabaseからプレイヤーデータを取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return pd.DataFrame()
+        debug_info.append(f"Git利用不可: {str(e)}")
     
+    # Gitリポジトリの確認
     try:
-        # playersテーブルからデータを取得
-        response = supabase.table("players").select("*").execute()
-        
-        if not response.data:
-            return pd.DataFrame()
-        
-        # データフレームに変換して返す
-        return pd.DataFrame(response.data)
+        import subprocess
+        result = subprocess.run(['git', 'rev-parse', '--git-dir'], 
+                              capture_output=True, text=True, cwd='.')
+        if result.returncode == 0:
+            debug_info.append("Gitリポジトリ: 存在します")
+        else:
+            debug_info.append("Gitリポジトリ: 存在しません")
     except Exception as e:
-        st.error(f"プレイヤーデータ取得エラー: {e}")
-        return pd.DataFrame()
-
-def restore_database():
-    """
-    データベースのバックアップファイルからデータを復元する
-    """
-    st.subheader("データベースのリストア")
-    st.write("バックアップファイルからデータを復元します。")
+        debug_info.append(f"Gitリポジトリ: 確認エラー {str(e)}")
     
-    # バックアップフォルダを指定
-    backup_dir = "backup"
-    
-    # バックアップフォルダが存在するか確認
-    if not os.path.exists(backup_dir):
-        st.error(f"バックアップフォルダ {backup_dir} が見つかりません。")
-        return
-    
-    # JSONバックアップファイル一覧を取得
-    backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
-    
-    if not backup_files:
-        st.warning("バックアップファイルが見つかりません。")
-        return
-    
-    # 最新の順に並べ替え
-    backup_files.sort(reverse=True)
-    
-    # バックアップファイルを選択
-    selected_backup = st.selectbox(
-        "復元するバックアップファイルを選択してください",
-        backup_files,
-        key="restore_backup_select"
-    )
-    
-    if selected_backup:
-        backup_path = os.path.join(backup_dir, selected_backup)
-        
-        if st.button("選択したバックアップを復元", key="restore_backup_button"):
-            try:
-                # バックアップファイルを読み込み
-                with open(backup_path, 'r', encoding='utf-8') as file:
-                    backup_data = json.load(file)
-                
-                # Supabaseクライアントを取得
-                supabase = get_supabase_client()
-                if not supabase:
-                    st.error("Supabaseに接続できません。")
-                    return
-                
-                # 復元前に現在のデータをバックアップ
-                current_backup = backup_database(show_ui=False)
-                if not current_backup:
-                    if not st.button("現在のデータのバックアップに失敗しました。それでも続行しますか？", key="continue_without_backup"):
-                        return
-                
-                # 既存のテーブルをクリア
-                tables = ["scores", "participants", "competitions", "players"]
-                for table in tables:
-                    if table in backup_data and backup_data[table]:
-                        # テーブルからすべてのデータを削除
-                        supabase.table(table).delete().gte("id", 0).execute()
-                        
-                        # バックアップからデータを一括挿入
-                        chunk_size = 1000  # 一度に挿入する最大レコード数
-                        
-                        for i in range(0, len(backup_data[table]), chunk_size):
-                            chunk = backup_data[table][i:i + chunk_size]
-                            supabase.table(table).insert(chunk).execute()
-                
-                st.success(f"バックアップ {selected_backup} からデータを復元しました。")
-                
-            except Exception as e:
-                st.error(f"データの復元中にエラーが発生しました: {e}")
-
-def backup_database(show_ui=True):
-    """
-    データベースのバックアップ処理
-    
-    Args:
-        show_ui (bool): UI表示フラグ
-    
-    Returns:
-        dict or None: バックアップデータ、エラー時はNone
-    """
-    if show_ui:
-        st.write("データベースのバックアップを作成します。")
-    
-    try:
-        # Supabaseクライアントを取得
-        supabase = get_supabase_client()
-        if not supabase:
-            if show_ui:
-                st.error("Supabaseに接続できません。")
-            return None
-        
-        backup_data = {}
-        
-        # 各テーブルのデータを取得してバックアップ
-        tables = ["players", "competitions", "participants", "scores"]
-        
-        for table in tables:
-            response = supabase.table(table).select("*").execute()
-            backup_data[table] = response.data
-        
-        # バックアップディレクトリを確認
-        backup_dir = "backup"
-        os.makedirs(backup_dir, exist_ok=True)
-        
-        # 現在時刻をファイル名に含める
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = os.path.join(backup_dir, f"backup_{current_time}.json")
-        
-        # JSONとしてバックアップを保存
-        with open(backup_file, 'w', encoding='utf-8') as file:
-            json.dump(backup_data, file, ensure_ascii=False, indent=2)
-        
-        if show_ui:
-            st.success(f"データベースのバックアップが完了しました: {backup_file}")
-        
-        return backup_data
-    
-    except Exception as e:
-        if show_ui:
-            st.error(f"バックアップ中にエラーが発生しました: {e}")
-        return None
+    return debug_info
 
 
 

@@ -104,37 +104,52 @@ def get_git_latest_commit_message():
         return ""  # Git情報が取得できない場合は空文字列
 
 def parse_version_from_commit_history():
-    """コミット履歴を解析し、適切なバージョン番号を計算する"""
-    # バージョン番号の初期値
+    """コミット履歴を解析して、適切なバージョン番号を生成する"""
+    # 基本バージョン
     major = 1
     minor = 0
     patch = 0
     
     try:
-        # まず最新のコミットメッセージを取得
-        latest_commit_message = get_git_latest_commit_message()
+        # 全てのコミットメッセージを取得
+        import subprocess
+        commit_messages = subprocess.check_output([
+            'git', 'log', '--oneline', '--pretty=format:%s'
+        ]).decode('utf-8').strip().split('\n')
         
-        # コミットメッセージに基づいてバージョンタイプを判断
-        if re.search(r'^(major:|MAJOR:|!:)', latest_commit_message):
-            # メジャーバージョンアップ
-            major += 1
-            minor = 0
-            patch = 0
-        elif re.search(r'^(feature:|feat:|FEATURE:)', latest_commit_message):
-            # マイナーバージョンアップ
-            minor += 1
-            patch = 0
-        elif re.search(r'^(fix:|bugfix:|FIX:)', latest_commit_message):
-            # パッチバージョンアップ
-            patch += 1
-        else:
-            # 特に指定がない場合はパッチバージョン
-            patch = int(get_git_count())
+        # 各コミットメッセージを解析
+        for message in commit_messages:
+            message = message.strip().lower()
             
+            # メジャーバージョンアップのキーワード
+            if any(keyword in message for keyword in ['major:', 'breaking:', '!:', 'major ', 'breaking ']):
+                major += 1
+                minor = 0
+                patch = 0
+                continue
+            
+            # マイナーバージョンアップのキーワード
+            if any(keyword in message for keyword in ['feature:', 'feat:', 'add:', 'new:', 'feature ', 'feat ', 'add ', 'new ']):
+                minor += 1
+                patch = 0
+                continue
+            
+            # パッチバージョンアップのキーワード
+            if any(keyword in message for keyword in ['fix:', 'bugfix:', 'patch:', 'hotfix:', 'fix ', 'bugfix ', 'patch ', 'hotfix ']):
+                patch += 1
+                continue
+            
+            # その他のコミットもパッチとして扱う
+            patch += 1
+        
         return f"{major}.{minor}.{patch}"
     except Exception:
-        # デフォルトバージョン
-        return "1.0.7"
+        # Git情報が取得できない場合は、コミット数をパッチ番号として使用
+        try:
+            patch = int(get_git_count())
+            return f"{major}.{minor}.{patch}"
+        except Exception:
+            return "1.0.0"
 
 def get_app_version():
     """アプリのバージョンを動的に取得する"""

@@ -105,59 +105,55 @@ def get_git_latest_commit_message():
 
 def parse_version_from_commit_history():
     """コミット履歴を解析して、適切なバージョン番号を生成する"""
-    # 基本バージョン
-    major = 1
-    minor = 0
-    patch = 0
-    
     try:
-        # 全てのコミットメッセージを取得
+        # 最新50コミットを取得
         import subprocess
-        commit_messages = subprocess.check_output([
-            'git', 'log', '--oneline', '--pretty=format:%s'
-        ]).decode('utf-8').strip().split('\n')
+        result = subprocess.run(['git', 'log', '--oneline', '-50'], 
+                              capture_output=True, text=True, cwd='.')
         
-        # 各コミットメッセージを解析
-        for message in commit_messages:
-            message = message.strip().lower()
+        if result.returncode != 0:
+            return '1.0.0'
+        
+        commits = result.stdout.strip().split('\n')
+        
+        major = 1
+        minor = 0
+        patch = 0
+        
+        for commit in commits:
+            commit_lower = commit.lower()
             
             # メジャーバージョンアップのキーワード
-            if any(keyword in message for keyword in ['major:', 'breaking:', '!:', 'major ', 'breaking ']):
+            if 'major:' in commit_lower or 'breaking:' in commit_lower:
                 major += 1
                 minor = 0
                 patch = 0
-                continue
-            
             # マイナーバージョンアップのキーワード
-            if any(keyword in message for keyword in ['feature:', 'feat:', 'add:', 'new:', 'feature ', 'feat ', 'add ', 'new ']):
+            elif 'feature:' in commit_lower or 'feat:' in commit_lower:
                 minor += 1
                 patch = 0
-                continue
-            
             # パッチバージョンアップのキーワード
-            if any(keyword in message for keyword in ['fix:', 'bugfix:', 'patch:', 'hotfix:', 'fix ', 'bugfix ', 'patch ', 'hotfix ']):
+            elif 'fix:' in commit_lower or 'patch:' in commit_lower or 'bug:' in commit_lower:
                 patch += 1
-                continue
-            
-            # その他のコミットもパッチとして扱う
-            patch += 1
+            else:
+                # その他のコミットもpatchとしてカウント
+                patch += 1
         
-        return f"{major}.{minor}.{patch}"
-    except Exception:
-        # Git情報が取得できない場合は、コミット数をパッチ番号として使用
-        try:
-            patch = int(get_git_count())
-            return f"{major}.{minor}.{patch}"
-        except Exception:
-            return "1.0.0"
+        return f'{major}.{minor}.{patch}'
+    
+    except Exception as e:
+        # Git情報が取得できない場合はデフォルトバージョン
+        return '1.0.0'
 
 def get_app_version():
     """アプリのバージョンを動的に取得する"""
     try:
-        # コミット履歴に基づいてバージョン番号を解析
-        return parse_version_from_commit_history()
+        # セッションステートにバージョンをキャッシュ
+        if 'app_version' not in st.session_state:
+            st.session_state.app_version = parse_version_from_commit_history()
+        return st.session_state.app_version
     except Exception:
-        return "1.0.7"  # デフォルトバージョン
+        return "1.0.0"  # デフォルトバージョン
 
 def get_app_last_update():
     """アプリの最終更新日を動的に取得する"""
@@ -2069,10 +2065,11 @@ st.markdown("""
 connection_status = get_supabase_status()
 git_rev = get_git_revision()
 git_date = get_git_date()
+current_version = get_app_version()  # キャッシュされたバージョンを取得
 
 st.markdown(f"""
 <div class="vertical-footer">
-    <span class="footer-item">Ver {APP_VERSION} ({git_rev})</span>
+    <span class="footer-item">Ver {current_version} ({git_rev})</span>
     <span class="footer-item">最終更新: {git_date}</span>
     <span class="footer-item">Supabase: {connection_status}</span>
 </div>

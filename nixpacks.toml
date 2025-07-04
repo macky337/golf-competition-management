@@ -2,7 +2,7 @@
 providers = ["python"]
 
 [start]
-cmd = "streamlit run app_main.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
+cmd = "streamlit run app/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
 
 [variables]
 PYTHONPATH = "."

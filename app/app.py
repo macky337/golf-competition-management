@@ -1135,13 +1135,6 @@ def admin_app():
         current_version = get_app_version()
         st.info(f"現在のバージョン: {current_version}")
         
-        # デバッグ情報表示
-        if st.button("デバッグ情報を表示"):
-            debug_info = get_version_debug_info()
-            st.write("**デバッグ情報**")
-            for info in debug_info:
-                st.text(info)
-        
         # バージョン情報の更新ボタン
         if st.button("バージョン情報を更新"):
             if 'app_version' in st.session_state:
@@ -2025,26 +2018,6 @@ def fetch_competition_info(competition_id):
     except Exception:
         return None
 
-def page_router():
-    if st.session_state.page == "main":
-        if st.session_state.logged_in:
-            main_app()
-        else:
-            login_page()
-    elif st.session_state.page == "admin":
-        if st.session_state.admin_logged_in:
-            admin_app()
-        else:
-            admin_login_page()
-    else:
-        login_page()
-
-# アプリの起動
-if not st.session_state.logged_in and not st.session_state.admin_logged_in:
-    st.session_state.page = "login"
-
-page_router()
-
 # Supabase接続状況を取得
 def get_supabase_status():
     if SUPABASE_URL and SUPABASE_KEY:
@@ -2082,7 +2055,7 @@ st.markdown("""
         background-color: transparent;
         padding: 10px;
         border-radius: 5px;
-        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        # box-shadow: 0 0 5px rgba(0,0,0,0.1);
         z-index: 999;
         text-align: right;
         line-height: 1.5;
@@ -2096,55 +2069,43 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # フッターを右下に縦に配置
-connection_status = get_supabase_status()
-git_rev = get_git_revision()
-git_date = get_git_date()
-current_version = get_app_version()  # キャッシュされたバージョンを取得
+def display_footer():
+    connection_status = get_supabase_status()
+    git_rev = get_git_revision()
+    git_date = get_git_date()
+    current_version = get_app_version()  # キャッシュされたバージョンを取得
 
-st.markdown(f"""
-<div class="vertical-footer">
-    <span class="footer-item">Ver {current_version} ({git_rev})</span>
-    <span class="footer-item">最終更新: {git_date}</span>
-    <span class="footer-item">Supabase: {connection_status}</span>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="vertical-footer">
+        <span class="footer-item">Ver {current_version} ({git_rev})</span>
+        <span class="footer-item">最終更新: {git_date}</span>
+        <span class="footer-item">Supabase: {connection_status}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-# バージョン取得のデバッグ情報を返す
-def get_version_debug_info():
-    debug_info = []
-    
-    # 環境変数の確認
-    env_version = os.environ.get('APP_VERSION')
-    if env_version:
-        debug_info.append(f"環境変数 APP_VERSION: {env_version}")
+def page_router():
+    if st.session_state.page == "main":
+        if st.session_state.logged_in:
+            main_app()
+        else:
+            login_page()
+            display_footer() # ログイン前画面でのみフッター表示
+    elif st.session_state.page == "admin":
+        if st.session_state.admin_logged_in:
+            admin_app()
+        else:
+            admin_login_page()
+            display_footer() # 管理者ログイン前画面でのみフッター表示
     else:
-        debug_info.append("環境変数 APP_VERSION: 設定されていません")
-    
-    # Gitコマンドの確認
-    try:
-        import subprocess
-        result = subprocess.run(['git', '--version'], 
-                              capture_output=True, text=True, cwd='.')
-        if result.returncode == 0:
-            debug_info.append(f"Git利用可能: {result.stdout.strip()}")
-        else:
-            debug_info.append("Git利用不可: コマンドが失敗しました")
-    except Exception as e:
-        debug_info.append(f"Git利用不可: {str(e)}")
-    
-    # Gitリポジトリの確認
-    try:
-        import subprocess
-        result = subprocess.run(['git', 'rev-parse', '--git-dir'], 
-                              capture_output=True, text=True, cwd='.')
-        if result.returncode == 0:
-            debug_info.append("Gitリポジトリ: 存在します")
-        else:
-            debug_info.append("Gitリポジトリ: 存在しません")
-    except Exception as e:
-        debug_info.append(f"Gitリポジトリ: 確認エラー {str(e)}")
-    
-    return debug_info
+        login_page()
+        display_footer() # ログイン前画面でのみフッター表示
+
+# アプリの起動
+if not st.session_state.logged_in and not st.session_state.admin_logged_in:
+    st.session_state.page = "login"
+
+page_router()
+
 
 
 

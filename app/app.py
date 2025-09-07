@@ -1780,15 +1780,24 @@ def save_scores(competition_id, scores_data):
             # ランキングを取得
             ranking = next((p["ranking"] for p in valid_players if p["player_id"] == player_id), None)
             
-            # scoreレコードを作成
+            # 必須フィールドの検証
+            if not player_id:
+                st.error(f"プレイヤーIDが不正です: {player_id}")
+                continue
+                
+            if not competition_id:
+                st.error(f"コンペIDが不正です: {competition_id}")
+                continue
+            
+            # scoreレコードを作成（idフィールドは明示的に除外）
             score_record = {
-                "competition_id": competition_id,
-                "player_id": player_id,
-                "out_score": score["out_score"],
-                "in_score": score["in_score"],
-                "handicap": score["handicap"],
-                "net_score": score["net_score"],
-                "ranking": ranking
+                "competition_id": int(competition_id),
+                "player_id": int(player_id),
+                "out_score": int(score["out_score"]) if score["out_score"] else None,
+                "in_score": int(score["in_score"]) if score["in_score"] else None,
+                "handicap": float(score["handicap"]) if score["handicap"] is not None else 0.0,
+                "net_score": float(score["net_score"]) if score["net_score"] is not None else None,
+                "ranking": int(ranking) if ranking is not None else None
             }
             
             # コンペの日付とコース名をscoreレコードに追加
@@ -1797,13 +1806,72 @@ def save_scores(competition_id, scores_data):
                 score_record["date"] = competition_info.get("date", "")
                 score_record["course"] = competition_info.get("course", "")
             
+            # NULLフィールドのチェック（デバッグ用）
+            null_fields = [k for k, v in score_record.items() if v is None]
+            if null_fields:
+                st.info(f"プレイヤー{player_id}のNULLフィールド: {null_fields}")
+            
             scores_records.append(score_record)
         
         if scores_records:
-            # スコアデータを一括登録
-            insert_response = supabase.table("scores").insert(scores_records).execute()
-            
-            return True, f"スコアデータを保存しました。有効なスコア: {len(valid_players)}件"
+            try:
+                # デバッグ情報: 挿入しようとするレコードの最初の1件をログ出力
+                st.info(f"挿入予定レコード数: {len(scores_records)}")
+                # 最初のレコードの構造を表示（デバッグ用）
+                sample_record = scores_records[0]
+                st.info(f"サンプルレコード構造: {list(sample_record.keys())}")
+                
+                # まず1件ずつ挿入を試行（エラー特定のため）
+                if len(scores_records) == 1:
+                    # 1件のみの場合は直接挿入
+                    insert_response = supabase.table("scores").insert(scores_records[0]).execute()
+                else:
+                    # 複数件の場合は一括挿入を試行、失敗したら1件ずつ
+                    try:
+                        insert_response = supabase.table("scores").insert(scores_records).execute()
+                    except Exception as bulk_error:
+                        st.warning(f"一括挿入に失敗: {bulk_error}")
+                        st.info("1件ずつ挿入を試行します...")
+                        
+                        # 1件ずつ挿入
+                        successful_inserts = 0
+                        for i, record in enumerate(scores_records):
+                            try:
+                                single_response = supabase.table("scores").insert(record).execute()
+                                successful_inserts += 1
+                            except Exception as single_error:
+                                st.error(f"レコード{i+1}の挿入に失敗: {single_error}")
+                                st.error(f"問題のレコード: {record}")
+                        
+                        if successful_inserts > 0:
+                            return True, f"部分的に成功: {successful_inserts}/{len(scores_records)}件のスコアデータを保存しました"
+                        else:
+                            return False, "すべてのレコードの挿入に失敗しました"
+                
+                # 挿入成功時のレスポンスを確認
+                if insert_response.data:
+                    st.success(f"挿入成功: {len(insert_response.data)}件")
+                    return True, f"スコアデータを保存しました。有効なスコア: {len(valid_players)}件"
+                else:
+                    st.warning("挿入レスポンスのデータが空です")
+                    return False, "データの保存に失敗しました（レスポンスが空）"
+                
+            except Exception as insert_error:
+                st.error(f"挿入エラー詳細: {insert_error}")
+                
+                # Supabaseのエラーメッセージを解析
+                if "null value in column" in str(insert_error):
+                    st.error("NULL制約違反が発生しました。Supabaseのscoresテーブルの構造を確認してください。")
+                    st.info("修正方法: fix_scores_table.sql を Supabase管理画面で実行してください。")
+                elif "relation" in str(insert_error) and "does not exist" in str(insert_error):
+                    st.error("テーブルまたはシーケンスが存在しません。")
+                    st.info("修正方法: fix_scores_table.sql を Supabase管理画面で実行してください。")
+                
+                # 挿入するレコードの詳細を表示
+                for i, record in enumerate(scores_records[:2]):  # 最大2件表示
+                    st.error(f"レコード{i+1}: {record}")
+                
+                return False, f"データ保存エラー: {insert_error}"
         else:
             return False, "保存するスコアデータがありません"
     

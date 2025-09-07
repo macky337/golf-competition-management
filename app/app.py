@@ -752,7 +752,7 @@ def main_app():
     # タイトルの下に画像を追加
     try:
         # 環境に依存しない正確なパスの取得
-        image_file = "2025-09-06_51st.png"
+        image_file = "2025-09-06_51st.jpg"
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(script_dir)
         image_path = os.path.join(project_root, "image", image_file)

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 88会ゴルフコンペ・スコア管理システム (Supabase版)
 
@@ -57,7 +57,6 @@ import warnings
 import logging
 import japanize_matplotlib
 import re
-import traceback
 
 import matplotlib
 import platform
@@ -105,69 +104,45 @@ def get_git_latest_commit_message():
         return ""  # Git情報が取得できない場合は空文字列
 
 def parse_version_from_commit_history():
-    """コミット履歴を解析して、適切なバージョン番号を生成する"""
-    try:
-        # 最新50コミットを取得
-        import subprocess
-        result = subprocess.run(['git', 'log', '--oneline', '-50'], 
-                              capture_output=True, text=True, cwd='.')
-        
-        if result.returncode != 0:
-            # Gitコマンドが失敗した場合、環境変数から取得を試す
-            env_version = os.environ.get('APP_VERSION')
-            if env_version:
-                return env_version
-            # 最後の手段として、固定バージョンを返す
-            return '1.15.15'  # 最後に確認できた正確なバージョン
-        
-        commits = result.stdout.strip().split('\n')
-        
-        major = 1
-        minor = 0
-        patch = 0
-        
-        for commit in commits:
-            commit_lower = commit.lower()
-            
-            # メジャーバージョンアップのキーワード
-            if 'major:' in commit_lower or 'breaking:' in commit_lower:
-                major += 1
-                minor = 0
-                patch = 0
-            # マイナーバージョンアップのキーワード
-            elif 'feature:' in commit_lower or 'feat:' in commit_lower:
-                minor += 1
-                patch = 0
-            # パッチバージョンアップのキーワード
-            elif 'fix:' in commit_lower or 'patch:' in commit_lower or 'bug:' in commit_lower:
-                patch += 1
-            else:
-                # その他のコミットもpatchとしてカウント
-                patch += 1
-        
-        return f'{major}.{minor}.{patch}'
+    """コミット履歴を解析し、適切なバージョン番号を計算する"""
+    # バージョン番号の初期値
+    major = 1
+    minor = 0
+    patch = 0
     
-    except Exception as e:
-        # 例外が発生した場合も環境変数から取得を試す
-        env_version = os.environ.get('APP_VERSION')
-        if env_version:
-            return env_version
-        # Git情報が取得できない場合は最後に確認できたバージョン
-        return '1.15.15'
+    try:
+        # まず最新のコミットメッセージを取得
+        latest_commit_message = get_git_latest_commit_message()
+        
+        # コミットメッセージに基づいてバージョンタイプを判断
+        if re.search(r'^(major:|MAJOR:|!:)', latest_commit_message):
+            # メジャーバージョンアップ
+            major += 1
+            minor = 0
+            patch = 0
+        elif re.search(r'^(feature:|feat:|FEATURE:)', latest_commit_message):
+            # マイナーバージョンアップ
+            minor += 1
+            patch = 0
+        elif re.search(r'^(fix:|bugfix:|FIX:)', latest_commit_message):
+            # パッチバージョンアップ
+            patch += 1
+        else:
+            # 特に指定がない場合はパッチバージョン
+            patch = int(get_git_count())
+            
+        return f"{major}.{minor}.{patch}"
+    except Exception:
+        # デフォルトバージョン
+        return "1.0.7"
 
 def get_app_version():
     """アプリのバージョンを動的に取得する"""
     try:
-        # セッションステートにバージョンをキャッシュ
-        if 'app_version' not in st.session_state:
-            st.session_state.app_version = parse_version_from_commit_history()
-        return st.session_state.app_version
+        # コミット履歴に基づいてバージョン番号を解析
+        return parse_version_from_commit_history()
     except Exception:
-        # 環境変数から取得を試す
-        env_version = os.environ.get('APP_VERSION')
-        if env_version:
-            return env_version
-        return "1.15.15"  # 最後に確認できた正確なバージョン
+        return "1.0.7"  # デフォルトバージョン
 
 def get_app_last_update():
     """アプリの最終更新日を動的に取得する"""
@@ -237,155 +212,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"
 ADMIN_PASSWORD = "admin88"
-
-# 次回開催告知情報
-NEXT_TOURNAMENT_INFO = {
-    "tournament_number": "第51回",
-    "event_name": "88会",
-    "date": "2025年9月6日（土）",
-    "course": "未定",
-    "course_note": "※千葉県のゴルフ場の予定",
-    "start_time": "未定（早い時間のスタート予定）",
-    "groups": "4組",
-    "briefing_time": "未定",
-    "cost": "未定",
-    "organizers": "福澤・関野"
-}
-
-# セッション状態を初期化
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "admin_logged_in" not in st.session_state:
-    st.session_state.admin_logged_in = False
-if "page" not in st.session_state:
-    st.session_state.page = "login"  # デフォルト：ログイン画面
-
-def display_next_tournament_announcement():
-    """次回開催のお知らせを表示"""
-    st.markdown("---")
-    
-    # 告知ヘッダーをカラフルに
-    st.markdown("""
-    <div style="
-        background: linear-gradient(90deg, #1f4e79, #2980b9);
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
-        text-align: center;
-    ">
-        <h2 style="color: white; margin: 0; font-weight: bold;">
-            🏌️ 次回開催のお知らせ 🏌️
-        </h2>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 開催情報を見やすく表示
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.markdown(f"""
-        <div style="
-            background-color: #f8f9fa;
-            border-left: 5px solid #28a745;
-            padding: 20px;
-            border-radius: 5px;
-            margin: 10px 0;
-        ">
-            <h3 style="color: #28a745; margin-top: 0;">
-                {NEXT_TOURNAMENT_INFO['tournament_number']} {NEXT_TOURNAMENT_INFO['event_name']}
-            </h3>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div style="
-            background-color: #ffffff;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 10px 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        ">
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057; width: 25%;">📅 開催日：</td>
-                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['date']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">🏌️ コース：</td>
-                    <td style="padding: 8px 0; color: #212529;">
-                        {NEXT_TOURNAMENT_INFO['course']}<br>
-                        <small style="color: #6c757d;">{NEXT_TOURNAMENT_INFO['course_note']}</small>
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">⏰ スタート時間：</td>
-                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['start_time']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">👥 組数：</td>
-                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['groups']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">📋 朝礼時間：</td>
-                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['briefing_time']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">💰 費用：</td>
-                    <td style="padding: 8px 0; color: #212529;">{NEXT_TOURNAMENT_INFO['cost']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 0; font-weight: bold; color: #495057;">👔 幹事：</td>
-                    <td style="padding: 8px 0; color: #212529; font-weight: bold;">{NEXT_TOURNAMENT_INFO['organizers']}</td>
-                </tr>
-            </table>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # 注意事項・お願い
-    st.info("📝 詳細が決まり次第、改めてご連絡いたします。皆様のご参加をお待ちしております！")
-    
-    st.markdown("---")
-
-# Supabase接続情報が設定されているか確認
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.warning("""
-    Supabase接続情報が見つかりません。以下のいずれかの方法で設定してください：
-    
-    1. ローカル開発環境: プロジェクトルートに `.env` ファイルを作成し、以下を設定
-       ```
-       SUPABASE_URL=あなたのSupabaseのURL
-       SUPABASE_KEY=あなたのSupabaseのAPIキー
-       ```
-    
-    2. Streamlit Cloud: `.streamlit/secrets.toml` ファイルを作成、または Streamlit Cloud の設定画面で以下を設定
-       ```
-       [supabase]
-       url = "あなたのSupabaseのURL"
-       key = "あなたのSupabaseのAPIキー"
-       ```
-    
-    3. その他のデプロイ環境: 環境変数 `SUPABASE_URL` および `SUPABASE_KEY` を設定
-    """)
-
-# ログイン用のパスワード設定
-USER_PASSWORD = "88"
-ADMIN_PASSWORD = "admin88"
-
-# 次回開催告知情報
-NEXT_TOURNAMENT_INFO = {
-    "tournament_number": "第51回",
-    "event_name": "88会",
-    "date": "2025年9月6日（土）",
-    "course": "未定",
-    "course_note": "※千葉県のゴルフ場の予定",
-    "start_time": "未定（早い時間のスタート予定）",
-    "groups": "4組",
-    "briefing_time": "未定",
-    "cost": "未定",
-    "organizers": "福澤・関野"
-}
 
 # セッション状態を初期化
 if "logged_in" not in st.session_state:
@@ -934,7 +760,7 @@ def main_app():
         # 画像ファイルが存在するか確認
         if os.path.exists(image_path):
             st.image(image_path, use_container_width=True)
-            st.markdown("### 第50回記念大会 (2025年4月12日)")
+            st.markdown("### 第50回記念大会 (2025年4月13日)")
         else:
             # 代替画像を試す
             alt_image_file = "01205972-9563-43D7-B862-5B2B8DECF9FA.png"
@@ -948,9 +774,6 @@ def main_app():
     except Exception as e:
         st.error(f"画像表示エラー: {e}")
         st.markdown("### 第50回記念大会 (2025年4月13日)")
-    
-    # 次回開催告知を表示
-    display_next_tournament_announcement()
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()
@@ -979,7 +802,6 @@ def main_app():
                 "順位": "{:.0f}",
                 "競技ID": "{:.0f}"
             }), 
-            height=None, 
             use_container_width=True
         )
         
@@ -1062,7 +884,6 @@ def main_app():
                     "順位": "{:.0f}",
                     "競技ID": "{:.0f}"
                 }), 
-                height=None, 
                 use_container_width=True
             )
         else:
@@ -1127,20 +948,6 @@ def admin_app():
     with tabs[5]:
         st.subheader("その他の設定")
         # 将来的に追加される可能性のある設定用のスペース
-    with tabs[5]:
-        st.subheader("システム情報")
-        
-        # バージョン情報表示
-        st.write("**バージョン情報**")
-        current_version = get_app_version()
-        st.info(f"現在のバージョン: {current_version}")
-        
-        # バージョン情報の更新ボタン
-        if st.button("バージョン情報を更新"):
-            if 'app_version' in st.session_state:
-                del st.session_state.app_version
-            st.success("バージョン情報を更新しました")
-            st.rerun()
     
     # ナビゲーションボタン
     col1, col2 = st.columns(2)
@@ -1529,6 +1336,7 @@ def save_competition(competition_data, participants_data):
         return True, f"コンペデータを{'登録' if is_new else '更新'}しました。コンペID: {competition_id}"
     
     except Exception as e:
+        import traceback
         st.error(traceback.format_exc())
         return False, f"データ保存エラー: {e}"
 
@@ -2086,6 +1894,26 @@ def fetch_competition_info(competition_id):
     except Exception:
         return None
 
+def page_router():
+    if st.session_state.page == "main":
+        if st.session_state.logged_in:
+            main_app()
+        else:
+            login_page()
+    elif st.session_state.page == "admin":
+        if st.session_state.admin_logged_in:
+            admin_app()
+        else:
+            admin_login_page()
+    else:
+        login_page()
+
+# アプリの起動
+if not st.session_state.logged_in and not st.session_state.admin_logged_in:
+    st.session_state.page = "login"
+
+page_router()
+
 # Supabase接続状況を取得
 def get_supabase_status():
     if SUPABASE_URL and SUPABASE_KEY:
@@ -2120,10 +1948,10 @@ st.markdown("""
         position: fixed;
         bottom: 10px;
         right: 10px;
-        background-color: transparent;
+        background-color: rgba(255, 255, 白, 0.8);
         padding: 10px;
         border-radius: 5px;
-        # box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
         z-index: 999;
         text-align: right;
         line-height: 1.5;
@@ -2137,43 +1965,181 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # フッターを右下に縦に配置
-def display_footer():
-    connection_status = get_supabase_status()
-    git_rev = get_git_revision()
-    git_date = get_git_date()
-    current_version = get_app_version()  # キャッシュされたバージョンを取得
+connection_status = get_supabase_status()
+git_rev = get_git_revision()
+git_date = get_git_date()
 
-    st.markdown(f"""
-    <div class="vertical-footer">
-        <span class="footer-item">Ver {current_version} ({git_rev})</span>
-        <span class="footer-item">最終更新: {git_date}</span>
-        <span class="footer-item">Supabase: {connection_status}</span>
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown(f"""
+<div class="vertical-footer">
+    <span class="footer-item">Ver {APP_VERSION} ({git_rev})</span>
+    <span class="footer-item">最終更新: {git_date}</span>
+    <span class="footer-item">Supabase: {connection_status}</span>
+</div>
+""", unsafe_allow_html=True)
 
-def page_router():
-    if st.session_state.page == "main":
-        if st.session_state.logged_in:
-            main_app()
-        else:
-            login_page()
-            display_footer() # ログイン前画面でのみフッター表示
-    elif st.session_state.page == "admin":
-        if st.session_state.admin_logged_in:
-            admin_app()
-        else:
-            admin_login_page()
-            display_footer() # 管理者ログイン前画面でのみフッター表示
-    else:
-        login_page()
-        display_footer() # ログイン前画面でのみフッター表示
+# コンペデータを取得する関数
+def fetch_competitions():
+    """コンペティション一覧をSupabaseから取得"""
+    supabase = get_supabase_client()
+    if not supabase:
+        return pd.DataFrame()
+    
+    try:
+        response = supabase.table("competitions").select("*").execute()
+        
+        if not response.data:
+            st.warning("コンペティションデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
+            return pd.DataFrame()
+        
+        competitions_df = pd.DataFrame(response.data)
+        return competitions_df
+    except Exception as e:
+        st.error(f"コンペティションデータ取得エラー: {e}")
+        return pd.DataFrame()
 
-# アプリの起動
-if not st.session_state.logged_in and not st.session_state.admin_logged_in:
-    st.session_state.page = "login"
+# プレイヤーデータを取得する関数
+def fetch_players():
+    """Supabaseからプレイヤーデータを取得"""
+    supabase = get_supabase_client()
+    if not supabase:
+        return pd.DataFrame()
+    
+    try:
+        # playersテーブルからデータを取得
+        response = supabase.table("players").select("*").execute()
+        
+        if not response.data:
+            return pd.DataFrame()
+        
+        # データフレームに変換して返す
+        return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"プレイヤーデータ取得エラー: {e}")
+        return pd.DataFrame()
 
-page_router()
+def restore_database():
+    """
+    データベースのバックアップファイルからデータを復元する
+    """
+    st.subheader("データベースのリストア")
+    st.write("バックアップファイルからデータを復元します。")
+    
+    # バックアップフォルダを指定
+    backup_dir = "backup"
+    
+    # バックアップフォルダが存在するか確認
+    if not os.path.exists(backup_dir):
+        st.error(f"バックアップフォルダ {backup_dir} が見つかりません。")
+        return
+    
+    # JSONバックアップファイル一覧を取得
+    backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
+    
+    if not backup_files:
+        st.warning("バックアップファイルが見つかりません。")
+        return
+    
+    # 最新の順に並べ替え
+    backup_files.sort(reverse=True)
+    
+    # バックアップファイルを選択
+    selected_backup = st.selectbox(
+        "復元するバックアップファイルを選択してください",
+        backup_files,
+        key="restore_backup_select"
+    )
+    
+    if selected_backup:
+        backup_path = os.path.join(backup_dir, selected_backup)
+        
+        if st.button("選択したバックアップを復元", key="restore_backup_button"):
+            try:
+                # バックアップファイルを読み込み
+                with open(backup_path, 'r', encoding='utf-8') as file:
+                    backup_data = json.load(file)
+                
+                # Supabaseクライアントを取得
+                supabase = get_supabase_client()
+                if not supabase:
+                    st.error("Supabaseに接続できません。")
+                    return
+                
+                # 復元前に現在のデータをバックアップ
+                current_backup = backup_database(show_ui=False)
+                if not current_backup:
+                    if not st.button("現在のデータのバックアップに失敗しました。それでも続行しますか？", key="continue_without_backup"):
+                        return
+                
+                # 既存のテーブルをクリア
+                tables = ["scores", "participants", "competitions", "players"]
+                for table in tables:
+                    if table in backup_data and backup_data[table]:
+                        # テーブルからすべてのデータを削除
+                        supabase.table(table).delete().gte("id", 0).execute()
+                        
+                        # バックアップからデータを一括挿入
+                        chunk_size = 1000  # 一度に挿入する最大レコード数
+                        
+                        for i in range(0, len(backup_data[table]), chunk_size):
+                            chunk = backup_data[table][i:i + chunk_size]
+                            supabase.table(table).insert(chunk).execute()
+                
+                st.success(f"バックアップ {selected_backup} からデータを復元しました。")
+                
+            except Exception as e:
+                st.error(f"データの復元中にエラーが発生しました: {e}")
 
+def backup_database(show_ui=True):
+    """
+    データベースのバックアップ処理
+    
+    Args:
+        show_ui (bool): UI表示フラグ
+    
+    Returns:
+        dict or None: バックアップデータ、エラー時はNone
+    """
+    if show_ui:
+        st.write("データベースのバックアップを作成します。")
+    
+    try:
+        # Supabaseクライアントを取得
+        supabase = get_supabase_client()
+        if not supabase:
+            if show_ui:
+                st.error("Supabaseに接続できません。")
+            return None
+        
+        backup_data = {}
+        
+        # 各テーブルのデータを取得してバックアップ
+        tables = ["players", "competitions", "participants", "scores"]
+        
+        for table in tables:
+            response = supabase.table(table).select("*").execute()
+            backup_data[table] = response.data
+        
+        # バックアップディレクトリを確認
+        backup_dir = "backup"
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        # 現在時刻をファイル名に含める
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = os.path.join(backup_dir, f"backup_{current_time}.json")
+        
+        # JSONとしてバックアップを保存
+        with open(backup_file, 'w', encoding='utf-8') as file:
+            json.dump(backup_data, file, ensure_ascii=False, indent=2)
+        
+        if show_ui:
+            st.success(f"データベースのバックアップが完了しました: {backup_file}")
+        
+        return backup_data
+    
+    except Exception as e:
+        if show_ui:
+            st.error(f"バックアップ中にエラーが発生しました: {e}")
+        return None
 
 
 

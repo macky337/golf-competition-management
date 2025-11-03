@@ -749,31 +749,22 @@ def admin_login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     
-    # タイトルの下に画像を追加
-    try:
-        # 環境に依存しない正確なパスの取得
-        image_file = "2025-09-06_51st.jpg"
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(script_dir)
-        image_path = os.path.join(project_root, "image", image_file)
-        
-        # 画像ファイルが存在するか確認
-        if os.path.exists(image_path):
-            st.image(image_path, use_container_width=True)
-            st.markdown("### 第51回大会 (2025年9月6日)")
-        else:
-            # 代替画像を試す
-            alt_image_file = "01205972-9563-43D7-B862-5B2B8DECF9FA.png"
-            alt_image_path = os.path.join(project_root, "image", alt_image_file)
-            
-            if os.path.exists(alt_image_path):
-                st.image(alt_image_path, use_container_width=True)
-            
-            st.markdown("### 第51回大会 (2025年9月6日)")
-            st.info(f"目的の画像が見つかりません。パス: {image_path}")
-    except Exception as e:
-        st.error(f"画像表示エラー: {e}")
-        st.markdown("### 第50回記念大会 (2025年4月13日)")
+    # 次回開催案内
+    st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
+    st.info("""
+次回の開催場所は前回同様本千葉カントリーとなりました。
+
+**【52回　88会】**  
+📅 **開催日**: 12月6日　9:07スタート  
+⛳ **コース**: 本千葉カントリークラブ  
+🔗 **HP**: https://www.honchiba-cc.co.jp/  
+📍 **住所**: 千葉市緑区大金沢町311  
+📞 **TEL**: 043-292-0191  
+👥 **組数**: 3組  
+🕗 **集合時間**: 8:30  
+💰 **費用**: 18,000+昼食（少し引いてくれるかも）  
+👔 **幹事**: 吉井.福澤
+    """)
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()

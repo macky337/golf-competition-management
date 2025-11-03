@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "streamlit run app_new.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
+startCommand = "streamlit run app/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"

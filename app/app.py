@@ -749,9 +749,79 @@ def admin_login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     
-    # 次回開催案内
-    st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
-    st.info("""
+    # お知らせをデータベースから取得して表示
+    try:
+        supabase_client = get_supabase_client()
+        announcements_response = None
+        
+        if supabase_client:
+            announcements_response = supabase_client.table("announcements").select("*").eq("is_active", True).order("display_order", desc=True).limit(1).execute()
+        
+        if announcements_response and announcements_response.data and len(announcements_response.data) > 0:
+            announcement = announcements_response.data[0]
+            
+            # タイトル表示
+            st.markdown(f"### 🏌️ {announcement.get('title', 'お知らせ')}")
+            
+            # 画像があれば表示
+            if announcement.get('image_url'):
+                try:
+                    st.image(announcement.get('image_url'), use_container_width=True)
+                except:
+                    pass
+            
+            # 本文表示
+            if announcement.get('content'):
+                st.info(announcement.get('content'))
+            
+            # 大会情報があれば整形して表示
+            if announcement.get('tournament_info'):
+                info = announcement.get('tournament_info')
+                if isinstance(info, str):
+                    info = json.loads(info)
+                
+                info_text = f"\n**【第{info.get('tournament_number', '')}回　88会】**\n"
+                if info.get('date'):
+                    info_text += f"📅 **開催日**: {info.get('date')} {info.get('start_time', '')}スタート\n"
+                if info.get('course_name'):
+                    info_text += f"⛳ **コース**: {info.get('course_name')}\n"
+                if info.get('course_url'):
+                    info_text += f"🔗 **HP**: {info.get('course_url')}\n"
+                if info.get('address'):
+                    info_text += f"📍 **住所**: {info.get('address')}\n"
+                if info.get('phone'):
+                    info_text += f"📞 **TEL**: {info.get('phone')}\n"
+                if info.get('groups'):
+                    info_text += f"👥 **組数**: {info.get('groups')}組\n"
+                if info.get('meeting_time'):
+                    info_text += f"🕗 **集合時間**: {info.get('meeting_time')}\n"
+                if info.get('fee'):
+                    info_text += f"💰 **費用**: {info.get('fee')}\n"
+                if info.get('organizers'):
+                    info_text += f"👔 **幹事**: {info.get('organizers')}\n"
+                
+                st.markdown(info_text)
+        else:
+            # デフォルトのお知らせ（データベースにデータがない場合）
+            st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
+            st.info("""
+次回の開催場所は前回同様本千葉カントリーとなりました。
+
+**【52回　88会】**  
+📅 **開催日**: 12月6日　9:07スタート  
+⛳ **コース**: 本千葉カントリークラブ  
+🔗 **HP**: https://www.honchiba-cc.co.jp/  
+📍 **住所**: 千葉市緑区大金沢町311  
+📞 **TEL**: 043-292-0191  
+👥 **組数**: 3組  
+🕗 **集合時間**: 8:30  
+💰 **費用**: 18,000+昼食（少し引いてくれるかも）  
+👔 **幹事**: 吉井.福澤
+    """)
+    except Exception as e:
+        # エラー時はデフォルトのお知らせを表示
+        st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
+        st.info("""
 次回の開催場所は前回同様本千葉カントリーとなりました。
 
 **【52回　88会】**  
@@ -904,39 +974,49 @@ def admin_app():
     st.title("管理者設定画面")
     
     # タブを追加してUIを整理
-    tabs = st.tabs(["バックアップ", "リストア", "スコア入力", "コンペ設定", "プレイヤー管理", "その他"])
+    tabs = st.tabs(["お知らせ管理", "バックアップ", "リストア", "スコア入力", "コンペ設定", "プレイヤー管理", "その他"])
     
     with tabs[0]:
+        # お知らせ管理機能を追加
+        try:
+            from announcement_management import announcement_management_tab
+            announcement_management_tab()
+        except ImportError:
+            st.error("announcement_management.pyが見つかりません")
+        except Exception as e:
+            st.error(f"お知らせ管理の読み込みエラー: {e}")
+    
+    with tabs[1]:
         st.subheader("データベースのバックアップ")
         if st.button("データベースをバックアップ"):
             backup_database()
     
-    with tabs[1]:
+    with tabs[2]:
         # リストアセクションはタブに移動
         restore_database()
     
-    with tabs[2]:
+    with tabs[3]:
         st.subheader("スコア入力")
         st.write("コンペ結果のスコアを入力します。")
         
         # スコア入力機能を直接埋め込み
         score_entry_tab()
     
-    with tabs[3]:
+    with tabs[4]:
         st.subheader("コンペ設定")
         st.write("コンペの開催日、ゴルフ場、参加メンバーを登録します。")
         
         # コンペ設定機能を直接埋め込み
         competition_setup_tab()
     
-    with tabs[4]:
+    with tabs[5]:
         st.subheader("プレイヤー管理")
         st.write("プレイヤーの追加、編集、削除を行います。")
         
         # プレイヤー管理機能を直接埋め込み
         player_management_tab()
     
-    with tabs[5]:
+    with tabs[6]:
         st.subheader("その他の設定")
         # 将来的に追加される可能性のある設定用のスペース
     

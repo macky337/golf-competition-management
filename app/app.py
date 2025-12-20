@@ -1,41 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
-"""
-88会ゴルフコンペ・スコア管理システム (Supabase版)
+import platform
 
-このスクリプトは、88会ゴルフコンペのスコアを管理するためのStreamlitアプリケーションです。
-ユーザーはスコアデータを閲覧し、データの分析や可視化を行うことができます。
-また、管理者はデータベースのバックアップおよびリストアを行うことができます。
-
-機能:
-- ユーザー認証
-- スコアデータの取得と表示
-- データの分析と可視化
-- 優勝回数ランキングの表示
-- データベースのバックアップとリストア
-
-使用方法:
-1. Streamlitをインストールします。
-2. このスクリプトを実行します `streamlit run app.py`
-3. ブラウザで表示されるアプリケーションにアクセスします。
-
-必要なライブラリ:
-- os
-- pandas
-- streamlit
-- matplotlib
-- japanize_matplotlib
-- datetime
-- pytz
-- supabase
-- dotenv
-
-ログイン情報:
-- ユーザー用パスワード "88"
-- 管理者用パスワード "admin88"
-
-
-バージョン表示を追加した
-"""
 
 import os
 import pandas as pd
@@ -57,9 +22,8 @@ import warnings
 import logging
 import japanize_matplotlib
 import re
-
-import matplotlib
-import platform
+from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator
 
 # 実行環境に応じてフォントを設定
 if platform.system() == 'Windows':
@@ -262,14 +226,23 @@ def fetch_scores():
             st.warning("プレイヤーデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
             players = {}
         else:
-            players = {player["id"]: player["name"] for player in players_response.data}
+            players = {
+                player["id"]: player["name"]
+                for player in players_response.data
+                if isinstance(player, dict) and "id" in player and "name" in player
+            }
         
         # スコアデータを整形
         scores_list = []
         for score in scores:
+            if not isinstance(score, dict):
+                continue  # scoreが辞書でない場合はスキップ
+
             # null/Noneチェックを追加
-            out_score = score["out_score"] if score["out_score"] is not None else 0
-            in_score = score["in_score"] if score["in_score"] is not None else 0
+            out_score_val = score.get("out_score")
+            out_score = int(out_score_val) if isinstance(out_score_val, (int, str)) and str(out_score_val).isdigit() else 0
+            in_score_val = score.get("in_score")
+            in_score = int(in_score_val) if isinstance(in_score_val, (int, str)) and str(in_score_val).isdigit() else 0
             
             # 合計スコアを計算（両方のスコアが有効な場合のみ）
             if out_score > 0 and in_score > 0:
@@ -278,16 +251,16 @@ def fetch_scores():
                 total_score = None  # 無効な場合はNoneを設定
             
             score_dict = {
-                "競技ID": score["competition_id"],
-                "日付": score["date"],
-                "コース": score["course"],
-                "プレイヤー名": players.get(score["player_id"], "不明"),
+                "競技ID": score.get("competition_id"),
+                "日付": score.get("date"),
+                "コース": score.get("course"),
+                "プレイヤー名": players.get(score.get("player_id"), "不明"),
                 "アウトスコア": out_score,
                 "インスコア": in_score,
                 "合計スコア": total_score,
-                "ハンディキャップ": score["handicap"],
-                "ネットスコア": score["net_score"],
-                "順位": score["ranking"]
+                "ハンディキャップ": score.get("handicap"),
+                "ネットスコア": score.get("net_score"),
+                "順位": score.get("ranking")
             }
             scores_list.append(score_dict)
         
@@ -389,7 +362,7 @@ def display_aggregations(scores_df):
             plt.ylim(0, max(overall_ranking.values) * 1.1)
         
         plt.tight_layout()
-        st.pyplot(plt)
+        st.pyplot(plt.gcf())
     else:
         st.error("必要なカラムがデータフレームに存在しません。")
 
@@ -421,7 +394,7 @@ def display_visualizations(scores_df, players_df):
     plt.ylabel("合計スコア")
     plt.xticks(rotation=45)
     plt.tight_layout()
-    st.pyplot(plt)
+    st.pyplot(plt.gcf())
 
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
@@ -446,7 +419,7 @@ def display_winner_count_ranking(scores_df):
     ax.set_title("優勝回数ランキング")
     ax.set_xticks(range(len(rank_one_winners['プレイヤー名'])))
     ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
-    ax.yaxis.get_major_locator().set_params(integer=True)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     st.pyplot(fig)
 
 def backup_database():
@@ -597,15 +570,10 @@ def restore_database():
             # バックアップの存在確認
             try:
                 # テーブルの構造に関係なく、まずバックアップの存在確認のみ実行
-                count_response = supabase.table("backups").select("count", count="exact").execute()
+                count_response = supabase.table("backups").select("*", count="exact").execute() # type: ignore
                 
                 # バックアップカウント表示（デバッグ用）
-                if hasattr(count_response, 'count') and count_response.count is not None:
-                    backup_count = count_response.count
-                elif 'count' in count_response.data and count_response.data['count'] is not None:
-                    backup_count = count_response.data['count']
-                else:
-                    backup_count = len(count_response.data)
+                backup_count = count_response.count
                 
                 st.success(f"バックアップが見つかりました: {backup_count}件")
                 
@@ -953,7 +921,7 @@ def main_app():
         # 最終更新日時を表示
         st.subheader("最終更新日時")
         jst = pytz.timezone('Asia/Tokyo')
-        st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+        # st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
     else:
         if scores_df.empty:
             st.warning("スコアデータが取得できませんでした。")
@@ -1356,7 +1324,14 @@ def save_competition(competition_data, participants_data):
             # 新規コンペの場合はcompetition_idを自動設定
             # 既存のcompetition_idの最大値を取得して+1
             response = supabase.table("competitions").select("competition_id").execute()
-            existing_ids = [record.get("competition_id", 0) for record in response.data]
+            existing_ids = []
+            for record in response.data:
+                if isinstance(record, dict):
+                    competition_id_val = record.get("competition_id")
+                    if isinstance(competition_id_val, int):
+                        existing_ids.append(competition_id_val)
+                    elif isinstance(competition_id_val, str) and competition_id_val.isdigit():
+                        existing_ids.append(int(competition_id_val))
             next_id = max(existing_ids) + 1 if existing_ids else 1
             
             # 参考大会フラグに基づいてIDを調整
@@ -1367,7 +1342,11 @@ def save_competition(competition_data, participants_data):
                 # 対象大会の場合は100未満のIDにする
                 # 既存の対象大会の最大IDを取得
                 target_response = supabase.table("competitions").select("competition_id").lt("competition_id", 100).execute()
-                target_ids = [record.get("competition_id", 0) for record in target_response.data]
+                target_ids = [
+                    int(record["competition_id"])
+                    for record in target_response.data
+                    if isinstance(record, dict) and "competition_id" in record and record["competition_id"] is not None
+                ]
                 next_id = max(target_ids) + 1 if target_ids else 1
             
             competition_data["competition_id"] = next_id
@@ -1669,6 +1648,8 @@ def score_entry_tab():
     # スコア入力画面のメイン機能をここに実装
     st.write("コンペ結果のスコアデータを入力します。")
     
+    # 必要なセッション状態の
+    
     # 必要なセッション状態の初期化
     if "selected_competition_for_score" not in st.session_state:
         st.session_state.selected_competition_for_score = None
@@ -1764,6 +1745,7 @@ def score_entry_tab():
                     )
                 
                 # ネットスコアの計算
+                net_score = None
                 if total_score:
                     net_score = total_score - handicap
                     st.write(f"ネットスコア: {net_score:.1f}")
@@ -1774,7 +1756,7 @@ def score_entry_tab():
                     "in_score": in_score,
                     "total_score": total_score,
                     "handicap": handicap,
-                    "net_score": net_score if total_score else None
+                    "net_score": net_score
                 }
         
         # スコアデータをセッションに保存
@@ -1991,26 +1973,13 @@ def get_supabase_status():
         try:
             # 軽量な接続テスト
             test_client = create_client(SUPABASE_URL, SUPABASE_KEY)
-            test_client.table("players").select("count").limit(1).execute()
+            test_client.table("players").select("count", count="exact").limit(1).execute() # type: ignore
             return "🟢 接続済"
         except Exception:
             return "🔴 未接続"
     else:
         return "🔴 設定なし"
 
-def get_git_revision():
-    """現在のGitリビジョン（コミットハッシュ）を取得する"""
-    try:
-        return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
-    except Exception:
-        return "dev"  # Git情報が取得できない場合
-
-def get_git_date():
-    """最新コミットの日付を取得する"""
-    try:
-        return subprocess.check_output(['git', 'log', '-1', '--format=%cd', '--date=short']).decode('ascii').strip()
-    except Exception:
-        return APP_LAST_UPDATE  # Git情報が取得できない場合は固定の日付を返す
 
 # CSS調整（縦配置用）
 st.markdown("""
@@ -2047,171 +2016,6 @@ st.markdown(f"""
     <span class="footer-item">Supabase: {connection_status}</span>
 </div>
 """, unsafe_allow_html=True)
-
-# コンペデータを取得する関数
-def fetch_competitions():
-    """コンペティション一覧をSupabaseから取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return pd.DataFrame()
-    
-    try:
-        response = supabase.table("competitions").select("*").execute()
-        
-        if not response.data:
-            st.warning("コンペティションデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
-            return pd.DataFrame()
-        
-        competitions_df = pd.DataFrame(response.data)
-        return competitions_df
-    except Exception as e:
-        st.error(f"コンペティションデータ取得エラー: {e}")
-        return pd.DataFrame()
-
-# プレイヤーデータを取得する関数
-def fetch_players():
-    """Supabaseからプレイヤーデータを取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return pd.DataFrame()
-    
-    try:
-        # playersテーブルからデータを取得
-        response = supabase.table("players").select("*").execute()
-        
-        if not response.data:
-            return pd.DataFrame()
-        
-        # データフレームに変換して返す
-        return pd.DataFrame(response.data)
-    except Exception as e:
-        st.error(f"プレイヤーデータ取得エラー: {e}")
-        return pd.DataFrame()
-
-def restore_database():
-    """
-    データベースのバックアップファイルからデータを復元する
-    """
-    st.subheader("データベースのリストア")
-    st.write("バックアップファイルからデータを復元します。")
-    
-    # バックアップフォルダを指定
-    backup_dir = "backup"
-    
-    # バックアップフォルダが存在するか確認
-    if not os.path.exists(backup_dir):
-        st.error(f"バックアップフォルダ {backup_dir} が見つかりません。")
-        return
-    
-    # JSONバックアップファイル一覧を取得
-    backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
-    
-    if not backup_files:
-        st.warning("バックアップファイルが見つかりません。")
-        return
-    
-    # 最新の順に並べ替え
-    backup_files.sort(reverse=True)
-    
-    # バックアップファイルを選択
-    selected_backup = st.selectbox(
-        "復元するバックアップファイルを選択してください",
-        backup_files,
-        key="restore_backup_select"
-    )
-    
-    if selected_backup:
-        backup_path = os.path.join(backup_dir, selected_backup)
-        
-        if st.button("選択したバックアップを復元", key="restore_backup_button"):
-            try:
-                # バックアップファイルを読み込み
-                with open(backup_path, 'r', encoding='utf-8') as file:
-                    backup_data = json.load(file)
-                
-                # Supabaseクライアントを取得
-                supabase = get_supabase_client()
-                if not supabase:
-                    st.error("Supabaseに接続できません。")
-                    return
-                
-                # 復元前に現在のデータをバックアップ
-                current_backup = backup_database(show_ui=False)
-                if not current_backup:
-                    if not st.button("現在のデータのバックアップに失敗しました。それでも続行しますか？", key="continue_without_backup"):
-                        return
-                
-                # 既存のテーブルをクリア
-                tables = ["scores", "participants", "competitions", "players"]
-                for table in tables:
-                    if table in backup_data and backup_data[table]:
-                        # テーブルからすべてのデータを削除
-                        supabase.table(table).delete().gte("id", 0).execute()
-                        
-                        # バックアップからデータを一括挿入
-                        chunk_size = 1000  # 一度に挿入する最大レコード数
-                        
-                        for i in range(0, len(backup_data[table]), chunk_size):
-                            chunk = backup_data[table][i:i + chunk_size]
-                            supabase.table(table).insert(chunk).execute()
-                
-                st.success(f"バックアップ {selected_backup} からデータを復元しました。")
-                
-            except Exception as e:
-                st.error(f"データの復元中にエラーが発生しました: {e}")
-
-def backup_database(show_ui=True):
-    """
-    データベースのバックアップ処理
-    
-    Args:
-        show_ui (bool): UI表示フラグ
-    
-    Returns:
-        dict or None: バックアップデータ、エラー時はNone
-    """
-    if show_ui:
-        st.write("データベースのバックアップを作成します。")
-    
-    try:
-        # Supabaseクライアントを取得
-        supabase = get_supabase_client()
-        if not supabase:
-            if show_ui:
-                st.error("Supabaseに接続できません。")
-            return None
-        
-        backup_data = {}
-        
-        # 各テーブルのデータを取得してバックアップ
-        tables = ["players", "competitions", "participants", "scores"]
-        
-        for table in tables:
-            response = supabase.table(table).select("*").execute()
-            backup_data[table] = response.data
-        
-        # バックアップディレクトリを確認
-        backup_dir = "backup"
-        os.makedirs(backup_dir, exist_ok=True)
-        
-        # 現在時刻をファイル名に含める
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = os.path.join(backup_dir, f"backup_{current_time}.json")
-        
-        # JSONとしてバックアップを保存
-        with open(backup_file, 'w', encoding='utf-8') as file:
-            json.dump(backup_data, file, ensure_ascii=False, indent=2)
-        
-        if show_ui:
-            st.success(f"データベースのバックアップが完了しました: {backup_file}")
-        
-        return backup_data
-    
-    except Exception as e:
-        if show_ui:
-            st.error(f"バックアップ中にエラーが発生しました: {e}")
-        return None
-
 
 
 

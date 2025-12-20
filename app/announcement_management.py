@@ -16,19 +16,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Supabaseクライアントを初期化
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+
+if not supabase_url or not supabase_key:
+    raise ValueError("環境変数 SUPABASE_URL と SUPABASE_KEY の設定が必要です。")
+
+supabase = create_client(supabase_url, supabase_key)
 
 def fetch_announcements(is_active_only=True):
     """お知らせ一覧を取得"""
     try:
-        query = supabase.table("announcements")
+        query = supabase.table("announcements").select("*")
         if is_active_only:
             query = query.eq("is_active", True)
         
-        response = query.select("*").order("display_order", desc=True).order("created_at", desc=True).execute()
+        response = query.order("display_order", desc=True).order("created_at", desc=True).execute()
         return response.data
     except Exception as e:
         st.error(f"お知らせの取得に失敗しました: {e}")

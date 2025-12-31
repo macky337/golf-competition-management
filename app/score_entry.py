@@ -193,7 +193,7 @@ def save_scores(competition_id, scores_data, players_data):
         # データ登録用の辞書のリストを作成
         records_to_insert = []
         competition_info = st.session_state.competitions[
-            st.session_state.competitions["competition_id"] == competition_id
+            st.session_state.get("competitions", pd.DataFrame())["competition_id"] == competition_id
         ]
         
         if competition_info.empty:
@@ -265,7 +265,7 @@ def score_entry_page():
     if "players" not in st.session_state:
         st.session_state.players = fetch_players()
     
-    if st.session_state.competitions.empty or st.session_state.players.empty:
+    if st.session_state.get("competitions", pd.DataFrame()).empty or st.session_state.get("players", pd.DataFrame()).empty:
         st.error("コンペまたはプレイヤーのデータが取得できませんでした。")
         if st.button("再試行"):
             st.session_state.competitions = fetch_competitions()
@@ -276,7 +276,7 @@ def score_entry_page():
     # コンペ選択
     competition_options = [
         f"{row['competition_id']} - {row['date']} {row['course']}" 
-        for _, row in st.session_state.competitions.iterrows()
+        for _, row in st.session_state.get("competitions", pd.DataFrame()).iterrows()
     ]
     
     competition_selection = st.selectbox(
@@ -288,9 +288,11 @@ def score_entry_page():
         # コンペIDを抽出
         competition_id = int(competition_selection.split(" - ")[0])
         
-        if st.session_state.selected_competition != competition_id:
+        if st.session_state.get("selected_competition") != competition_id:
             st.session_state.selected_competition = competition_id
             # 参加者を取得
+            if "participants" not in st.session_state:
+                st.session_state.participants = []
             st.session_state.participants = fetch_participants(competition_id)
             # 既存のスコアを取得
             existing_scores = fetch_existing_scores(competition_id)
@@ -302,7 +304,7 @@ def score_entry_page():
             if not existing_scores.empty:
                 for _, score in existing_scores.iterrows():
                     player_id = score["player_id"]
-                    st.session_state.score_data[player_id] = {
+                    st.session_state.get("score_data", {})[player_id] = {
                         "out_score": score["out_score"],
                         "in_score": score["in_score"],
                         "handicap": score["handicap"],
@@ -312,9 +314,14 @@ def score_entry_page():
             st.rerun()
         
         # プレイヤーデータをID->名前の辞書に変換
-        players_dict = dict(zip(st.session_state.players["id"], st.session_state.players["name"]))
+        players_df = st.session_state.get("players", pd.DataFrame())
+        if not players_df.empty and "id" in players_df.columns and "name" in players_df.columns:
+            players_dict = dict(zip(players_df["id"], players_df["name"]))
+        else:
+            players_dict = {}
+            st.warning("プレイヤーデータが正しく読み込まれていません。")
         
-        if not st.session_state.participants:
+        if not st.session_state.get("participants", []):
             # 参加者が登録されていない場合、全プレイヤーから選択できるようにする
             st.warning("このコンペの参加者情報が登録されていません。全プレイヤーから選択できます。")
             with st.expander("参加者を選択"):
@@ -324,6 +331,10 @@ def score_entry_page():
                         selected_players.append(player_id)
                 
                 if st.button("参加者を確定"):
+                    if "participants" not in st.session_state:
+
+                        st.session_state.participants = []
+
                     st.session_state.participants = selected_players
                     st.rerun()
         else:
@@ -334,34 +345,32 @@ def score_entry_page():
                 scores_changed = False
                 
                 # 各プレイヤーのスコア入力欄を表示
-                for player_id in st.session_state.participants:
+                for player_id in st.session_state.get("participants", []):
                     player_name = players_dict.get(player_id, f"不明なプレイヤー({player_id})")
                     
                     with st.expander(f"{player_name} のスコア", expanded=True):
                         col1, col2, col3 = st.columns(3)
                         
                         # 既存の値を取得
-                        existing_data = st.session_state.score_data.get(player_id, {})
+                        existing_data = st.session_state.get("score_data", {}).get(player_id, {})
                         
                         with col1:
                             out_score = st.number_input(
-                                "OUTスコア",
-                                min_value=0.0,
-                                max_value=100.0,
-                                value=existing_data.get("out_score", 0.0),
-                                step=1.0,
-                                format="%.1f",
+                                "OUTスコア", 
+                                min_value=0, 
+                                max_value=100, 
+                                value=int(existing_data.get("out_score", 0)),
+                                step=1,
                                 key=f"out_{player_id}"
                             )
                         
                         with col2:
                             in_score = st.number_input(
-                                "INスコア",
-                                min_value=0.0,
-                                max_value=100.0,
-                                value=existing_data.get("in_score", 0.0),
-                                step=1.0,
-                                format="%.1f",
+                                "INスコア", 
+                                min_value=0, 
+                                max_value=100, 
+                                value=int(existing_data.get("in_score", 0)),
+                                step=1,
                                 key=f"in_{player_id}"
                             )
                         
@@ -370,9 +379,8 @@ def score_entry_page():
                                 "ハンディキャップ",
                                 min_value=0.0,
                                 max_value=50.0,
-                                value=existing_data.get("handicap", 0.0),
+                                value=float(existing_data.get("handicap", 0.0)),
                                 step=0.1,
-                                format="%.1f",
                                 key=f"hcp_{player_id}"
                             )
                         
@@ -388,7 +396,7 @@ def score_entry_page():
                                 st.info(f"ネットスコア: {net_score:.1f}")
                             
                             # スコアデータを更新
-                            st.session_state.score_data[player_id] = {
+                            st.session_state.get("score_data", {})[player_id] = {
                                 "out_score": out_score,
                                 "in_score": in_score,
                                 "handicap": handicap,
@@ -402,7 +410,7 @@ def score_entry_page():
                 
                 if submit_button:
                     # スコアに基づいて順位を計算し、データを保存
-                    if save_scores(competition_id, st.session_state.score_data, st.session_state.players):
+                    if save_scores(competition_id, st.session_state.get("score_data", {}), st.session_state.get("players", pd.DataFrame())):
                         st.success("スコアが正常に登録されました！")
                         # 最新のデータを再取得
                         existing_scores = fetch_existing_scores(competition_id)
@@ -410,7 +418,7 @@ def score_entry_page():
                         if not existing_scores.empty:
                             for _, score in existing_scores.iterrows():
                                 player_id = score["player_id"]
-                                st.session_state.score_data[player_id] = {
+                                st.session_state.get("score_data", {})[player_id] = {
                                     "out_score": score["out_score"],
                                     "in_score": score["in_score"],
                                     "handicap": score["handicap"],
@@ -420,12 +428,12 @@ def score_entry_page():
                         st.error("スコア登録に失敗しました。もう一度お試しください。")
             
             # 現在の順位を表示
-            if st.session_state.score_data:
+            if st.session_state.get("score_data", {}):
                 st.subheader("現在の順位")
                 
                 # 有効なスコアデータ（OUT/INスコアが入力されている）のみ抽出
                 valid_scores = {
-                    player_id: data for player_id, data in st.session_state.score_data.items()
+                    player_id: data for player_id, data in st.session_state.get("score_data", {}).items()
                     if data.get("out_score", 0) > 0 and data.get("in_score", 0) > 0
                 }
                 

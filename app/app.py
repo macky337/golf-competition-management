@@ -66,15 +66,33 @@ def get_git_count():
         return "0"  # Git情報が取得できない場合
 
 def get_git_date():
-    """Git の最終コミット日時を取得"""
+    """Git の最終コミット日時を JST で取得"""
     try:
-        result = subprocess.run(['git', 'log', '-1', '--format=%cd', '--date=format:%Y-%m-%d %H:%M'], 
+        # JST時間で取得を試行
+        result = subprocess.run(['git', 'log', '-1', '--format=%cd', '--date=format-local:%Y-%m-%d %H:%M'], 
+                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        
+        # フォールバック：UTC時間を取得してJSTに変換
+        result = subprocess.run(['git', 'log', '-1', '--format=%cd', '--date=iso'], 
                                capture_output=True, text=True, cwd=os.path.dirname(__file__))
         if result.returncode == 0:
-            return result.stdout.strip()
+            # 簡易的なUTC→JST変換（+9時間）
+            import re
+            from datetime import datetime, timedelta
+            match = re.match(r'(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}):\d{2}', result.stdout.strip())
+            if match:
+                date_part, time_part = match.groups()
+                dt = datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M")
+                dt_jst = dt + timedelta(hours=9)  # UTCからJSTに変換
+                return dt_jst.strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    # 最終フォールバック：現在のJST時間
+    jst = pytz.timezone('Asia/Tokyo')
+    return datetime.now(jst).strftime("%Y-%m-%d %H:%M")
 
 def get_git_latest_commit_message():
     """最新のコミットメッセージを取得する"""
@@ -85,60 +103,67 @@ def get_git_latest_commit_message():
 
 def parse_version_from_commit_history():
     """コミット履歴を解析し、適切なバージョン番号を計算する"""
-    # バージョン番号の初期値
     major = 1
     minor = 0
     patch = 0
     
     try:
-        # まず最新のコミットメッセージを取得
+        # 最新のコミットメッセージを取得
         latest_commit_message = get_git_latest_commit_message()
         
         # コミットメッセージに基づいてバージョンタイプを判断
         if re.search(r'^(major:|MAJOR:|!:)', latest_commit_message):
             # メジャーバージョンアップ
-            major += 1
+            major = 2  # 次のメジャーバージョン
             minor = 0
             patch = 0
         elif re.search(r'^(feature:|feat:|FEATURE:)', latest_commit_message):
             # マイナーバージョンアップ
-            minor += 1
+            minor = 1
             patch = 0
         elif re.search(r'^(fix:|bugfix:|FIX:)', latest_commit_message):
             # パッチバージョンアップ
-            patch += 1
+            patch = 1
         else:
-            # 特に指定がない場合はパッチバージョン
-            patch = int(get_git_count())
+            # コミット数を基にしたバージョン番号計算
+            count = int(get_git_count())
+            # より現実的なバージョン管理
+            major = 1
+            minor = count // 100  # 100コミットごとにマイナーバージョンアップ
+            patch = count % 100   # パッチバージョンは100未満
             
         return f"{major}.{minor}.{patch}"
     except Exception:
         # デフォルトバージョン
-        return "1.0.7"
+        return "1.2.4"
 
 def get_app_version():
-    """アプリバージョンを取得"""
+    """アプリバージョンを取得（動的バージョン使用）"""
     try:
         result = subprocess.run(['git', 'branch', '--show-current'], 
                                capture_output=True, text=True, cwd=os.path.dirname(__file__))
         if result.returncode == 0:
             branch = result.stdout.strip()
+            base_version = parse_version_from_commit_history()
+            
             if branch == "main":
-                return "1.0.0"
+                return base_version  # メインブランチは動的バージョン
             elif branch == "feature-branch":
-                return "1.0.0-dev"
+                return f"{base_version}-dev"  # 開発ブランチ
             else:
-                return f"1.0.0-{branch}"
+                return f"{base_version}-{branch}"  # 機能ブランチ
     except Exception:
         pass
-    return "1.0.0 (dev)"
+    return "1.2.4-dev"
 
 def get_app_last_update():
-    """アプリの最終更新日を動的に取得する"""
+    """アプリの最終更新日を JST で動的に取得する"""
     try:
         return get_git_date()
     except Exception:
-        return datetime.now().strftime('%Y-%m-%d')  # 現在の日付
+        # 現在のJST時間をフォールバック
+        jst = pytz.timezone('Asia/Tokyo')
+        return datetime.now(jst).strftime('%Y-%m-%d %H:%M')
 
 # バージョン情報を動的に設定
 APP_VERSION = get_app_version()

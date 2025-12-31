@@ -1,5 +1,259 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime, date
+import pytz
+
+def fetch_competitions_data(supabase):
+    """コンペ一覧を取得"""
+    try:
+        response = supabase.table("competitions").select("*").order("date", desc=True).execute()
+        return response.data
+    except Exception as e:
+        st.error(f"コンペデータの取得に失敗しました: {e}")
+        return []
+
+def add_competition(supabase, name, date, location, course, description):
+    """コンペを新規追加"""
+    try:
+        response = supabase.table("competitions").insert({
+            "name": name,
+            "date": date.isoformat() if isinstance(date, date) else str(date),
+            "location": location,
+            "course": course,
+            "description": description,
+            "status": "planned"
+        }).execute()
+        return True, "コンペを追加しました"
+    except Exception as e:
+        return False, f"コンペの追加に失敗しました: {e}"
+
+def update_competition(supabase, competition_id, name, comp_date, location, course, description, status):
+    """コンペ情報を更新"""
+    try:
+        response = supabase.table("competitions").update({
+            "name": name,
+            "date": comp_date.isoformat() if isinstance(comp_date, date) else str(comp_date),
+            "location": location,
+            "course": course,
+            "description": description,
+            "status": status
+        }).eq("id", competition_id).execute()
+        return True, "コンペ情報を更新しました"
+    except Exception as e:
+        return False, f"コンペ情報の更新に失敗しました: {e}"
+
+def delete_competition(supabase, competition_id):
+    """コンペを削除"""
+    try:
+        # 関連するスコアがないか確認
+        score_response = supabase.table("scores").select("id").eq("competition_id", competition_id).limit(1).execute()
+        if score_response.data:
+            return False, "このコンペに関連するスコアが存在するため、削除できません。先にスコアを削除してください。"
+        
+        # 関連する参加者情報も削除
+        supabase.table("participants").delete().eq("competition_id", competition_id).execute()
+        
+        response = supabase.table("competitions").delete().eq("id", competition_id).execute()
+        return True, "コンペを削除しました"
+    except Exception as e:
+        return False, f"コンペの削除に失敗しました: {e}"
+
+def fetch_players_for_participation(supabase):
+    """参加者選択用のプレイヤー一覧を取得"""
+    try:
+        response = supabase.table("players").select("*").order("name").execute()
+        return response.data
+    except Exception as e:
+        st.error(f"プレイヤーデータの取得に失敗しました: {e}")
+        return []
+
+def fetch_participants(supabase, competition_id):
+    """特定のコンペの参加者を取得"""
+    try:
+        response = supabase.table("participants").select(
+            "*, players!inner(*)"
+        ).eq("competition_id", competition_id).execute()
+        return response.data
+    except Exception as e:
+        st.error(f"参加者データの取得に失敗しました: {e}")
+        return []
+
+def add_participant(supabase, competition_id, player_id):
+    """コンペに参加者を追加"""
+    try:
+        # 既存の参加者をチェック
+        existing = supabase.table("participants").select("id").eq("competition_id", competition_id).eq("player_id", player_id).execute()
+        if existing.data:
+            return False, "このプレイヤーは既に参加者として登録されています"
+        
+        response = supabase.table("participants").insert({
+            "competition_id": competition_id,
+            "player_id": player_id
+        }).execute()
+        return True, "参加者を追加しました"
+    except Exception as e:
+        return False, f"参加者の追加に失敗しました: {e}"
+
+def remove_participant(supabase, competition_id, player_id):
+    """コンペから参加者を削除"""
+    try:
+        response = supabase.table("participants").delete().eq("competition_id", competition_id).eq("player_id", player_id).execute()
+        return True, "参加者を削除しました"
+    except Exception as e:
+        return False, f"参加者の削除に失敗しました: {e}"
 
 def competition_management_tab(supabase):
-    st.subheader("コンペ管理")
-    st.write("（この機能は現在開発中です）")
+    """コンペ管理タブのUI"""
+    st.subheader("🏆 コンペ管理")
+
+    sub_tabs = st.tabs(["コンペ一覧", "新規作成", "編集・削除", "参加者管理"])
+
+    with sub_tabs[0]:
+        st.write("### 登録済みコンペ一覧")
+        competitions = fetch_competitions_data(supabase)
+        if competitions:
+            df = pd.DataFrame(competitions)
+            # 日付順でソート
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date', ascending=False)
+            
+            # 表示用に日付フォーマットを調整
+            df['date_display'] = df['date'].dt.strftime('%Y-%m-%d')
+            display_df = df[['name', 'date_display', 'location', 'course', 'status']].copy()
+            display_df.columns = ['コンペ名', '開催日', '開催地', 'コース', 'ステータス']
+            
+            st.dataframe(display_df, use_container_width=True)
+        else:
+            st.info("現在登録されているコンペはありません。")
+
+    with sub_tabs[1]:
+        st.write("### 新規コンペ作成")
+        with st.form("add_competition_form"):
+            name = st.text_input("コンペ名")
+            comp_date = st.date_input("開催日", value=datetime.now().date())
+            location = st.text_input("開催地")
+            course = st.text_input("ゴルフコース名")
+            description = st.text_area("説明・備考")
+            
+            submitted = st.form_submit_button("作成")
+            if submitted:
+                if not name:
+                    st.error("コンペ名は必須です。")
+                else:
+                    success, message = add_competition(supabase, name, comp_date, location, course, description)
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
+
+    with sub_tabs[2]:
+        st.write("### コンペ情報の編集・削除")
+        competitions = fetch_competitions_data(supabase)
+        if competitions:
+            competition_options = {f"{c['name']} ({c['date']})": c for c in competitions}
+            selected_competition_key = st.selectbox("編集または削除するコンペを選択", competition_options.keys())
+            
+            if selected_competition_key:
+                selected_competition = competition_options[selected_competition_key]
+                
+                with st.form("edit_competition_form"):
+                    st.write(f"**ID:** {selected_competition['id']}")
+                    new_name = st.text_input("コンペ名", value=selected_competition['name'])
+                    new_date = st.date_input("開催日", value=datetime.fromisoformat(selected_competition['date'].replace('Z', '+00:00')).date())
+                    new_location = st.text_input("開催地", value=selected_competition.get('location', ''))
+                    new_course = st.text_input("ゴルフコース名", value=selected_competition.get('course', ''))
+                    new_description = st.text_area("説明・備考", value=selected_competition.get('description', ''))
+                    new_status = st.selectbox("ステータス", 
+                                             options=["planned", "ongoing", "completed", "cancelled"],
+                                             index=["planned", "ongoing", "completed", "cancelled"].index(selected_competition.get('status', 'planned')))
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        update_submitted = st.form_submit_button("更新")
+                    with col2:
+                        delete_submitted = st.form_submit_button("削除", type="secondary")
+
+                    if update_submitted:
+                        success, message = update_competition(supabase, selected_competition['id'], new_name, new_date, new_location, new_course, new_description, new_status)
+                        if success:
+                            st.success(message)
+                            st.rerun()
+                        else:
+                            st.error(message)
+                    
+                    if delete_submitted:
+                        st.warning(f"本当に「{selected_competition['name']}」を削除しますか？この操作は元に戻せません。")
+                        if st.checkbox("はい、削除します。"):
+                            success, message = delete_competition(supabase, selected_competition['id'])
+                            if success:
+                                st.success(message)
+                                st.rerun()
+                            else:
+                                st.error(message)
+        else:
+            st.info("編集・削除できるコンペがありません。")
+
+    with sub_tabs[3]:
+        st.write("### 参加者管理")
+        competitions = fetch_competitions_data(supabase)
+        if competitions:
+            # コンペ選択
+            competition_options = {f"{c['name']} ({c['date']})": c for c in competitions}
+            selected_competition_key = st.selectbox("参加者を管理するコンペを選択", competition_options.keys(), key="participant_comp")
+            
+            if selected_competition_key:
+                selected_competition = competition_options[selected_competition_key]
+                competition_id = selected_competition['id']
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("#### 現在の参加者")
+                    participants = fetch_participants(supabase, competition_id)
+                    if participants:
+                        participant_names = [p['players']['name'] for p in participants]
+                        for name in participant_names:
+                            st.write(f"• {name}")
+                    else:
+                        st.info("参加者はまだいません。")
+                
+                with col2:
+                    st.write("#### 参加者を追加")
+                    players = fetch_players_for_participation(supabase)
+                    if players:
+                        # 既存の参加者を除外
+                        participant_player_ids = [p['player_id'] for p in participants] if participants else []
+                        available_players = [p for p in players if p['id'] not in participant_player_ids]
+                        
+                        if available_players:
+                            player_options = {f"{p['name']} ({p.get('affiliation', '所属なし')})": p['id'] for p in available_players}
+                            selected_player_name = st.selectbox("追加するプレイヤーを選択", list(player_options.keys()))
+                            
+                            if st.button("参加者として追加"):
+                                player_id = player_options[selected_player_name]
+                                success, message = add_participant(supabase, competition_id, player_id)
+                                if success:
+                                    st.success(message)
+                                    st.rerun()
+                                else:
+                                    st.error(message)
+                        else:
+                            st.info("追加可能なプレイヤーがいません。")
+                
+                # 参加者削除
+                if participants:
+                    st.write("#### 参加者を削除")
+                    participant_options = {p['players']['name']: p['player_id'] for p in participants}
+                    selected_participant = st.selectbox("削除する参加者を選択", list(participant_options.keys()))
+                    
+                    if st.button("参加者から削除", type="secondary"):
+                        player_id = participant_options[selected_participant]
+                        success, message = remove_participant(supabase, competition_id, player_id)
+                        if success:
+                            st.success(message)
+                            st.rerun()
+                        else:
+                            st.error(message)
+        else:
+            st.info("参加者を管理できるコンペがありません。")

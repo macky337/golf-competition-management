@@ -478,3 +478,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+def score_entry_tab():
+    """スコア入力タブ用の関数"""
+    score_entry_page()

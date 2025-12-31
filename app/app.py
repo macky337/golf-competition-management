@@ -80,11 +80,11 @@ def get_git_date():
         if result.returncode == 0:
             # 簡易的なUTC→JST変換（+9時間）
             import re
-            from datetime import datetime, timedelta
+            from datetime import datetime as dt_class, timedelta
             match = re.match(r'(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}):\d{2}', result.stdout.strip())
             if match:
                 date_part, time_part = match.groups()
-                dt = datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M")
+                dt = dt_class.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M")
                 dt_jst = dt + timedelta(hours=9)  # UTCからJSTに変換
                 return dt_jst.strftime("%Y-%m-%d %H:%M")
     except Exception:

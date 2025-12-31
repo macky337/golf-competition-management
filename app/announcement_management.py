@@ -8,24 +8,22 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
-from supabase import create_client
-import os
-from dotenv import load_dotenv
+from supabase import Client
+from typing import Optional
 
-# 環境変数を読み込む
-load_dotenv()
+# Supabaseクライアントをグローバル変数として宣言（ただし、初期化は後で行う）
+supabase: Optional[Client] = None
 
-# Supabaseクライアントを初期化
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
-
-if not supabase_url or not supabase_key:
-    raise ValueError("環境変数 SUPABASE_URL と SUPABASE_SERVICE_KEY の設定が必要です。")
-
-supabase = create_client(supabase_url, supabase_key)
+def init_announcement_management(supabase_client: Client):
+    """このモジュールで使用するSupabaseクライアントを初期化"""
+    global supabase
+    supabase = supabase_client
 
 def fetch_announcements(is_active_only=True):
     """お知らせ一覧を取得"""
+    if not supabase:
+        st.error("Supabaseクライアントが初期化されていません。")
+        return []
     try:
         query = supabase.table("announcements").select("*")
         if is_active_only:
@@ -39,6 +37,8 @@ def fetch_announcements(is_active_only=True):
 
 def create_announcement(title, content, image_url=None, tournament_info=None, display_order=0):
     """お知らせを作成"""
+    if not supabase:
+        return False, "Supabaseクライアントが初期化されていません。"
     try:
         data = {
             "title": title,
@@ -61,6 +61,8 @@ def create_announcement(title, content, image_url=None, tournament_info=None, di
 
 def update_announcement(announcement_id, title=None, content=None, image_url=None, tournament_info=None, display_order=None, is_active=None):
     """お知らせを更新"""
+    if not supabase:
+        return False, "Supabaseクライアントが初期化されていません。"
     try:
         data = {}
         if title is not None:
@@ -83,14 +85,17 @@ def update_announcement(announcement_id, title=None, content=None, image_url=Non
 
 def delete_announcement(announcement_id):
     """お知らせを削除（論理削除）"""
+    if not supabase:
+        return False, "Supabaseクライアントが初期化されていません。"
     try:
         response = supabase.table("announcements").update({"is_active": False}).eq("id", announcement_id).execute()
         return True, "お知らせを非表示にしました"
     except Exception as e:
         return False, f"エラー: {e}"
 
-def announcement_management_tab():
+def announcement_management_tab(supabase_client: Client):
     """お知らせ管理タブのUI"""
+    init_announcement_management(supabase_client)
     st.subheader("📢 お知らせ・大会案内管理")
     
     # サブタブで「一覧」「新規作成」「編集」に分ける

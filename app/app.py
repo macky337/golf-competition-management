@@ -15,15 +15,23 @@ matplotlib.rcParams['font.family'] = 'MS Gothic'  # Windowsの場合
 from datetime import datetime
 import pytz
 import json
-from supabase import create_client
+from supabase import create_client, Client
 from dotenv import load_dotenv
 import subprocess
 import warnings
 import logging
 import japanize_matplotlib
+from matplotlib.ticker import MaxNLocator
+from typing import Optional
 import re
-from matplotlib.ticker import MaxNLocator
-from matplotlib.ticker import MaxNLocator
+
+# 他のモジュールをインポート
+from announcement_management import announcement_management_tab
+# プレースホルダーとして他の管理モジュールもインポート
+# from player_management import player_management_tab
+# from competition_management import competition_management_tab
+# from score_entry import score_entry_tab
+
 
 # 実行環境に応じてフォントを設定
 if platform.system() == 'Windows':
@@ -140,17 +148,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 環境変数の読み込み
-load_dotenv()
+# .envファイルのパスをプロジェクトルートから解決
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path=dotenv_path)
 
-# Supabase接続情報 - Streamlit secretsと環境変数の両方をサポート
-try:
-    # まずStreamlit secretsを試す
-    SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
-    SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "")
-except Exception:
-    # 次に環境変数を試す
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+# Supabase接続情報 - Streamlit secrets と環境変数の両方をサポート
+def _get_secret_supabase(*keys: str) -> str:
+    try:
+        supabase_secrets = st.secrets.get("supabase", {})
+        for key in keys:
+            value = supabase_secrets.get(key, "")
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+    except Exception:
+        return ""
+
+
+SUPABASE_URL = _get_secret_supabase("url") or os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = (
+    _get_secret_supabase("key", "anon_key", "anonKey")
+    or os.getenv("SUPABASE_KEY", "").strip()
+    or os.getenv("SUPABASE_ANON_KEY", "").strip()
+)
+SUPABASE_SERVICE_KEY = (
+    _get_secret_supabase("service_key", "service_role_key", "serviceKey", "serviceRoleKey")
+    or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+    or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+)
 
 # 接続情報が不足している場合の対応
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -161,6 +186,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
        ```
        SUPABASE_URL=あなたのSupabaseのURL
        SUPABASE_KEY=あなたのSupabaseのAPIキー
+    SUPABASE_SERVICE_KEY=あなたのSupabaseのService Role Key（管理者モードで必要）
        ```
     
     2. Streamlit Cloud: `.streamlit/secrets.toml` ファイルを作成、または Streamlit Cloud の設定画面で以下を設定
@@ -168,9 +194,10 @@ if not SUPABASE_URL or not SUPABASE_KEY:
        [supabase]
        url = "あなたのSupabaseのURL"
        key = "あなたのSupabaseのAPIキー"
+    service_key = "あなたのSupabaseのService Role Key（管理者モードで必要）"
        ```
     
-    3. その他のデプロイ環境: 環境変数 `SUPABASE_URL` および `SUPABASE_KEY` を設定
+    3. その他のデプロイ環境: 環境変数 `SUPABASE_URL` / `SUPABASE_KEY`（または `SUPABASE_ANON_KEY`）/ `SUPABASE_SERVICE_KEY`（または `SUPABASE_SERVICE_ROLE_KEY`）を設定
     """)
 
 # ログイン用のパスワード設定
@@ -199,6 +226,21 @@ def get_supabase_client():
         return supabase
     except Exception as e:
         st.error(f"Supabase接続エラー: {e}")
+        return None
+
+def get_supabase_admin_client() -> Optional[Client]:
+    """管理者（サービスロール）用のSupabaseクライアントを取得"""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        st.error(
+            "SupabaseのURLまたはサービスキーが設定されていません。\n"
+            "管理者モードには Service Role Key が必要です（例: `SUPABASE_SERVICE_KEY` または `SUPABASE_SERVICE_ROLE_KEY`、"
+            "または `.streamlit/secrets.toml` の `[supabase] service_key`）。"
+        )
+        return None
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    except Exception as e:
+        st.error(f"Supabase管理者クライアント接続エラー: {e}")
         return None
 
 def fetch_scores():
@@ -421,6 +463,7 @@ def display_winner_count_ranking(scores_df):
     ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     st.pyplot(fig)
+
 
 def backup_database():
     """Supabaseからデータをバックアップする（JSONファイルとして保存、およびbackupsテーブルに保存）"""
@@ -939,1047 +982,57 @@ def main_app():
         st.rerun()  # ページを強制的に再読み込み
 
 def admin_app():
-    st.title("管理者設定画面")
-    
-    # タブを追加してUIを整理
-    tabs = st.tabs(["お知らせ管理", "バックアップ", "リストア", "スコア入力", "コンペ設定", "プレイヤー管理", "その他"])
-    
+    """管理者向けアプリ"""
+    st.title("ゴルフコンペ管理 - 管理者モード")
+
+    supabase_admin = get_supabase_admin_client()
+    if not supabase_admin:
+        st.error("管理者用クライアントの初期化に失敗しました。設定を確認してください。")
+        return
+
+    tab_titles = ["お知らせ管理", "プレイヤー管理", "コンペ設定", "スコア入力", "バックアップ", "リストア"]
+    tabs = st.tabs(tab_titles)
+
     with tabs[0]:
-        # お知らせ管理機能を追加
-        try:
-            from announcement_management import announcement_management_tab
-            announcement_management_tab()
-        except ImportError:
-            st.error("announcement_management.pyが見つかりません")
-        except Exception as e:
-            st.error(f"お知らせ管理の読み込みエラー: {e}")
-    
+        announcement_management_tab(supabase_admin)
+
     with tabs[1]:
-        st.subheader("データベースのバックアップ")
-        if st.button("データベースをバックアップ"):
-            backup_database()
-    
+        st.subheader("プレイヤー管理")
+        st.write("（この機能は現在開発中です）")
+        # player_management_tab(supabase_admin)
+
     with tabs[2]:
-        # リストアセクションはタブに移動
-        restore_database()
-    
+        st.subheader("コンペ設定")
+        st.write("（この機能は現在開発中です）")
+        # competition_management_tab(supabase_admin)
+
     with tabs[3]:
         st.subheader("スコア入力")
-        st.write("コンペ結果のスコアを入力します。")
-        
-        # スコア入力機能を直接埋め込み
-        score_entry_tab()
-    
+        st.write("（この機能は現在開発中です）")
+        # score_entry_tab(supabase_admin)
+
     with tabs[4]:
-        st.subheader("コンペ設定")
-        st.write("コンペの開催日、ゴルフ場、参加メンバーを登録します。")
-        
-        # コンペ設定機能を直接埋め込み
-        competition_setup_tab()
-    
+        st.subheader("データベースのバックアップ")
+        if st.button("バックアップを実行"):
+            backup_database()
+
     with tabs[5]:
-        st.subheader("プレイヤー管理")
-        st.write("プレイヤーの追加、編集、削除を行います。")
-        
-        # プレイヤー管理機能を直接埋め込み
-        player_management_tab()
+        st.subheader("データベースのリストア")
+        restore_database()
+
+
+def login_app():
+    """ログイン画面"""
+    st.title("ログイン")
     
-    with tabs[6]:
-        st.subheader("その他の設定")
-        # 将来的に追加される可能性のある設定用のスペース
-    
-    # ナビゲーションボタン
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("本体画面へ"):
+    password = st.text_input("パスワードを入力してください", type="password")
+    if st.button("ログイン"):
+        if password == USER_PASSWORD:
+            st.session_state.logged_in = True
             st.session_state.page = "main"
             st.rerun()  # ページを強制的に再読み込み
-    
-    with col2:
-        if st.button("ログアウト"):
-            st.session_state.admin_logged_in = False
-            st.session_state.page = "login"
-            st.rerun()  # ページを強制的に再読み込み
-
-# コンペ設定タブの機能
-def competition_setup_tab():
-    # 以下に元々のcompetition_setup.pyの機能を組み込みます
-    # セッション状態の初期化
-    if "edit_mode_competition" not in st.session_state:
-        st.session_state.edit_mode_competition = False
-    if "selected_competition" not in st.session_state:
-        st.session_state.selected_competition = None
-    if "participants" not in st.session_state:
-        st.session_state.participants = []
-    
-    # データの取得
-    competitions_df = fetch_competitions()
-    players_df = fetch_players()
-    
-    if competitions_df.empty or players_df.empty:
-        st.error("コンペまたはプレイヤーのデータが取得できませんでした。")
-        if st.button("再試行", key="retry_competition"):
-            st.rerun()
-        return
-    
-    # タブを設定
-    setup_tab1, setup_tab2 = st.tabs(["コンペ登録", "コンペ一覧"])
-    
-    with setup_tab1:
-        st.subheader("新規コンペ登録")
-        
-        # 編集モードの場合は既存のコンペ情報をロード
-        competition_data = {}
-        
-        if st.session_state.edit_mode_competition and st.session_state.selected_competition:
-            competition_id = st.session_state.selected_competition
-            competition_info = competitions_df[competitions_df["competition_id"] == competition_id]
-            
-            if not competition_info.empty:
-                competition_data = {
-                    "competition_id": int(competition_id),
-                    "date": competition_info.iloc[0]["date"],
-                    "course": competition_info.iloc[0]["course"],
-                    "is_reference": int(competition_id) >= 100
-                }
-                
-                # 参加者情報をロード
-                st.session_state.participants = fetch_participants(competition_id)
-            
-            st.info(f"コンペID: {competition_id} の編集モードです")
-        
-        # コンペ情報入力欄
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            date_input = st.text_input(
-                "開催日 (YYYY-MM-DD)",
-                value=competition_data.get("date", datetime.now().strftime('%Y-%m-%d')),
-                key="competition_date"
-            )
-        
-        with col2:
-            course_input = st.text_input(
-                "ゴルフ場名",
-                value=competition_data.get("course", ""),
-                key="competition_course"
-            )
-        
-        # 参考大会フラグ
-        is_reference = st.checkbox(
-            "参考大会（集計対象外）",
-            value=competition_data.get("is_reference", False),
-            help="チェックすると、このコンペは参考大会（集計対象外）となり、コンペIDは100以上になります。",
-            key="is_reference"
-        )
-        
-        # プレイヤー選択
-        st.subheader("参加プレイヤー選択")
-        
-        # プレイヤーデータをID->名前の辞書に変換
-        players_dict = dict(zip(players_df["id"], players_df["name"]))
-        
-        # 選択されたプレイヤー
-        selected_players = []
-        
-        # 全選択/全解除ボタン
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("全プレイヤーを選択", key="select_all_players"):
-                st.session_state.participants = list(players_dict.keys())
-                st.rerun()
-        
-        with col2:
-            if st.button("全選択解除", key="deselect_all_players"):
-                st.session_state.participants = []
-                st.rerun()
-        
-        # プレイヤーリストを表示（グリッド形式）
-        st.write("参加プレイヤーにチェックを入れてください:")
-        
-        # プレイヤーをグループで表示するための準備
-        player_items = list(players_dict.items())
-        num_cols = 3  # 一行に表示する列数
-        
-        # プレイヤー選択チェックボックスをグリッド表示
-        for i in range(0, len(player_items), num_cols):
-            cols = st.columns(num_cols)
-            for j in range(num_cols):
-                idx = i + j
-                if idx < len(player_items):
-                    player_id, player_name = player_items[idx]
-                    with cols[j]:
-                        checked = st.checkbox(
-                            player_name,
-                            value=player_id in st.session_state.participants,
-                            key=f"player_competition_{player_id}"
-                        )
-                        if checked and player_id not in selected_players:
-                            selected_players.append(player_id)
-        
-        # 選択されたプレイヤーを更新
-        if selected_players:
-            st.session_state.participants = selected_players
-        
-        # 登録ボタン
-        if st.button("コンペ情報を保存", key="save_competition"):
-            # 入力検証
-            if not date_input:
-                st.error("開催日を入力してください")
-            elif not course_input:
-                st.error("ゴルフ場名を入力してください")
-            elif not st.session_state.participants:
-                st.warning("参加プレイヤーが選択されていません。このまま保存しますか？")
-                if st.button("はい、保存します", key="confirm_save_no_players"):
-                    competition_data = {
-                        "date": date_input,
-                        "course": course_input,
-                        "is_reference": is_reference
-                    }
-                    
-                    if st.session_state.edit_mode_competition and st.session_state.selected_competition:
-                        competition_data["competition_id"] = st.session_state.selected_competition
-                    
-                    success, message = save_competition(competition_data, st.session_state.participants)
-                    
-                    if success:
-                        st.success(message)
-                        # 編集モードをリセット
-                        st.session_state.edit_mode_competition = False
-                        st.session_state.selected_competition = None
-                        st.session_state.participants = []
-                        st.rerun()
-                    else:
-                        st.error(message)
-            else:
-                # コンペデータの準備
-                competition_data = {
-                    "date": date_input,
-                    "course": course_input,
-                    "is_reference": is_reference
-                }
-                
-                if st.session_state.edit_mode_competition and st.session_state.selected_competition:
-                    competition_data["competition_id"] = st.session_state.selected_competition
-                
-                success, message = save_competition(competition_data, st.session_state.participants)
-                
-                if success:
-                    st.success(message)
-                    # 編集モードをリセット
-                    st.session_state.edit_mode_competition = False
-                    st.session_state.selected_competition = None
-                    st.session_state.participants = []
-                    st.rerun()
-                else:
-                    st.error(message)
-        
-        # キャンセルボタン（編集モードの場合のみ表示）
-        if st.session_state.edit_mode_competition:
-            if st.button("編集をキャンセル", key="cancel_competition_edit"):
-                st.session_state.edit_mode_competition = False
-                st.session_state.selected_competition = None
-                st.session_state.participants = []
-                st.rerun()
-    
-    with setup_tab2:
-        st.subheader("コンペ一覧")
-        
-        # 削除確認用のセッション状態
-        if "delete_confirm_competition" not in st.session_state:
-            st.session_state.delete_confirm_competition = None
-        if "delete_message_competition" not in st.session_state:
-            st.session_state.delete_message_competition = ""
-        
-        # 前回の削除操作の結果を表示
-        if st.session_state.delete_message_competition:
-            st.success(st.session_state.delete_message_competition)
-            # メッセージをクリア
-            st.session_state.delete_message_competition = ""
-        
-        # コンペ一覧の表示
-        if not competitions_df.empty:
-            # IDでソート
-            competitions_df = competitions_df.sort_values(by="competition_id", ascending=False)
-            
-            # 対象大会と参考大会を分けて表示
-            st.write("### 対象大会（ID < 100）")
-            target_competitions = competitions_df[competitions_df["competition_id"] < 100]
-            
-            if not target_competitions.empty:
-                for _, comp in target_competitions.iterrows():
-                    comp_id = comp["competition_id"]
-                    date = comp["date"]
-                    course = comp["course"]
-                    
-                    col1, col2, col3 = st.columns([3, 1, 1])
-                    
-                    with col1:
-                        st.write(f"ID: {comp_id} - {date} {course}")
-                    
-                    with col2:
-                        if st.button("編集", key=f"edit_competition_{comp_id}"):
-                            st.session_state.edit_mode_competition = True
-                            st.session_state.selected_competition = comp_id
-                            st.rerun()
-                    
-                    with col3:
-                        # 削除ボタン
-                        if st.session_state.delete_confirm_competition == comp_id:
-                            # 削除確認中
-                            if st.button("はい、削除します", key=f"confirm_yes_competition_{comp_id}"):
-                                success, message = delete_competition(comp_id)
-                                if success:
-                                    st.session_state.delete_message_competition = message
-                                    st.session_state.delete_confirm_competition = None
-                                    st.rerun()
-                                else:
-                                    st.error(message)
-                            if st.button("キャンセル", key=f"confirm_no_competition_{comp_id}"):
-                                st.session_state.delete_confirm_competition = None
-                                st.rerun()
-                        else:
-                            # 削除ボタン（確認前）
-                            if st.button("削除", key=f"delete_competition_{comp_id}"):
-                                st.session_state.delete_confirm_competition = comp_id
-                                st.rerun()
-            else:
-                st.info("対象大会のデータがありません")
-            
-            st.write("### 参考大会（ID >= 100）")
-            reference_competitions = competitions_df[competitions_df["competition_id"] >= 100]
-            
-            if not reference_competitions.empty:
-                for _, comp in reference_competitions.iterrows():
-                    comp_id = comp["competition_id"]
-                    date = comp["date"]
-                    course = comp["course"]
-                    
-                    col1, col2, col3 = st.columns([3, 1, 1])
-                    
-                    with col1:
-                        st.write(f"ID: {comp_id} - {date} {course}")
-                    
-                    with col2:
-                        if st.button("編集", key=f"edit_reference_{comp_id}"):
-                            st.session_state.edit_mode_competition = True
-                            st.session_state.selected_competition = comp_id
-                            st.rerun()
-                    
-                    with col3:
-                        # 削除ボタン
-                        if st.session_state.delete_confirm_competition == comp_id:
-                            # 削除確認中
-                            if st.button("はい、削除します", key=f"confirm_yes_reference_{comp_id}"):
-                                success, message = delete_competition(comp_id)
-                                if success:
-                                    st.session_state.delete_message_competition = message
-                                    st.session_state.delete_confirm_competition = None
-                                    st.rerun()
-                                else:
-                                    st.error(message)
-                            if st.button("キャンセル", key=f"confirm_no_reference_{comp_id}"):
-                                st.session_state.delete_confirm_competition = None
-                                st.rerun()
-                        else:
-                            # 削除ボタン（確認前）
-                            if st.button("削除", key=f"delete_reference_{comp_id}"):
-                                st.session_state.delete_confirm_competition = comp_id
-                                st.rerun()
-            else:
-                st.info("参考大会のデータがありません")
         else:
-            st.info("コンペデータがありません")
-
-def fetch_participants(competition_id):
-    """参加者データをSupabaseから取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return []
-    
-    try:
-        # participantsテーブルから該当コンペの参加者を取得
-        response = supabase.table("participants").select("*").eq("competition_id", competition_id).execute()
-        
-        if not response.data:
-            return []
-        
-        # participantsテーブルからplayer_idのリストを作成
-        return [participant["player_id"] for participant in response.data]
-    except Exception as e:
-        st.error(f"参加者データ取得エラー: {e}")
-        return []
-
-def save_competition(competition_data, participants_data):
-    """コンペデータをSupabaseに保存"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return False, "Supabaseに接続できません"
-    
-    try:
-        # 既存のコンペか新規コンペかを確認
-        is_new = "competition_id" not in competition_data or competition_data["competition_id"] is None
-        
-        if is_new:
-            # 新規コンペの場合はcompetition_idを自動設定
-            # 既存のcompetition_idの最大値を取得して+1
-            response = supabase.table("competitions").select("competition_id").execute()
-            existing_ids = []
-            for record in response.data:
-                if isinstance(record, dict):
-                    competition_id_val = record.get("competition_id")
-                    if isinstance(competition_id_val, int):
-                        existing_ids.append(competition_id_val)
-                    elif isinstance(competition_id_val, str) and competition_id_val.isdigit():
-                        existing_ids.append(int(competition_id_val))
-            next_id = max(existing_ids) + 1 if existing_ids else 1
-            
-            # 参考大会フラグに基づいてIDを調整
-            is_reference = competition_data.get("is_reference", False)
-            if is_reference and next_id < 100:
-                next_id = 100  # 参考大会は100以上のIDを使用
-            elif not is_reference and next_id >= 100:
-                # 対象大会の場合は100未満のIDにする
-                # 既存の対象大会の最大IDを取得
-                target_response = supabase.table("competitions").select("competition_id").lt("competition_id", 100).execute()
-                target_ids = [
-                    int(record["competition_id"])
-                    for record in target_response.data
-                    if isinstance(record, dict) and "competition_id" in record and record["competition_id"] is not None
-                ]
-                next_id = max(target_ids) + 1 if target_ids else 1
-            
-            competition_data["competition_id"] = next_id
-            
-            # competitionsテーブルに挿入
-            insert_response = supabase.table("competitions").insert({
-                "competition_id": next_id,
-                "date": competition_data["date"],
-                "course": competition_data["course"]
-            }).execute()
-            
-            competition_id = next_id
-            
-        else:
-            # 既存のコンペを更新
-            competition_id = competition_data["competition_id"]
-            update_response = supabase.table("competitions").update({
-                "date": competition_data["date"],
-                "course": competition_data["course"]
-            }).eq("competition_id", competition_id).execute()
-            
-            # 既存の参加者データを削除
-            delete_response = supabase.table("participants").delete().eq("competition_id", competition_id).execute()
-        
-        # 参加者データを登録
-        if participants_data:
-            participants_records = []
-            for player_id in participants_data:
-                participants_records.append({
-                    "competition_id": competition_id,
-                    "player_id": player_id
-                })
-            
-            if participants_records:
-                participants_response = supabase.table("participants").insert(participants_records).execute()
-        
-        return True, f"コンペデータを{'登録' if is_new else '更新'}しました。コンペID: {competition_id}"
-    
-    except Exception as e:
-        import traceback
-        st.error(traceback.format_exc())
-        return False, f"データ保存エラー: {e}"
-
-def delete_competition(competition_id):
-    """コンペデータをSupabaseから削除"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return False, "Supabaseに接続できません"
-    
-    try:
-        # 参加者データを削除
-        participants_delete = supabase.table("participants").delete().eq("competition_id", competition_id).execute()
-        
-        # スコアデータを削除
-        scores_delete = supabase.table("scores").delete().eq("competition_id", competition_id).execute()
-        
-        # コンペデータを削除
-        competitions_delete = supabase.table("competitions").delete().eq("competition_id", competition_id).execute()
-        
-        return True, f"コンペID:{competition_id}のデータを削除しました"
-    
-    except Exception as e:
-        return False, f"データ削除エラー: {e}"
-
-# プレイヤー管理タブの機能
-def player_management_tab():
-    # プレイヤー管理機能をここに実装
-    if "edit_mode_player" not in st.session_state:
-        st.session_state.edit_mode_player = False
-    if "selected_player" not in st.session_state:
-        st.session_state.selected_player = None
-        
-    # プレイヤーデータを取得
-    players_df = fetch_players()
-    
-    if players_df.empty:
-        st.error("プレイヤーデータの取得に失敗しました。")
-        return
-        
-    # タブを設定
-    player_tab1, player_tab2 = st.tabs(["プレイヤー登録", "プレイヤー一覧"])
-    
-    with player_tab1:
-        st.subheader("新規プレイヤー登録")
-        
-        player_data = {}
-        
-        # 編集モードの場合は既存のプレイヤー情報をロード
-        if st.session_state.edit_mode_player and st.session_state.selected_player:
-            player_id = st.session_state.selected_player
-            player_info = players_df[players_df["id"] == player_id]
-            
-            if not player_info.empty:
-                player_data = {
-                    "id": player_id,
-                    "name": player_info.iloc[0]["name"],
-                    "handicap": player_info.iloc[0]["handicap"] if "handicap" in player_info.columns else 0,
-                    "active": player_info.iloc[0]["active"] if "active" in player_info.columns else True
-                }
-            
-            st.info(f"プレイヤーID: {player_id} の編集モードです")
-            
-        # プレイヤー情報入力欄
-        name_input = st.text_input(
-            "名前",
-            value=player_data.get("name", ""),
-            key="player_name"
-        )
-        
-        handicap_input = st.number_input(
-            "ハンディキャップ",
-            value=float(player_data.get("handicap", 0.0)),
-            format="%.1f",
-            step=0.1,
-            key="player_handicap"
-        )
-        
-        is_active = st.checkbox(
-            "アクティブ",
-            value=player_data.get("active", True),
-            help="チェックを外すと非アクティブ（引退など）になります",
-            key="player_is_active"
-        )
-        
-        # 登録・更新ボタン
-        if st.button("プレイヤー情報を保存", key="save_player"):
-            if not name_input:
-                st.error("名前を入力してください")
-            else:
-                # プレイヤーデータの準備
-                updated_player_data = {
-                    "name": name_input,
-                    "handicap": handicap_input,
-                    "active": is_active
-                }
-                
-                if st.session_state.edit_mode_player and st.session_state.selected_player:
-                    updated_player_data["id"] = st.session_state.selected_player
-                    
-                # プレイヤーデータを保存
-                success, message = save_player(updated_player_data)
-                
-                if success:
-                    st.success(message)
-                    # 編集モードをリセット
-                    st.session_state.edit_mode_player = False
-                    st.session_state.selected_player = None
-                    st.rerun()
-                else:
-                    st.error(message)
-                    
-        # キャンセルボタン（編集モード時のみ表示）
-        if st.session_state.edit_mode_player:
-            if st.button("編集をキャンセル", key="cancel_player_edit"):
-                st.session_state.edit_mode_player = False
-                st.session_state.selected_player = None
-                st.rerun()
-    
-    with player_tab2:
-        st.subheader("プレイヤー一覧")
-        
-        # 削除確認用のセッション状態
-        if "delete_confirm_player" not in st.session_state:
-            st.session_state.delete_confirm_player = None
-        if "delete_message_player" not in st.session_state:
-            st.session_state.delete_message_player = ""
-            
-        # 前回の削除操作結果を表示
-        if st.session_state.delete_message_player:
-            st.success(st.session_state.delete_message_player)
-            st.session_state.delete_message_player = ""
-            
-        # プレイヤー一覧表示
-        if not players_df.empty:
-            # 表示用にプレイヤーをソート
-            players_df = players_df.sort_values(by="name")
-            
-            for _, player in players_df.iterrows():
-                player_id = player["id"]
-                name = player["name"]
-                handicap = player["handicap"] if "handicap" in player.index else 0.0
-                active_status = player["active"] if "active" in player.index else True
-                
-                # アクティブ状態によって行の色を変える
-                row_color = "" if active_status else "color: gray;"
-                
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                
-                with col1:
-                    display_name = name
-                    if not active_status:
-                        display_name += "（非アクティブ）"
-                    st.markdown(f"<span style='{row_color}'>{display_name}</span>", unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"<span style='{row_color}'>HCP: {handicap:.1f}</span>", unsafe_allow_html=True)
-                
-                with col3:
-                    if st.button("編集", key=f"edit_player_{player_id}"):
-                        st.session_state.edit_mode_player = True
-                        st.session_state.selected_player = player_id
-                        st.rerun()
-                
-                with col4:
-                    # 削除ボタン
-                    if st.session_state.delete_confirm_player == player_id:
-                        # 削除確認中
-                        col4a, col4b = st.columns(2)
-                        with col4a:
-                            if st.button("はい", key=f"confirm_yes_player_{player_id}"):
-                                success, message = delete_player(player_id)
-                                if success:
-                                    st.session_state.delete_message_player = message
-                                    st.session_state.delete_confirm_player = None
-                                    st.rerun()
-                                else:
-                                    st.error(message)
-                        with col4b:
-                            if st.button("いいえ", key=f"confirm_no_player_{player_id}"):
-                                st.session_state.delete_confirm_player = None
-                                st.rerun()
-                    else:
-                        # 削除ボタン（確認前）
-                        if st.button("削除", key=f"delete_player_{player_id}"):
-                            st.session_state.delete_confirm_player = player_id
-                            st.rerun()
-            else:
-                st.info("条件に合うプレイヤーはいません")
-        else:
-            st.info("プレイヤーデータがありません")
-
-def save_player(player_data):
-    """プレイヤーデータをSupabaseに保存"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return False, "Supabaseに接続できません"
-    
-    try:
-        # 既存のプレイヤーか新規プレイヤーかを確認
-        is_new = "id" not in player_data or player_data["id"] is None
-        
-        if is_new:
-            # 新規プレイヤーの場合はinsert
-            insert_response = supabase.table("players").insert({
-                "name": player_data["name"],
-                "handicap": player_data["handicap"],
-                "active": player_data["active"]
-            }).execute()
-            
-            return True, f"プレイヤー「{player_data['name']}」を登録しました"
-        else:
-            # 既存のプレイヤーを更新
-            player_id = player_data["id"]
-            update_response = supabase.table("players").update({
-                "name": player_data["name"],
-                "handicap": player_data["handicap"],
-                "active": player_data["active"]
-            }).eq("id", player_id).execute()
-            
-            return True, f"プレイヤー「{player_data['name']}」を更新しました"
-    
-    except Exception as e:
-        import traceback
-        st.error(traceback.format_exc())
-        return False, f"データ保存エラー: {e}"
-
-def delete_player(player_id):
-    """プレイヤーデータをSupabaseから削除"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return False, "Supabaseに接続できません"
-    
-    try:
-        # プレイヤー名を取得（削除メッセージ用）
-        player_response = supabase.table("players").select("name").eq("id", player_id).execute()
-        player_name = player_response.data[0]["name"] if player_response.data else "不明"
-        
-        # プレイヤーが参加しているコンペをチェック
-        participants_response = supabase.table("participants").select("*").eq("player_id", player_id).execute()
-        
-        if participants_response.data:
-            # 参加しているコンペがある場合は物理削除せずに非アクティブにする
-            update_response = supabase.table("players").update({
-                "active": False
-            }).eq("id", player_id).execute()
-            
-            return True, f"プレイヤー「{player_name}」を非アクティブに設定しました（コンペ参加データがあるため）"
-        else:
-            # コンペ参加データがない場合は物理削除
-            delete_response = supabase.table("players").delete().eq("id", player_id).execute()
-            
-            return True, f"プレイヤー「{player_name}」を削除しました"
-    
-    except Exception as e:
-        return False, f"データ削除エラー: {e}"
-
-# スコア入力タブの機能
-def score_entry_tab():
-    # スコア入力画面のメイン機能をここに実装
-    st.write("コンペ結果のスコアデータを入力します。")
-    
-    # 必要なセッション状態の
-    
-    # 必要なセッション状態の初期化
-    if "selected_competition_for_score" not in st.session_state:
-        st.session_state.selected_competition_for_score = None
-    if "scores_data" not in st.session_state:
-        st.session_state.scores_data = {}
-    
-    # コンペデータを取得
-    competitions_df = fetch_competitions()
-    
-    if competitions_df.empty:
-        st.error("コンペデータの取得に失敗しました。")
-        return
-    
-    # 最新のコンペを上に表示するソート
-    competitions_df = competitions_df.sort_values(by="competition_id", ascending=False)
-    
-    # コンペ選択オプション
-    competition_options = [f"ID:{row['competition_id']} - {row['date']} {row['course']}" for _, row in competitions_df.iterrows()]
-    selected_option = st.selectbox(
-        "スコア入力するコンペを選択してください", 
-        competition_options,
-        key="score_competition_select"
-    )
-    
-    if selected_option:
-        # 選択されたコンペIDを抽出
-        competition_id = int(selected_option.split(" - ")[0].replace("ID:", ""))
-        st.session_state.selected_competition_for_score = competition_id
-        
-        # 選択されたコンペの情報を表示
-        competition_info = competitions_df[competitions_df["competition_id"] == competition_id].iloc[0]
-        st.write(f"コンペ日付: {competition_info['date']}")
-        st.write(f"ゴルフ場: {competition_info['course']}")
-        
-        # 参加者データを取得
-        participants = fetch_participants(competition_id)
-        if not participants:
-            st.warning("このコンペには参加者が登録されていません。先にコンペ設定で参加者を登録してください。")
-            return
-        
-        # プレイヤーデータを取得してIDから名前へのマッピングを作成
-        players_df = fetch_players()
-        players_dict = dict(zip(players_df["id"], players_df["name"]))
-        
-        # 既存のスコアデータを取得
-        existing_scores = fetch_competition_scores(competition_id)
-        
-        # スコア入力フォームを表示
-        st.subheader("スコア入力")
-        
-        # 参加者ごとのスコア入力欄
-        score_data = {}
-        
-        for player_id in participants:
-            if player_id in players_dict:
-                player_name = players_dict[player_id]
-                
-                # このプレイヤーの既存スコアがあれば取得
-                player_existing_score = existing_scores[existing_scores["player_id"] == player_id] if not existing_scores.empty else pd.DataFrame()
-                
-                st.write(f"### {player_name}")
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    out_score = st.number_input(
-                        "アウトスコア",
-                        min_value=0,
-                        value=int(player_existing_score["out_score"].iloc[0]) if not player_existing_score.empty and "out_score" in player_existing_score.columns else 0,
-                        key=f"out_score_{player_id}"
-                    )
-                
-                with col2:
-                    in_score = st.number_input(
-                        "インスコア",
-                        min_value=0,
-                        value=int(player_existing_score["in_score"].iloc[0]) if not player_existing_score.empty and "in_score" in player_existing_score.columns else 0,
-                        key=f"in_score_{player_id}"
-                    )
-                
-                with col3:
-                    total_score = out_score + in_score if out_score > 0 and in_score > 0 else None
-                    st.write(f"合計スコア: {total_score if total_score else '未入力'}")
-                
-                with col4:
-                    handicap = st.number_input(
-                        "ハンディキャップ",
-                        min_value=0.0,
-                        max_value=50.0,
-                        value=float(player_existing_score["handicap"].iloc[0]) if not player_existing_score.empty and "handicap" in player_existing_score.columns else float(players_df[players_df["id"] == player_id]["handicap"].iloc[0]) if "handicap" in players_df.columns else 0.0,
-                        format="%.1f",
-                        step=0.1,
-                        key=f"handicap_{player_id}"
-                    )
-                
-                # ネットスコアの計算
-                net_score = None
-                if total_score:
-                    net_score = total_score - handicap
-                    st.write(f"ネットスコア: {net_score:.1f}")
-                
-                # スコアデータを辞書に格納
-                score_data[player_id] = {
-                    "out_score": out_score,
-                    "in_score": in_score,
-                    "total_score": total_score,
-                    "handicap": handicap,
-                    "net_score": net_score
-                }
-        
-        # スコアデータをセッションに保存
-        st.session_state.scores_data = score_data
-        
-        # スコア保存ボタン
-        if st.button("スコアデータを保存", key="save_scores"):
-            if score_data:
-                success, message = save_scores(competition_id, score_data)
-                if success:
-                    st.success(message)
-                else:
-                    st.error(message)
-            else:
-                st.error("保存するスコアデータがありません")
-
-def fetch_competition_scores(competition_id):
-    """指定されたコンペのスコアデータを取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return pd.DataFrame()
-    
-    try:
-        # スコアテーブルから指定コンペのスコアを取得
-        response = supabase.table("scores").select("*").eq("competition_id", competition_id).execute()
-        
-        if not response.data:
-            return pd.DataFrame()
-        
-        return pd.DataFrame(response.data)
-    except Exception as e:
-        st.error(f"スコアデータ取得エラー: {e}")
-        return pd.DataFrame()
-
-def save_scores(competition_id, scores_data):
-    """スコアデータを保存"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return False, "Supabaseに接続できません"
-    
-    try:
-        # まず有効なネットスコアのプレイヤーを抽出してランキングを計算
-        valid_players = []
-        for player_id, score in scores_data.items():
-            if score["net_score"] is not None:
-                valid_players.append({
-                    "player_id": player_id,
-                    "net_score": score["net_score"]
-                })
-        
-        # ネットスコア順にソートして順位を付ける
-        if valid_players:
-            sorted_players = sorted(valid_players, key=lambda x: x["net_score"])
-            rank = 1
-            
-            for idx, player in enumerate(sorted_players):
-                player["ranking"] = rank
-                
-                # 同スコアなら同順位
-                if idx + 1 < len(sorted_players) and player["net_score"] == sorted_players[idx + 1]["net_score"]:
-                    pass  # 次のプレイヤーも同じランキング
-                else:
-                    rank = idx + 2  # 次の順位へ
-        
-        # 既存のスコアを削除
-        delete_response = supabase.table("scores").delete().eq("competition_id", competition_id).execute()
-        
-        # 新しいスコアデータを登録
-        scores_records = []
-        
-        for player_id, score in scores_data.items():
-            # ランキングを取得
-            ranking = next((p["ranking"] for p in valid_players if p["player_id"] == player_id), None)
-            
-            # 必須フィールドの検証
-            if not player_id:
-                st.error(f"プレイヤーIDが不正です: {player_id}")
-                continue
-                
-            if not competition_id:
-                st.error(f"コンペIDが不正です: {competition_id}")
-                continue
-            
-            # scoreレコードを作成（idフィールドは明示的に除外）
-            score_record = {
-                "competition_id": int(competition_id),
-                "player_id": int(player_id),
-                "out_score": int(score["out_score"]) if score["out_score"] else None,
-                "in_score": int(score["in_score"]) if score["in_score"] else None,
-                "handicap": float(score["handicap"]) if score["handicap"] is not None else 0.0,
-                "net_score": float(score["net_score"]) if score["net_score"] is not None else None,
-                "ranking": int(ranking) if ranking is not None else None
-            }
-            
-            # コンペの日付とコース名をscoreレコードに追加
-            competition_info = fetch_competition_info(competition_id)
-            if competition_info:
-                score_record["date"] = competition_info.get("date", "")
-                score_record["course"] = competition_info.get("course", "")
-            
-            # NULLフィールドのチェック（デバッグ用）
-            null_fields = [k for k, v in score_record.items() if v is None]
-            if null_fields:
-                st.info(f"プレイヤー{player_id}のNULLフィールド: {null_fields}")
-            
-            scores_records.append(score_record)
-        
-        if scores_records:
-            try:
-                # デバッグ情報: 挿入しようとするレコードの最初の1件をログ出力
-                st.info(f"挿入予定レコード数: {len(scores_records)}")
-                # 最初のレコードの構造を表示（デバッグ用）
-                sample_record = scores_records[0]
-                st.info(f"サンプルレコード構造: {list(sample_record.keys())}")
-                
-                # まず1件ずつ挿入を試行（エラー特定のため）
-                if len(scores_records) == 1:
-                    # 1件のみの場合は直接挿入
-                    insert_response = supabase.table("scores").insert(scores_records[0]).execute()
-                else:
-                    # 複数件の場合は一括挿入を試行、失敗したら1件ずつ
-                    try:
-                        insert_response = supabase.table("scores").insert(scores_records).execute()
-                    except Exception as bulk_error:
-                        st.warning(f"一括挿入に失敗: {bulk_error}")
-                        st.info("1件ずつ挿入を試行します...")
-                        
-                        # 1件ずつ挿入
-                        successful_inserts = 0
-                        for i, record in enumerate(scores_records):
-                            try:
-                                single_response = supabase.table("scores").insert(record).execute()
-                                successful_inserts += 1
-                            except Exception as single_error:
-                                st.error(f"レコード{i+1}の挿入に失敗: {single_error}")
-                                st.error(f"問題のレコード: {record}")
-                        
-                        if successful_inserts > 0:
-                            return True, f"部分的に成功: {successful_inserts}/{len(scores_records)}件のスコアデータを保存しました"
-                        else:
-                            return False, "すべてのレコードの挿入に失敗しました"
-                
-                # 挿入成功時のレスポンスを確認
-                if insert_response.data:
-                    st.success(f"挿入成功: {len(insert_response.data)}件")
-                    return True, f"スコアデータを保存しました。有効なスコア: {len(valid_players)}件"
-                else:
-                    st.warning("挿入レスポンスのデータが空です")
-                    return False, "データの保存に失敗しました（レスポンスが空）"
-                
-            except Exception as insert_error:
-                st.error(f"挿入エラー詳細: {insert_error}")
-                
-                # Supabaseのエラーメッセージを解析
-                if "null value in column" in str(insert_error):
-                    st.error("NULL制約違反が発生しました。Supabaseのscoresテーブルの構造を確認してください。")
-                    st.info("修正方法: fix_scores_table.sql を Supabase管理画面で実行してください。")
-                elif "relation" in str(insert_error) and "does not exist" in str(insert_error):
-                    st.error("テーブルまたはシーケンスが存在しません。")
-                    st.info("修正方法: fix_scores_table.sql を Supabase管理画面で実行してください。")
-                
-                # 挿入するレコードの詳細を表示
-                for i, record in enumerate(scores_records[:2]):  # 最大2件表示
-                    st.error(f"レコード{i+1}: {record}")
-                
-                return False, f"データ保存エラー: {insert_error}"
-        else:
-            return False, "保存するスコアデータがありません"
-    
-    except Exception as e:
-        import traceback
-        st.error(traceback.format_exc())
-        return False, f"データ保存エラー: {e}"
-
-def fetch_competition_info(competition_id):
-    """コンペ情報を取得"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return None
-    
-    try:
-        response = supabase.table("competitions").select("*").eq("competition_id", competition_id).execute()
-        
-        if not response.data:
-            return None
-        
-        return response.data[0]
-    except Exception:
-        return None
-
-def page_router():
-    if st.session_state.page == "main":
-        if st.session_state.logged_in:
-            main_app()
-        else:
-            login_page()
-    elif st.session_state.page == "admin":
-        if st.session_state.admin_logged_in:
-            admin_app()
-        else:
-            admin_login_page()
-    else:
-        login_page()
-
-# アプリの起動
-if not st.session_state.logged_in and not st.session_state.admin_logged_in:
-    st.session_state.page = "login"
-
-page_router()
-
-# Supabase接続状況を取得
-def get_supabase_status():
-    if SUPABASE_URL and SUPABASE_KEY:
-        try:
-            # 軽量な接続テスト
-            test_client = create_client(SUPABASE_URL, SUPABASE_KEY)
-            test_client.table("players").select("count", count="exact").limit(1).execute() # type: ignore
-            return "🟢 接続済"
-        except Exception:
-            return "🔴 未接続"
-    else:
-        return "🔴 設定なし"
-
+            st.error("パスワードが間違っています")
 
 # CSS調整（縦配置用）
 st.markdown("""
@@ -1988,7 +1041,7 @@ st.markdown("""
         position: fixed;
         bottom: 10px;
         right: 10px;
-        background-color: rgba(255, 255, 白, 0.8);
+        background-color: rgba(255, 255, 255, 0.8);
         padding: 10px;
         border-radius: 5px;
         box-shadow: 0 0 5px rgba(0,0,0,0.1);
@@ -2005,7 +1058,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # フッターを右下に縦に配置
-connection_status = get_supabase_status()
 git_rev = get_git_revision()
 git_date = get_git_date()
 
@@ -2013,9 +1065,27 @@ st.markdown(f"""
 <div class="vertical-footer">
     <span class="footer-item">Ver {APP_VERSION} ({git_rev})</span>
     <span class="footer-item">最終更新: {git_date}</span>
-    <span class="footer-item">Supabase: {connection_status}</span>
 </div>
 """, unsafe_allow_html=True)
+
+# ページ表示（ルーティング）
+page = st.session_state.get("page", "login")
+
+if page == "login":
+    login_page()
+elif page == "main":
+    if not st.session_state.get("logged_in", False):
+        st.session_state.page = "login"
+        st.rerun()
+    main_app()
+elif page == "admin":
+    if not st.session_state.get("admin_logged_in", False):
+        admin_login_page()
+    else:
+        admin_app()
+else:
+    st.session_state.page = "login"
+    st.rerun()
 
 
 

@@ -113,16 +113,43 @@ def competition_management_tab(supabase):
         competitions = fetch_competitions_data(supabase)
         if competitions:
             df = pd.DataFrame(competitions)
-            # 日付順でソート
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date', ascending=False)
             
-            # 表示用に日付フォーマットを調整
-            df['date_display'] = df['date'].dt.strftime('%Y-%m-%d')
-            display_df = df[['name', 'date_display', 'location', 'course', 'status']].copy()
-            display_df.columns = ['コンペ名', '開催日', '開催地', 'コース', 'ステータス']
+            # 安全なカラム表示（存在するカラムのみ使用）
+            display_df = df.copy()
             
-            st.dataframe(display_df, use_container_width=True)
+            # 日付カラムの処理（存在する場合）
+            if 'date' in df.columns:
+                try:
+                    display_df['date'] = pd.to_datetime(display_df['date'])
+                    display_df = display_df.sort_values('date', ascending=False)
+                    display_df['開催日'] = display_df['date'].dt.strftime('%Y-%m-%d')
+                except:
+                    pass
+            
+            # カラム名を日本語に変換（存在する場合のみ）
+            column_rename = {
+                'name': 'コンペ名',
+                'title': 'コンペ名', 
+                'location': '開催地',
+                'course': 'コース',
+                'status': 'ステータス',
+                'description': '説明',
+                'id': 'ID'
+            }
+            
+            # 存在するカラムのみリネーム
+            for old_name, new_name in column_rename.items():
+                if old_name in display_df.columns:
+                    display_df = display_df.rename(columns={old_name: new_name})
+            
+            # 不要なカラムを除外（内部カラムやタイムスタンプなど）
+            exclude_cols = ['created_at', 'updated_at', 'date']
+            display_columns = [col for col in display_df.columns if col not in exclude_cols]
+            
+            if display_columns:
+                st.dataframe(display_df[display_columns], use_container_width=True)
+            else:
+                st.dataframe(display_df, use_container_width=True)
         else:
             st.info("現在登録されているコンペはありません。")
 
@@ -151,7 +178,19 @@ def competition_management_tab(supabase):
         st.write("### コンペ情報の編集・削除")
         competitions = fetch_competitions_data(supabase)
         if competitions:
-            competition_options = {f"{c['name']} ({c['date']})": c for c in competitions}
+            competition_options = {}
+            for c in competitions:
+                # 安全な表示名の作成
+                name = c.get('name', c.get('title', 'コンペ'))
+                date_str = c.get('date', '未設定')
+                if isinstance(date_str, str) and date_str != '未設定':
+                    try:
+                        # 日付文字列を短縮形式に変換
+                        parsed_date = pd.to_datetime(date_str)
+                        date_str = parsed_date.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                competition_options[f"{name} ({date_str})"] = c
             selected_competition_key = st.selectbox("編集または削除するコンペを選択", competition_options.keys())
             
             if selected_competition_key:
@@ -160,7 +199,18 @@ def competition_management_tab(supabase):
                 with st.form("edit_competition_form"):
                     st.write(f"**ID:** {selected_competition['id']}")
                     new_name = st.text_input("コンペ名", value=selected_competition['name'])
-                    new_date = st.date_input("開催日", value=datetime.fromisoformat(selected_competition['date'].replace('Z', '+00:00')).date())
+                    # 安全な日付処理
+                    try:
+                        if isinstance(selected_competition['date'], str):
+                            # ISO形式の文字列から日付を取得
+                            date_str = selected_competition['date'].replace('Z', '+00:00')
+                            parsed_date = datetime.fromisoformat(date_str).date()
+                        else:
+                            parsed_date = selected_competition['date']
+                    except (ValueError, AttributeError):
+                        parsed_date = datetime.now().date()
+                    
+                    new_date = st.date_input("開催日", value=parsed_date)
                     new_location = st.text_input("開催地", value=selected_competition.get('location', ''))
                     new_course = st.text_input("ゴルフコース名", value=selected_competition.get('course', ''))
                     new_description = st.text_area("説明・備考", value=selected_competition.get('description', ''))
@@ -199,7 +249,19 @@ def competition_management_tab(supabase):
         competitions = fetch_competitions_data(supabase)
         if competitions:
             # コンペ選択
-            competition_options = {f"{c['name']} ({c['date']})": c for c in competitions}
+            competition_options = {}
+            for c in competitions:
+                # 安全な表示名の作成
+                name = c.get('name', c.get('title', 'コンペ'))
+                date_str = c.get('date', '未設定')
+                if isinstance(date_str, str) and date_str != '未設定':
+                    try:
+                        # 日付文字列を短縮形式に変換
+                        parsed_date = pd.to_datetime(date_str)
+                        date_str = parsed_date.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                competition_options[f"{name} ({date_str})"] = c
             selected_competition_key = st.selectbox("参加者を管理するコンペを選択", competition_options.keys(), key="participant_comp")
             
             if selected_competition_key:

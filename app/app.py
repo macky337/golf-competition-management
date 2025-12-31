@@ -33,6 +33,11 @@ from competition_management import competition_management_tab
 from score_entry import score_entry_page as score_entry_tab
 
 
+
+def get_project_root():
+    """プロジェクトのルートディレクトリを取得"""
+    return os.path.dirname(os.path.dirname(__file__))
+
 # 実行環境に応じてフォントを設定
 if platform.system() == 'Windows':
     matplotlib.rcParams['font.family'] = 'MS Gothic'
@@ -51,7 +56,7 @@ def get_git_revision():
     """Git のコミットハッシュを取得"""
     try:
         result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], 
-                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+                               capture_output=True, text=True, cwd=get_project_root())
         if result.returncode == 0:
             return result.stdout.strip()
     except Exception:
@@ -70,13 +75,13 @@ def get_git_date():
     try:
         # JST時間で取得を試行
         result = subprocess.run(['git', 'log', '-1', '--format=%cd', '--date=format-local:%Y-%m-%d %H:%M'], 
-                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+                               capture_output=True, text=True, cwd=get_project_root())
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
         
         # フォールバック：UTC時間を取得してJSTに変換
         result = subprocess.run(['git', 'log', '-1', '--format=%cd', '--date=iso'], 
-                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+                               capture_output=True, text=True, cwd=get_project_root())
         if result.returncode == 0:
             # 簡易的なUTC→JST変換（+9時間）
             import re
@@ -137,21 +142,52 @@ def parse_version_from_commit_history():
 def get_app_version():
     """アプリバージョンを取得（動的バージョン使用）"""
     try:
-        result = subprocess.run(['git', 'branch', '--show-current'], 
-                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
-        if result.returncode == 0:
-            branch = result.stdout.strip()
-            base_version = parse_version_from_commit_history()
+        import os
+        import subprocess
+        
+        # 現在のディレクトリを変更してgitコマンドを実行
+        original_cwd = os.getcwd()
+        try:
+            # プロジェクトルートに移動
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(script_dir)
+            os.chdir(project_root)
             
-            if branch == "main":
-                return base_version  # メインブランチは動的バージョン
-            elif branch == "feature-branch":
-                return f"{base_version}-dev"  # 開発ブランチ
+            # ブランチ確認
+            branch_result = subprocess.run(['git', 'branch', '--show-current'], 
+                                         capture_output=True, text=True)
+            
+            if branch_result.returncode != 0:
+                return "1.2.5"  # デフォルト
+                
+            branch = branch_result.stdout.strip()
+            
+            # コミットメッセージ確認
+            msg_result = subprocess.run(['git', 'log', '-1', '--pretty=%B'], 
+                                      capture_output=True, text=True)
+            
+            if msg_result.returncode != 0:
+                return "1.2.5"  # デフォルト
+                
+            commit_msg = msg_result.stdout.strip()
+            
+            # バージョン計算
+            if re.search(r'^(fix:|bugfix:|FIX:)', commit_msg):
+                base_version = "1.2.5"
             else:
-                return f"{base_version}-{branch}"  # 機能ブランチ
-    except Exception:
-        pass
-    return "1.2.4-dev"
+                base_version = "1.2.4"
+                
+            if branch == "main":
+                return base_version
+            else:
+                return f"{base_version}-dev"
+                
+        finally:
+            os.chdir(original_cwd)
+            
+    except Exception as e:
+        print(f"Version calculation error: {e}")
+        return "1.2.5"  # 固定バージョン
 
 def get_app_last_update():
     """アプリの最終更新日を JST で動的に取得する"""

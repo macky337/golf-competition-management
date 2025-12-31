@@ -197,16 +197,18 @@ def competition_management_tab(supabase):
                 selected_competition = competition_options[selected_competition_key]
                 
                 with st.form("edit_competition_form"):
-                    st.write(f"**ID:** {selected_competition['id']}")
-                    new_name = st.text_input("コンペ名", value=selected_competition['name'])
+                    comp_id = selected_competition.get('id', '不明')
+                    st.write(f"**ID:** {comp_id}")
+                    new_name = st.text_input("コンペ名", value=selected_competition.get('name', ''))
                     # 安全な日付処理
                     try:
-                        if isinstance(selected_competition['date'], str):
+                        comp_date = selected_competition.get('date', '')
+                        if isinstance(comp_date, str) and comp_date:
                             # ISO形式の文字列から日付を取得
-                            date_str = selected_competition['date'].replace('Z', '+00:00')
+                            date_str = comp_date.replace('Z', '+00:00')
                             parsed_date = datetime.fromisoformat(date_str).date()
-                        else:
-                            parsed_date = selected_competition['date']
+                        elif comp_date:
+                            parsed_date = comp_date
                     except (ValueError, AttributeError):
                         parsed_date = datetime.now().date()
                     
@@ -214,9 +216,18 @@ def competition_management_tab(supabase):
                     new_location = st.text_input("開催地", value=selected_competition.get('location', ''))
                     new_course = st.text_input("ゴルフコース名", value=selected_competition.get('course', ''))
                     new_description = st.text_area("説明・備考", value=selected_competition.get('description', ''))
+                    
+                    # ステータスの安全な取得
+                    current_status = selected_competition.get('status', 'planned')
+                    status_options = ["planned", "ongoing", "completed", "cancelled"]
+                    try:
+                        status_index = status_options.index(current_status)
+                    except ValueError:
+                        status_index = 0  # デフォルトは'planned'
+                    
                     new_status = st.selectbox("ステータス", 
-                                             options=["planned", "ongoing", "completed", "cancelled"],
-                                             index=["planned", "ongoing", "completed", "cancelled"].index(selected_competition.get('status', 'planned')))
+                                             options=status_options,
+                                             index=status_index)
 
                     col1, col2 = st.columns(2)
                     with col1:
@@ -225,7 +236,11 @@ def competition_management_tab(supabase):
                         delete_submitted = st.form_submit_button("削除", type="secondary")
 
                     if update_submitted:
-                        success, message = update_competition(supabase, selected_competition['id'], new_name, new_date, new_location, new_course, new_description, new_status)
+                        comp_id = selected_competition.get('id')
+                        if comp_id:
+                            success, message = update_competition(supabase, comp_id, new_name, new_date, new_location, new_course, new_description, new_status)
+                        else:
+                            success, message = False, "コンペIDが見つかりません"
                         if success:
                             st.success(message)
                             st.rerun()
@@ -233,9 +248,14 @@ def competition_management_tab(supabase):
                             st.error(message)
                     
                     if delete_submitted:
-                        st.warning(f"本当に「{selected_competition['name']}」を削除しますか？この操作は元に戻せません。")
+                        comp_name = selected_competition.get('name', 'このコンペ')
+                        st.warning(f"本当に「{comp_name}」を削除しますか？この操作は元に戻せません。")
                         if st.checkbox("はい、削除します。"):
-                            success, message = delete_competition(supabase, selected_competition['id'])
+                            comp_id = selected_competition.get('id')
+                            if comp_id:
+                                success, message = delete_competition(supabase, comp_id)
+                            else:
+                                success, message = False, "コンペIDが見つかりません"
                             if success:
                                 st.success(message)
                                 st.rerun()
@@ -266,7 +286,10 @@ def competition_management_tab(supabase):
             
             if selected_competition_key:
                 selected_competition = competition_options[selected_competition_key]
-                competition_id = selected_competition['id']
+                competition_id = selected_competition.get('id')
+                if not competition_id:
+                    st.error("コンペIDが見つかりません。")
+                    return
                 
                 col1, col2 = st.columns(2)
                 

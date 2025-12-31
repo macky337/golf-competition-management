@@ -48,11 +48,15 @@ logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
 # Gitからバージョン情報を取得する関数
 def get_git_revision():
-    """現在のGitリビジョン（コミットハッシュ）を取得する"""
+    """Git のコミットハッシュを取得"""
     try:
-        return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+        result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], 
+                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        if result.returncode == 0:
+            return result.stdout.strip()
     except Exception:
-        return "dev"  # Git情報が取得できない場合
+        pass
+    return "unknown"
 
 def get_git_count():
     """Gitのコミット数を取得する"""
@@ -62,11 +66,15 @@ def get_git_count():
         return "0"  # Git情報が取得できない場合
 
 def get_git_date():
-    """最新コミットの日付を取得する"""
+    """Git の最終コミット日時を取得"""
     try:
-        return subprocess.check_output(['git', 'log', '-1', '--format=%cd', '--date=short']).decode('ascii').strip()
+        result = subprocess.run(['git', 'log', '-1', '--format=%cd', '--date=format:%Y-%m-%d %H:%M'], 
+                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        if result.returncode == 0:
+            return result.stdout.strip()
     except Exception:
-        return datetime.now().strftime('%Y-%m-%d')  # Git情報が取得できない場合は現在日付
+        pass
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 def get_git_latest_commit_message():
     """最新のコミットメッセージを取得する"""
@@ -109,12 +117,21 @@ def parse_version_from_commit_history():
         return "1.0.7"
 
 def get_app_version():
-    """アプリのバージョンを動的に取得する"""
+    """アプリバージョンを取得"""
     try:
-        # コミット履歴に基づいてバージョン番号を解析
-        return parse_version_from_commit_history()
+        result = subprocess.run(['git', 'branch', '--show-current'], 
+                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        if result.returncode == 0:
+            branch = result.stdout.strip()
+            if branch == "main":
+                return "1.0.0"
+            elif branch == "feature-branch":
+                return "1.0.0-dev"
+            else:
+                return f"1.0.0-{branch}"
     except Exception:
-        return "1.0.7"  # デフォルトバージョン
+        pass
+    return "1.0.0 (dev)"
 
 def get_app_last_update():
     """アプリの最終更新日を動的に取得する"""
@@ -1058,12 +1075,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # フッターを右下に縦に配置
+app_version = get_app_version()
 git_rev = get_git_revision()
 git_date = get_git_date()
 
 st.markdown(f"""
 <div class="vertical-footer">
-    <span class="footer-item">Ver {APP_VERSION} ({git_rev})</span>
+    <span class="footer-item">Ver {app_version} ({git_rev})</span>
     <span class="footer-item">最終更新: {git_date}</span>
 </div>
 """, unsafe_allow_html=True)

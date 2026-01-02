@@ -38,6 +38,40 @@ def get_project_root():
     """プロジェクトのルートディレクトリを取得"""
     return os.path.dirname(os.path.dirname(__file__))
 
+
+def _get_static_version_fallback() -> str:
+    """環境変数やVERSIONファイルに定義された静的バージョンを取得"""
+    try:
+        version_from_secrets = st.secrets.get("app", {}).get("version", "")
+        if isinstance(version_from_secrets, str) and version_from_secrets.strip():
+            return version_from_secrets.strip()
+    except Exception:
+        pass
+
+    for key in ("APP_VERSION_OVERRIDE", "APP_VERSION"):
+        value = os.getenv(key, "").strip()
+        if value:
+            return value
+
+    version_file = os.path.join(get_project_root(), "VERSION")
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, "r", encoding="utf-8") as f:
+                value = f.read().strip()
+                if value:
+                    return value
+        except Exception:
+            pass
+    return ""
+
+
+def _get_static_git_rev_fallback() -> str:
+    for key in ("APP_GIT_REV", "GIT_REVISION"):
+        value = os.getenv(key, "").strip()
+        if value:
+            return value
+    return "unknown"
+
 # 実行環境に応じてフォントを設定
 if platform.system() == 'Windows':
     matplotlib.rcParams['font.family'] = 'MS Gothic'
@@ -61,7 +95,7 @@ def get_git_revision():
             return result.stdout.strip()
     except Exception:
         pass
-    return "unknown"
+    return _get_static_git_rev_fallback()
 
 def get_git_count():
     """Gitのコミット数を取得する"""
@@ -143,7 +177,8 @@ def get_app_version():
         )
 
         if branch_result.returncode != 0:
-            return "1.2.4"
+            static_version = _get_static_version_fallback()
+            return static_version or "1.2.4"
 
         branch = branch_result.stdout.strip()
         base_version = parse_version_from_commit_history()
@@ -156,7 +191,8 @@ def get_app_version():
 
     except Exception as e:
         print(f"Version calculation error: {e}")
-        return "1.2.4"
+        static_version = _get_static_version_fallback()
+        return static_version or "1.2.4"
 
 def get_app_last_update():
     """アプリの最終更新日を JST で動的に取得する"""

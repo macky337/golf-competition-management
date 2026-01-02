@@ -66,7 +66,9 @@ def get_git_revision():
 def get_git_count():
     """Gitのコミット数を取得する"""
     try:
-        return subprocess.check_output(['git', 'rev-list', '--count', 'HEAD']).decode('ascii').strip()
+        return subprocess.check_output(
+            ['git', 'rev-list', '--count', 'HEAD'], cwd=get_project_root()
+        ).decode('ascii').strip()
     except Exception:
         return "0"  # Git情報が取得できない場合
 
@@ -102,92 +104,59 @@ def get_git_date():
 def get_git_latest_commit_message():
     """最新のコミットメッセージを取得する"""
     try:
-        return subprocess.check_output(['git', 'log', '-1', '--pretty=%B']).decode('utf-8').strip()
+        return subprocess.check_output(
+            ['git', 'log', '-1', '--pretty=%B'], cwd=get_project_root()
+        ).decode('utf-8').strip()
     except Exception:
         return ""  # Git情報が取得できない場合は空文字列
 
 def parse_version_from_commit_history():
     """コミット履歴を解析し、適切なバージョン番号を計算する"""
     try:
-        # 最新のコミットメッセージを取得
         latest_commit_message = get_git_latest_commit_message()
-        count = int(get_git_count())
-        
-        # ベースバージョンをコミット数から計算
+        commit_count = int(get_git_count())
+
         major = 1
-        minor = 2  # 現在のマイナーバージョンを維持
-        
-        # コミットメッセージに基づいてバージョンタイプを判断
+        minor = commit_count // 100
+        patch = commit_count % 100
+
         if re.search(r'^(major:|MAJOR:|!:)', latest_commit_message):
-            # メジャーバージョンアップ
-            major = 2
+            major += 1
             minor = 0
             patch = 0
         elif re.search(r'^(feature:|feat:|FEATURE:)', latest_commit_message):
-            # マイナーバージョンアップ
-            minor = 3  # 次のマイナーバージョン
+            minor += 1
             patch = 0
         elif re.search(r'^(fix:|bugfix:|FIX:)', latest_commit_message):
-            # パッチバージョンアップ - 修正コミットを検出
-            patch = 5  # 修正されたバージョンなので5に
-        else:
-            # その他のコミット
-            patch = 4  # デフォルト
-            
+            patch += 1
+
         return f"{major}.{minor}.{patch}"
-    except Exception as e:
-        # デフォルトバージョン
+    except Exception:
         return "1.2.4"
 
 def get_app_version():
     """アプリバージョンを取得（動的バージョン使用）"""
     try:
-        import os
-        import subprocess
-        
-        # 現在のディレクトリを変更してgitコマンドを実行
-        original_cwd = os.getcwd()
-        try:
-            # プロジェクトルートに移動
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(script_dir)
-            os.chdir(project_root)
-            
-            # ブランチ確認
-            branch_result = subprocess.run(['git', 'branch', '--show-current'], 
-                                         capture_output=True, text=True)
-            
-            if branch_result.returncode != 0:
-                return "1.2.5"  # デフォルト
-                
-            branch = branch_result.stdout.strip()
-            
-            # コミットメッセージ確認
-            msg_result = subprocess.run(['git', 'log', '-1', '--pretty=%B'], 
-                                      capture_output=True, text=True)
-            
-            if msg_result.returncode != 0:
-                return "1.2.5"  # デフォルト
-                
-            commit_msg = msg_result.stdout.strip()
-            
-            # バージョン計算
-            if re.search(r'^(fix:|bugfix:|FIX:)', commit_msg):
-                base_version = "1.2.5"
-            else:
-                base_version = "1.2.4"
-                
-            if branch == "main":
-                return base_version
-            else:
-                return f"{base_version}-dev"
-                
-        finally:
-            os.chdir(original_cwd)
-            
+        project_root = get_project_root()
+        branch_result = subprocess.run(
+            ['git', 'branch', '--show-current'], capture_output=True, text=True, cwd=project_root
+        )
+
+        if branch_result.returncode != 0:
+            return "1.2.4"
+
+        branch = branch_result.stdout.strip()
+        base_version = parse_version_from_commit_history()
+
+        if branch == "main" or not branch:
+            return base_version
+        if branch == "feature-branch":
+            return f"{base_version}-dev"
+        return f"{base_version}-{branch}"
+
     except Exception as e:
         print(f"Version calculation error: {e}")
-        return "1.2.5"  # 固定バージョン
+        return "1.2.4"
 
 def get_app_last_update():
     """アプリの最終更新日を JST で動的に取得する"""

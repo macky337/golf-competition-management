@@ -12,12 +12,13 @@ def fetch_competitions_data(supabase):
         st.error(f"コンペデータの取得に失敗しました: {e}")
         return []
 
-def add_competition(supabase, name, date, location, course, description):
+def add_competition(supabase, name, comp_date, location, course, description):
     """コンペを新規追加"""
     try:
+        from datetime import date as date_type
         response = supabase.table("competitions").insert({
             "name": name,
-            "date": date.isoformat() if isinstance(date, date) else str(date),
+            "date": comp_date.isoformat() if isinstance(comp_date, date_type) else str(comp_date),
             "location": location,
             "course": course,
             "description": description,
@@ -30,9 +31,10 @@ def add_competition(supabase, name, date, location, course, description):
 def update_competition(supabase, competition_id, name, comp_date, location, course, description, status):
     """コンペ情報を更新"""
     try:
+        from datetime import date as date_type
         response = supabase.table("competitions").update({
             "name": name,
-            "date": comp_date.isoformat() if isinstance(comp_date, date) else str(comp_date),
+            "date": comp_date.isoformat() if isinstance(comp_date, date_type) else str(comp_date),
             "location": location,
             "course": course,
             "description": description,
@@ -201,6 +203,7 @@ def competition_management_tab(supabase):
                     st.write(f"**ID:** {comp_id}")
                     new_name = st.text_input("コンペ名", value=selected_competition.get('name', ''))
                     # 安全な日付処理
+                    parsed_date = datetime.now().date()  # デフォルト値を設定
                     try:
                         comp_date = selected_competition.get('date', '')
                         if isinstance(comp_date, str) and comp_date:

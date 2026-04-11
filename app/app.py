@@ -229,8 +229,8 @@ st.markdown("""
 
 # 環境変数の読み込み
 # .envファイルのパスをプロジェクトルートから解決
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(dotenv_path=dotenv_path)
+dotenv_path = os.path.join(get_project_root(), '.env')
+load_dotenv(dotenv_path=dotenv_path, override=True)
 
 # Supabase接続情報 - Streamlit secrets と環境変数の両方をサポート
 def _get_secret_supabase(*keys: str) -> str:

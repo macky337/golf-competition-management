@@ -304,11 +304,15 @@ def score_entry_page():
             if not existing_scores.empty:
                 for _, score in existing_scores.iterrows():
                     player_id = score["player_id"]
+                    out_score = score.get("out_score", 0) or 0
+                    in_score = score.get("in_score", 0) or 0
+                    gross_score = out_score + in_score
                     st.session_state.get("score_data", {})[player_id] = {
-                        "out_score": score["out_score"],
-                        "in_score": score["in_score"],
-                        "handicap": score["handicap"],
-                        "net_score": score["net_score"]
+                        "out_score": out_score,
+                        "in_score": in_score,
+                        "handicap": score.get("handicap", 0) or 0,
+                        "gross_score": gross_score,
+                        "net_score": score.get("net_score", 0) or 0
                     }
             
             st.rerun()
@@ -418,11 +422,15 @@ def score_entry_page():
                         if not existing_scores.empty:
                             for _, score in existing_scores.iterrows():
                                 player_id = score["player_id"]
+                                out_score = score.get("out_score", 0) or 0
+                                in_score = score.get("in_score", 0) or 0
+                                gross_score = out_score + in_score
                                 st.session_state.get("score_data", {})[player_id] = {
-                                    "out_score": score["out_score"],
-                                    "in_score": score["in_score"],
-                                    "handicap": score["handicap"],
-                                    "net_score": score["net_score"]
+                                    "out_score": out_score,
+                                    "in_score": in_score,
+                                    "handicap": score.get("handicap", 0) or 0,
+                                    "gross_score": gross_score,
+                                    "net_score": score.get("net_score", 0) or 0
                                 }
                     else:
                         st.error("スコア登録に失敗しました。もう一度お試しください。")
@@ -468,7 +476,8 @@ def score_entry_page():
     
     with col1:
         if st.button("メイン画面へ"):
-            st.switch_page("app/app.py")
+            st.session_state.page = "main"
+            st.rerun()
     
     with col2:
         if st.button("ログアウト"):

@@ -836,17 +836,13 @@ def login_page():
 
 def admin_login_page():
     st.title("管理者ログイン")
-    # デバッグ情報
-    if os.getenv("DEBUG_SUPABASE") == "true":
-        st.write(f"DEBUG: admin_logged_in = {st.session_state.get('admin_logged_in', 'NOT SET')}")
-        st.write(f"DEBUG: page = {st.session_state.get('page', 'NOT SET')}")
     
-    password = st.text_input("管理者パスワードを入力してください", type="password")
-    if st.button("ログイン"):
+    password = st.text_input("管理者パスワードを入力してください", type="password", key="admin_password_input")
+    if st.button("ログイン", key="admin_login_button"):
         if password == ADMIN_PASSWORD:
             st.session_state.admin_logged_in = True
             st.session_state.page = "admin"
-            st.rerun()  # ページを強制的に再読み込み
+            st.rerun()
         else:
             st.error("パスワードが間違っています")
 
@@ -1057,7 +1053,7 @@ def main_app():
         # 最終更新日時を表示
         st.subheader("最終更新日時")
         jst = pytz.timezone('Asia/Tokyo')
-        # st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
+        st.write(datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))
     else:
         if scores_df.empty:
             st.warning("スコアデータが取得できませんでした。")
@@ -1065,14 +1061,19 @@ def main_app():
             st.warning("プレイヤーデータが取得できませんでした。")
         st.error("データの取得に失敗しました。Supabase接続情報とRLS設定を確認してください。")
     
-    if st.button("設定画面へ"):
-        st.session_state.page = "admin"
-        st.rerun()  # ページを強制的に再読み込み
-    
-    if st.button("ログアウト"):
-        st.session_state.logged_in = False
-        st.session_state.page = "login"
-        st.rerun()  # ページを強制的に再読み込み
+    # ボタンを最下部に配置
+    st.markdown("---")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("設定画面へ", key="goto_admin_button"):
+            st.session_state.admin_logged_in = False  # 必ずログイン画面を表示
+            st.session_state.page = "admin"
+            st.rerun()
+    with col2:
+        if st.button("ログアウト", key="logout_button"):
+            st.session_state.logged_in = False
+            st.session_state.page = "login"
+            st.rerun()
 
 def admin_app():
     """管理者向けアプリ"""

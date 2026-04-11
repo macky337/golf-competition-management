@@ -12,34 +12,37 @@ def fetch_competitions_data(supabase):
         st.error(f"コンペデータの取得に失敗しました: {e}")
         return []
 
-def add_competition(supabase, name, comp_date, location, course, description):
+def add_competition(supabase, comp_date, course, description=""):
     """コンペを新規追加"""
     try:
         from datetime import date as date_type
+        
+        # 100未満の最大のcompetition_idを取得して+1する（100以上は特別ID用）
+        max_id_response = supabase.table("competitions").select("competition_id").lt("competition_id", 100).order("competition_id", desc=True).limit(1).execute()
+        if max_id_response.data:
+            next_id = max_id_response.data[0]['competition_id'] + 1
+        else:
+            next_id = 1
+        
         response = supabase.table("competitions").insert({
-            "name": name,
+            "competition_id": next_id,
             "date": comp_date.isoformat() if isinstance(comp_date, date_type) else str(comp_date),
-            "location": location,
             "course": course,
-            "description": description,
-            "status": "planned"
+            "description": description if description else None
         }).execute()
         return True, "コンペを追加しました"
     except Exception as e:
         return False, f"コンペの追加に失敗しました: {e}"
 
-def update_competition(supabase, competition_id, name, comp_date, location, course, description, status):
+def update_competition(supabase, competition_id, comp_date, course, description=""):
     """コンペ情報を更新"""
     try:
         from datetime import date as date_type
         response = supabase.table("competitions").update({
-            "name": name,
             "date": comp_date.isoformat() if isinstance(comp_date, date_type) else str(comp_date),
-            "location": location,
             "course": course,
-            "description": description,
-            "status": status
-        }).eq("id", competition_id).execute()
+            "description": description if description else None
+        }).eq("competition_id", competition_id).execute()
         return True, "コンペ情報を更新しました"
     except Exception as e:
         return False, f"コンペ情報の更新に失敗しました: {e}"
@@ -55,7 +58,7 @@ def delete_competition(supabase, competition_id):
         # 関連する参加者情報も削除
         supabase.table("participants").delete().eq("competition_id", competition_id).execute()
         
-        response = supabase.table("competitions").delete().eq("id", competition_id).execute()
+        response = supabase.table("competitions").delete().eq("competition_id", competition_id).execute()
         return True, "コンペを削除しました"
     except Exception as e:
         return False, f"コンペの削除に失敗しました: {e}"
@@ -158,18 +161,16 @@ def competition_management_tab(supabase):
     with sub_tabs[1]:
         st.write("### 新規コンペ作成")
         with st.form("add_competition_form"):
-            name = st.text_input("コンペ名")
             comp_date = st.date_input("開催日", value=datetime.now().date())
-            location = st.text_input("開催地")
             course = st.text_input("ゴルフコース名")
             description = st.text_area("説明・備考")
             
             submitted = st.form_submit_button("作成")
             if submitted:
-                if not name:
-                    st.error("コンペ名は必須です。")
+                if not course:
+                    st.error("ゴルフコース名は必須です。")
                 else:
-                    success, message = add_competition(supabase, name, comp_date, location, course, description)
+                    success, message = add_competition(supabase, comp_date, course, description)
                     if success:
                         st.success(message)
                         st.rerun()
@@ -199,9 +200,8 @@ def competition_management_tab(supabase):
                 selected_competition = competition_options[selected_competition_key]
                 
                 with st.form("edit_competition_form"):
-                    comp_id = selected_competition.get('id', '不明')
+                    comp_id = selected_competition.get('competition_id', '不明')
                     st.write(f"**ID:** {comp_id}")
-                    new_name = st.text_input("コンペ名", value=selected_competition.get('name', ''))
                     # 安全な日付処理
                     parsed_date = datetime.now().date()  # デフォルト値を設定
                     try:
@@ -216,21 +216,8 @@ def competition_management_tab(supabase):
                         parsed_date = datetime.now().date()
                     
                     new_date = st.date_input("開催日", value=parsed_date)
-                    new_location = st.text_input("開催地", value=selected_competition.get('location', ''))
                     new_course = st.text_input("ゴルフコース名", value=selected_competition.get('course', ''))
                     new_description = st.text_area("説明・備考", value=selected_competition.get('description', ''))
-                    
-                    # ステータスの安全な取得
-                    current_status = selected_competition.get('status', 'planned')
-                    status_options = ["planned", "ongoing", "completed", "cancelled"]
-                    try:
-                        status_index = status_options.index(current_status)
-                    except ValueError:
-                        status_index = 0  # デフォルトは'planned'
-                    
-                    new_status = st.selectbox("ステータス", 
-                                             options=status_options,
-                                             index=status_index)
 
                     col1, col2 = st.columns(2)
                     with col1:
@@ -239,9 +226,9 @@ def competition_management_tab(supabase):
                         delete_submitted = st.form_submit_button("削除", type="secondary")
 
                     if update_submitted:
-                        comp_id = selected_competition.get('id')
+                        comp_id = selected_competition.get('competition_id')
                         if comp_id:
-                            success, message = update_competition(supabase, comp_id, new_name, new_date, new_location, new_course, new_description, new_status)
+                            success, message = update_competition(supabase, comp_id, new_date, new_course, new_description or "")
                         else:
                             success, message = False, "コンペIDが見つかりません"
                         if success:
@@ -251,10 +238,10 @@ def competition_management_tab(supabase):
                             st.error(message)
                     
                     if delete_submitted:
-                        comp_name = selected_competition.get('name', 'このコンペ')
-                        st.warning(f"本当に「{comp_name}」を削除しますか？この操作は元に戻せません。")
+                        comp_course = selected_competition.get('course', 'このコンペ')
+                        st.warning(f"本当に「{comp_course}」を削除しますか？この操作は元に戻せません。")
                         if st.checkbox("はい、削除します。"):
-                            comp_id = selected_competition.get('id')
+                            comp_id = selected_competition.get('competition_id')
                             if comp_id:
                                 success, message = delete_competition(supabase, comp_id)
                             else:

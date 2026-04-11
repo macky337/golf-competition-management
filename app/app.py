@@ -257,6 +257,14 @@ SUPABASE_SERVICE_KEY = (
     or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 )
 
+# デバッグ: 環境変数の読み込み確認（開発時のみ）
+if os.getenv("DEBUG_SUPABASE") == "true":
+    st.write("DEBUG: SUPABASE_URL =", "SET" if SUPABASE_URL else "NOT SET")
+    st.write("DEBUG: SUPABASE_KEY =", "SET" if SUPABASE_KEY else "NOT SET") 
+    st.write("DEBUG: SUPABASE_SERVICE_KEY =", "SET" if SUPABASE_SERVICE_KEY else "NOT SET")
+    st.write("DEBUG: from secrets =", _get_secret_supabase("service_key"))
+    st.write("DEBUG: from env =", os.getenv("SUPABASE_SERVICE_KEY", "NOT SET"))
+
 # 接続情報が不足している場合の対応
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.warning("""
@@ -828,6 +836,11 @@ def login_page():
 
 def admin_login_page():
     st.title("管理者ログイン")
+    # デバッグ情報
+    if os.getenv("DEBUG_SUPABASE") == "true":
+        st.write(f"DEBUG: admin_logged_in = {st.session_state.get('admin_logged_in', 'NOT SET')}")
+        st.write(f"DEBUG: page = {st.session_state.get('page', 'NOT SET')}")
+    
     password = st.text_input("管理者パスワードを入力してください", type="password")
     if st.button("ログイン"):
         if password == ADMIN_PASSWORD:
@@ -1108,41 +1121,6 @@ def login_app():
         else:
             st.error("パスワードが間違っています")
 
-# CSS調整（縦配置用）
-st.markdown("""
-<style>
-    .vertical-footer {
-        position: fixed;
-        bottom: 10px;
-        right: 10px;
-        background-color: rgba(255, 255, 255, 0.8);
-        padding: 10px;
-        border-radius: 5px;
-        box-shadow: 0 0 5px rgba(0,0,0,0.1);
-        z-index: 999;
-        text-align: right;
-        line-height: 1.5;
-    }
-    .footer-item {
-        font-size: 0.75rem;
-        color: #666;
-        display: block;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# フッターを右下に縦に配置
-app_version = get_app_version()
-git_rev = get_git_revision()
-git_date = get_git_date()
-
-st.markdown(f"""
-<div class="vertical-footer">
-    <span class="footer-item">Ver {app_version} ({git_rev})</span>
-    <span class="footer-item">最終更新: {git_date}</span>
-</div>
-""", unsafe_allow_html=True)
-
 # ページ表示（ルーティング）
 page = st.session_state.get("page", "login")
 
@@ -1162,5 +1140,43 @@ else:
     st.session_state.page = "login"
     st.rerun()
 
+# # CSS調整（縦配置用） - ページ表示の後に配置
+# st.markdown("""
+# <style>
+#     .vertical-footer {
+#         position: fixed;
+#         bottom: 10px;
+#         right: 10px;
+#         background-color: rgba(255, 255, 255, 0.8);
+#         padding: 10px;
+#         border-radius: 5px;
+#         box-shadow: 0 0 5px rgba(0,0,0,0.1);
+#         z-index: 999;
+#         text-align: right;
+#         line-height: 1.5;
+#     }
+#     .footer-item {
+#         font-size: 0.75rem;
+#         color: #666;
+#         display: block;
+#     }
+# </style>
+# """, unsafe_allow_html=True)
 
+# # フッターを右下に縦に配置
+# try:
+#     app_version = get_app_version()
+#     git_rev = get_git_revision()
+#     git_date = get_git_date()
+# except Exception:
+#     app_version = "1.2.4"
+#     git_rev = "unknown"
+#     git_date = "unknown"
+
+# st.markdown(f"""
+# <div class="vertical-footer">
+#     <span class="footer-item">Ver {app_version} ({git_rev})</span>
+#     <span class="footer-item">最終更新: {git_date}</span>
+# </div>
+# """, unsafe_allow_html=True)
 

@@ -986,6 +986,13 @@ def competition_results_page():
                     st.metric("平均グロス", f"{comp_data['合計スコア'].mean():.1f}")
                 with col4:
                     st.metric("平均HC", f"{comp_data['ハンディキャップ'].mean():.1f}")
+    
+    # ナビゲーションボタン
+    st.markdown("---")
+    if st.button("← メイン画面へ", key="back_to_main_from_results"):
+        st.session_state.page = "main"
+        st.rerun()
+
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
 

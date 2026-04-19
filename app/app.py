@@ -565,6 +565,161 @@ def display_visualizations(scores_df, players_df):
     plt.tight_layout()
     st.pyplot(plt.gcf())
 
+def competition_results_page():
+    """競技結果一覧ページ"""
+    st.title("🏆 競技結果一覧")
+    
+    # データ取得
+    scores_df = fetch_scores()
+    competitions_df = fetch_competitions()
+    
+    if scores_df.empty:
+        st.warning("競技結果データがありません。")
+        if st.button("← メイン画面へ"):
+            st.session_state.page = "main"
+            st.rerun()
+        return
+    
+    # フィルター用のサイドバー
+    st.sidebar.header("🔍 フィルター")
+    
+    # 年別フィルター
+    available_years = sorted(scores_df['日付'].str[:4].unique(), reverse=True)
+    selected_year = st.sidebar.selectbox(
+        "年を選択",
+        ["全て"] + available_years,
+        index=0
+    )
+    
+    # 月別フィルター
+    if selected_year != "全て":
+        filtered_by_year = scores_df[scores_df['日付'].str.startswith(selected_year)]
+        available_months = sorted(filtered_by_year['日付'].str[5:7].unique())
+        available_months = [m for m in available_months if m]  # 空文字列を除外
+    else:
+        available_months = sorted(scores_df['日付'].str[5:7].unique())
+        available_months = [m for m in available_months if m]  # 空文字列を除外
+    
+    selected_month = st.sidebar.selectbox(
+        "月を選択",
+        ["全て"] + available_months,
+        index=0
+    )
+    
+    # コース別フィルター
+    available_courses = sorted(scores_df['コース'].unique())
+    selected_course = st.sidebar.selectbox(
+        "コースを選択",
+        ["全て"] + available_courses,
+        index=0
+    )
+    
+    # フィルタリング適用
+    filtered_df = scores_df.copy()
+    
+    if selected_year != "全て":
+        filtered_df = filtered_df[filtered_df['日付'].str.startswith(selected_year)]
+    
+    if selected_month != "全て":
+        filtered_df = filtered_df[filtered_df['日付'].str[5:7] == selected_month]
+    
+    if selected_course != "全て":
+        filtered_df = filtered_df[filtered_df['コース'] == selected_course]
+    
+    # 競技ごとにグループ化
+    competitions = filtered_df.groupby('競技ID')
+    
+    if len(competitions) == 0:
+        st.info("選択した条件に一致する競技結果がありません。")
+    else:
+        st.success(f"📊 {len(competitions)}件の競技結果が見つかりました")
+        
+        # 競技ごとに表示
+        for comp_id, comp_data in competitions:
+            comp_data = comp_data.sort_values('順位')
+            
+            # 競技情報を取得
+            date = comp_data.iloc[0]['日付'] if '日付' in comp_data.columns else "不明"
+            course = comp_data.iloc[0]['コース'] if 'コース' in comp_data.columns else "不明"
+            
+            # 展開可能なセクションで表示
+            with st.expander(f"📅 競技ID: {comp_id} - {date} ({course})", expanded=False):
+                # 表彰台表示（上位3名）
+                st.markdown("### 🏅 表彰台")
+                
+                top_3 = comp_data.head(3)
+                
+                if len(top_3) >= 1:
+                    cols = st.columns(len(top_3))
+                    
+                    medals = ["🥇", "🥈", "🥉"]
+                    colors = ["#FFD700", "#C0C0C0", "#CD7F32"]
+                    
+                    for idx, (_, row) in enumerate(top_3.iterrows()):
+                        with cols[idx]:
+                            st.markdown(
+                                f"""
+                                <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, {colors[idx]}22, {colors[idx]}11); border-radius: 10px; border: 2px solid {colors[idx]};">
+                                    <div style="font-size: 48px;">{medals[idx]}</div>
+                                    <div style="font-size: 20px; font-weight: bold; margin: 10px 0;">{row['プレイヤー名']}</div>
+                                    <div style="font-size: 16px; color: #666;">ネット: <strong>{row['ネットスコア']:.1f}</strong></div>
+                                    <div style="font-size: 14px; color: #888;">グロス: {row.get('合計スコア', 0):.0f}</div>
+                                    <div style="font-size: 14px; color: #888;">HC: {row['ハンディキャップ']:.1f}</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                
+                st.markdown("---")
+                
+                # 全順位表
+                st.markdown("### 📋 完全順位表")
+                
+                # 表示用データフレームを作成
+                display_df = comp_data[[
+                    '順位', 'プレイヤー名', '合計スコア', 
+                    'アウトスコア', 'インスコア', 
+                    'ハンディキャップ', 'ネットスコア'
+                ]].copy()
+                
+                # カラム名を整形
+                display_df.columns = [
+                    '順位', 'プレイヤー名', 'グロス', 
+                    'OUT', 'IN', 
+                    'HC', 'ネット'
+                ]
+                
+                # スタイル適用
+                def highlight_top3(row):
+                    if row['順位'] == 1:
+                        return ['background-color: #FFD70033'] * len(row)
+                    elif row['順位'] == 2:
+                        return ['background-color: #C0C0C033'] * len(row)
+                    elif row['順位'] == 3:
+                        return ['background-color: #CD7F3233'] * len(row)
+                    return [''] * len(row)
+                
+                styled_df = display_df.style.apply(highlight_top3, axis=1).format({
+                    'グロス': '{:.0f}',
+                    'OUT': '{:.0f}',
+                    'IN': '{:.0f}',
+                    'HC': '{:.1f}',
+                    'ネット': '{:.1f}',
+                    '順位': '{:.0f}'
+                })
+                
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                
+                # 統計情報
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("参加人数", f"{len(comp_data)}名")
+                with col2:
+                    st.metric("平均ネット", f"{comp_data['ネットスコア'].mean():.1f}")
+                with col3:
+                    st.metric("平均グロス", f"{comp_data['合計スコア'].mean():.1f}")
+                with col4:
+                    st.metric("平均HC", f"{comp_data['ハンディキャップ'].mean():.1f}")
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
 
@@ -581,7 +736,8 @@ def display_winner_count_ranking(scores_df):
     rank_one_winners.index.name = '順位'
 
     st.dataframe(rank_one_winners, use_container_width=True)
-
+    
+    # グラフ表示
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
     ax.set_ylabel("優勝回数")
@@ -1102,14 +1258,18 @@ def main_app():
     
     # ボタンを最下部に配置
     st.markdown("---")
-    col1, col2 = st.columns([1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        if st.button("設定画面へ", key="goto_admin_button"):
+        if st.button("🏆 競技結果一覧", key="goto_results_button", use_container_width=True):
+            st.session_state.page = "results"
+            st.rerun()
+    with col2:
+        if st.button("⚙️ 設定画面へ", key="goto_admin_button", use_container_width=True):
             st.session_state.admin_logged_in = False  # 必ずログイン画面を表示
             st.session_state.page = "admin"
             st.rerun()
-    with col2:
-        if st.button("ログアウト", key="logout_button"):
+    with col3:
+        if st.button("🚪 ログアウト", key="logout_button", use_container_width=True):
             # セッション状態を全てクリア
             st.session_state.logged_in = False
             st.session_state.admin_logged_in = False
@@ -1193,6 +1353,11 @@ elif page == "main":
         st.session_state.page = "login"
         st.rerun()
     main_app()
+elif page == "results":
+    if not st.session_state.get("logged_in", False):
+        st.session_state.page = "login"
+        st.rerun()
+    competition_results_page()
 elif page == "admin":
     if not st.session_state.get("admin_logged_in", False):
         admin_login_page()

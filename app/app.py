@@ -580,10 +580,11 @@ def personal_stats_page():
             st.rerun()
         return
     
-    # プレイヤー選択
-    players_list = sorted(scores_df['プレイヤー名'].unique())
+    # プレイヤー選択（参加回数順にソート）
+    player_counts = scores_df['プレイヤー名'].value_counts()
+    players_list = player_counts.index.tolist()
     
-    # セッションにプレイヤー名がない場合は最初のプレイヤーを設定
+    # セッションにプレイヤー名がない場合は最初のプレイヤー（参加回数最多）を設定
     if 'selected_player_for_stats' not in st.session_state:
         st.session_state.selected_player_for_stats = players_list[0] if players_list else None
     

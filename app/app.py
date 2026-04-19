@@ -647,19 +647,20 @@ def personal_stats_page():
             previous_net = player_data.iloc[-2]['ネットスコア']
             net_diff = latest_net - previous_net
             
+            # ゴルフはスコアが低い方が良いので、マイナスが改善
             if net_diff < 0:
                 st.metric(
                     "前回比（ネット）",
                     f"{latest_net:.1f}",
                     f"{net_diff:.1f} 🎉",
-                    delta_color="inverse"
+                    delta_color="inverse"  # マイナスを緑色で表示
                 )
             elif net_diff > 0:
                 st.metric(
                     "前回比（ネット）",
                     f"{latest_net:.1f}",
-                    f"+{net_diff:.1f}",
-                    delta_color="normal"
+                    f"+{net_diff:.1f} 😞",
+                    delta_color="normal"  # プラスを赤色で表示
                 )
             else:
                 st.metric("前回比（ネット）", f"{latest_net:.1f}", "±0")
@@ -685,19 +686,20 @@ def personal_stats_page():
                 prev_year_net = previous_year_data.iloc[-1]['ネットスコア']
                 year_diff = latest_net - prev_year_net
                 
+                # ゴルフはスコアが低い方が良いので、マイナスが改善
                 if year_diff < 0:
                     st.metric(
                         "前年同月比（ネット）",
                         f"{latest_net:.1f}",
                         f"{year_diff:.1f} 🎉",
-                        delta_color="inverse"
+                        delta_color="inverse"  # マイナスを緑色で表示
                     )
                 elif year_diff > 0:
                     st.metric(
                         "前年同月比（ネット）",
                         f"{latest_net:.1f}",
-                        f"+{year_diff:.1f}",
-                        delta_color="normal"
+                        f"+{year_diff:.1f} 😞",
+                        delta_color="normal"  # プラスを赤色で表示
                     )
                 else:
                     st.metric("前年同月比（ネット）", f"{latest_net:.1f}", "±0")

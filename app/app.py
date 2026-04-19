@@ -637,37 +637,32 @@ def personal_stats_page():
     
     # === 改善率 ===
     st.markdown("---")
-    st.subheader("📈 改善率")
+    st.subheader("📈 スコア変化")
     
     col1, col2 = st.columns(2)
     
     with col1:
+        st.markdown("**前回比（グロス）**")
         if len(player_data) >= 2:
-            latest_net = player_data.iloc[-1]['ネットスコア']
-            previous_net = player_data.iloc[-2]['ネットスコア']
-            net_diff = latest_net - previous_net
+            latest_gross = player_data.iloc[-1]['合計スコア']
+            previous_gross = player_data.iloc[-2]['合計スコア']
+            gross_diff = latest_gross - previous_gross
             
             # ゴルフはスコアが低い方が良いので、マイナスが改善
-            if net_diff < 0:
-                st.metric(
-                    "前回比（ネット）",
-                    f"{latest_net:.1f}",
-                    f"{net_diff:.1f} 🎉",
-                    delta_color="inverse"  # マイナスを緑色で表示
-                )
-            elif net_diff > 0:
-                st.metric(
-                    "前回比（ネット）",
-                    f"{latest_net:.1f}",
-                    f"+{net_diff:.1f} 😞",
-                    delta_color="normal"  # プラスを赤色で表示
-                )
+            if gross_diff < 0:
+                st.markdown(f"### :green[{gross_diff:.0f}打 改善 🎉]")
+                st.caption(f"前回 {previous_gross:.0f} → 今回 {latest_gross:.0f}")
+            elif gross_diff > 0:
+                st.markdown(f"### :red[+{gross_diff:.0f}打 😞]")
+                st.caption(f"前回 {previous_gross:.0f} → 今回 {latest_gross:.0f}")
             else:
-                st.metric("前回比（ネット）", f"{latest_net:.1f}", "±0")
+                st.markdown(f"### 変化なし ±0")
+                st.caption(f"前回 {previous_gross:.0f} → 今回 {latest_gross:.0f}")
         else:
             st.info("前回比較には2回以上の参加が必要です")
     
     with col2:
+        st.markdown("**前年同月比（グロス）**")
         # 前年比（同月のデータと比較）
         if len(player_data) >= 2:
             latest_date = player_data.iloc[-1]['日付']
@@ -682,27 +677,20 @@ def personal_stats_page():
             ]
             
             if not previous_year_data.empty:
-                latest_net = player_data.iloc[-1]['ネットスコア']
-                prev_year_net = previous_year_data.iloc[-1]['ネットスコア']
-                year_diff = latest_net - prev_year_net
+                latest_gross = player_data.iloc[-1]['合計スコア']
+                prev_year_gross = previous_year_data.iloc[-1]['合計スコア']
+                year_diff = latest_gross - prev_year_gross
                 
                 # ゴルフはスコアが低い方が良いので、マイナスが改善
                 if year_diff < 0:
-                    st.metric(
-                        "前年同月比（ネット）",
-                        f"{latest_net:.1f}",
-                        f"{year_diff:.1f} 🎉",
-                        delta_color="inverse"  # マイナスを緑色で表示
-                    )
+                    st.markdown(f"### :green[{year_diff:.0f}打 改善 🎉]")
+                    st.caption(f"前年 {prev_year_gross:.0f} → 今回 {latest_gross:.0f}")
                 elif year_diff > 0:
-                    st.metric(
-                        "前年同月比（ネット）",
-                        f"{latest_net:.1f}",
-                        f"+{year_diff:.1f} 😞",
-                        delta_color="normal"  # プラスを赤色で表示
-                    )
+                    st.markdown(f"### :red[+{year_diff:.0f}打 😞]")
+                    st.caption(f"前年 {prev_year_gross:.0f} → 今回 {latest_gross:.0f}")
                 else:
-                    st.metric("前年同月比（ネット）", f"{latest_net:.1f}", "±0")
+                    st.markdown(f"### 変化なし ±0")
+                    st.caption(f"前年 {prev_year_gross:.0f} → 今回 {latest_gross:.0f}")
             else:
                 st.info("前年同月のデータがありません")
         else:

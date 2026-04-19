@@ -391,7 +391,18 @@ def score_entry_page():
                         # グロススコアとネットスコアを計算
                         if out_score > 0 and in_score > 0:
                             gross_score = out_score + in_score
+                            
+                            # スコアの妥当性チェック
+                            if gross_score > 200:
+                                st.warning(f"⚠️ グロススコア ({gross_score}) が通常の範囲を超えています。入力内容を確認してください。")
+                            elif gross_score < 50:
+                                st.warning(f"⚠️ グロススコア ({gross_score}) が通常より低すぎます。入力内容を確認してください。")
+                            
                             net_score = gross_score - handicap
+                            
+                            # ネットスコアの妥当性チェック
+                            if net_score < 0:
+                                st.error("❌ ネットスコアがマイナスです。ハンディキャップを確認してください。")
                             
                             col1, col2 = st.columns(2)
                             with col1:

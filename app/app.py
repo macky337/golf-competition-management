@@ -292,6 +292,36 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 USER_PASSWORD = "88"
 ADMIN_PASSWORD = "admin88"
 
+# エラーハンドリング用のヘルパー関数
+def handle_error(error: Exception, context: str = "", show_details: bool = False):
+    """統一されたエラーハンドリング"""
+    error_message = f"エラーが発生しました"
+    if context:
+        error_message += f"（{context}）"
+    
+    st.error(error_message)
+    
+    if show_details or os.getenv("DEBUG_MODE") == "true":
+        st.exception(error)
+    
+    # ログに記録（将来的にログファイルに保存）
+    logging.error(f"{context}: {str(error)}")
+
+def validate_score(score: int, field_name: str = "スコア") -> bool:
+    """スコアの妥当性を検証"""
+    if score < 0 or score > 200:
+        st.error(f"{field_name}は0から200の範囲で入力してください。")
+        return False
+    return True
+
+def safe_db_operation(operation, error_context: str = "データベース操作"):
+    """データベース操作を安全に実行"""
+    try:
+        return operation(), None
+    except Exception as e:
+        handle_error(e, error_context)
+        return None, e
+
 # セッション状態を初期化
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -300,36 +330,45 @@ if "admin_logged_in" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "login"  # デフォルト：ログイン画面
 
+@st.cache_resource
 def get_supabase_client():
-    """Supabaseクライアントを取得"""
-    # デバッグ情報は本番環境では非表示にする
+    """Supabaseクライアントを取得（キャッシュ付き）"""
     if not SUPABASE_URL or not SUPABASE_KEY:
-        st.error("Supabase接続情報が設定されていません。.streamlit/secrets.tomlまたは.envファイルを確認してください。")
         return None
     
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        # 接続テスト（静かに実行、成功メッセージは表示しない）
-        test_response = supabase.table("players").select("count").limit(1).execute()
-        return supabase
-    except Exception as e:
-        st.error(f"Supabase接続エラー: {e}")
-        return None
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+            # 接続テスト
+            test_response = supabase.table("players").select("count").limit(1).execute()
+            return supabase
+        except Exception as e:
+            if attempt == max_retries - 1:
+                st.error(f"Supabase接続エラー（{max_retries}回試行後）: {str(e)}")
+                return None
+            # リトライ前に少し待機
+            import time
+            time.sleep(0.5 * (attempt + 1))
+    return None
 
+@st.cache_resource
 def get_supabase_admin_client() -> Optional[Client]:
-    """管理者（サービスロール）用のSupabaseクライアントを取得"""
+    """管理者（サービスロール）用のSupabaseクライアントを取得（キャッシュ付き）"""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        st.error(
-            "SupabaseのURLまたはサービスキーが設定されていません。\n"
-            "管理者モードには Service Role Key が必要です（例: `SUPABASE_SERVICE_KEY` または `SUPABASE_SERVICE_ROLE_KEY`、"
-            "または `.streamlit/secrets.toml` の `[supabase] service_key`）。"
-        )
         return None
-    try:
-        return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    except Exception as e:
-        st.error(f"Supabase管理者クライアント接続エラー: {e}")
-        return None
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                st.error(f"Supabase管理者クライアント接続エラー（{max_retries}回試行後）: {str(e)}")
+                return None
+            import time
+            time.sleep(0.5 * (attempt + 1))
+    return None
 
 def fetch_scores():
     """スコアデータをSupabaseから取得"""
@@ -1071,17 +1110,39 @@ def main_app():
             st.rerun()
     with col2:
         if st.button("ログアウト", key="logout_button"):
+            # セッション状態を全てクリア
             st.session_state.logged_in = False
+            st.session_state.admin_logged_in = False
             st.session_state.page = "login"
+            # スコアデータもクリア
+            if "score_data" in st.session_state:
+                del st.session_state.score_data
             st.rerun()
 
 def admin_app():
     """管理者向けアプリ"""
     st.title("ゴルフコンペ管理 - 管理者モード")
+    
+    # 上部にナビゲーションボタンを配置
+    col1, col2, col3 = st.columns([1, 1, 4])
+    with col1:
+        if st.button("← メイン画面へ", key="admin_to_main", type="primary"):
+            st.session_state.page = "main"
+            st.rerun()
+    with col2:
+        if st.button("ログアウト", key="admin_logout", type="secondary"):
+            # セッション状態を全てクリア
+            st.session_state.logged_in = False
+            st.session_state.admin_logged_in = False
+            st.session_state.page = "login"
+            st.rerun()
+    
+    st.markdown("---")
 
     supabase_admin = get_supabase_admin_client()
     if not supabase_admin:
         st.error("管理者用クライアントの初期化に失敗しました。設定を確認してください。")
+        st.info("💡 ヒント: 環境変数 SUPABASE_SERVICE_KEY が正しく設定されているか確認してください。")
         return
 
     tab_titles = ["お知らせ管理", "プレイヤー管理", "コンペ設定", "スコア入力", "バックアップ", "リストア"]
@@ -1101,7 +1162,7 @@ def admin_app():
 
     with tabs[4]:
         st.subheader("データベースのバックアップ")
-        if st.button("バックアップを実行"):
+        if st.button("バックアップを実行", key="backup_button"):
             backup_database()
 
     with tabs[5]:

@@ -565,6 +565,272 @@ def display_visualizations(scores_df, players_df):
     plt.tight_layout()
     st.pyplot(plt.gcf())
 
+def personal_stats_page():
+    """個人成績ダッシュボード"""
+    st.title("📊 個人成績ダッシュボード")
+    
+    # データ取得
+    scores_df = fetch_scores()
+    players_df = fetch_players()
+    
+    if scores_df.empty or players_df.empty:
+        st.warning("データが取得できません。")
+        if st.button("← メイン画面へ"):
+            st.session_state.page = "main"
+            st.rerun()
+        return
+    
+    # プレイヤー選択
+    players_list = sorted(scores_df['プレイヤー名'].unique())
+    
+    # セッションにプレイヤー名がない場合は最初のプレイヤーを設定
+    if 'selected_player_for_stats' not in st.session_state:
+        st.session_state.selected_player_for_stats = players_list[0] if players_list else None
+    
+    selected_player = st.selectbox(
+        "プレイヤーを選択",
+        players_list,
+        index=players_list.index(st.session_state.selected_player_for_stats) if st.session_state.selected_player_for_stats in players_list else 0
+    )
+    
+    st.session_state.selected_player_for_stats = selected_player
+    
+    # 選択されたプレイヤーのデータをフィルタリング
+    player_data = scores_df[scores_df['プレイヤー名'] == selected_player].copy()
+    
+    if player_data.empty:
+        st.info(f"{selected_player} のデータがありません。")
+        if st.button("← メイン画面へ"):
+            st.session_state.page = "main"
+            st.rerun()
+        return
+    
+    # 日付でソート
+    player_data = player_data.sort_values(by='日付')  # type: ignore
+    
+    # === サマリー統計 ===
+    st.markdown("---")
+    st.subheader(f"🎯 {selected_player} の成績サマリー")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        participation_count = len(player_data)
+        st.metric("参加回数", f"{participation_count}回")
+    
+    with col2:
+        avg_net = player_data['ネットスコア'].mean()
+        st.metric("平均ネット", f"{avg_net:.1f}")
+    
+    with col3:
+        avg_gross = player_data['合計スコア'].mean()
+        st.metric("平均グロス", f"{avg_gross:.1f}")
+    
+    with col4:
+        best_net = player_data['ネットスコア'].min()
+        st.metric("ベストネット", f"{best_net:.1f}")
+    
+    with col5:
+        best_gross = player_data['合計スコア'].min()
+        st.metric("ベストグロス", f"{best_gross:.0f}")
+    
+    # === 改善率 ===
+    st.markdown("---")
+    st.subheader("📈 改善率")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if len(player_data) >= 2:
+            latest_net = player_data.iloc[-1]['ネットスコア']
+            previous_net = player_data.iloc[-2]['ネットスコア']
+            net_diff = latest_net - previous_net
+            
+            if net_diff < 0:
+                st.metric(
+                    "前回比（ネット）",
+                    f"{latest_net:.1f}",
+                    f"{net_diff:.1f} 🎉",
+                    delta_color="inverse"
+                )
+            elif net_diff > 0:
+                st.metric(
+                    "前回比（ネット）",
+                    f"{latest_net:.1f}",
+                    f"+{net_diff:.1f}",
+                    delta_color="normal"
+                )
+            else:
+                st.metric("前回比（ネット）", f"{latest_net:.1f}", "±0")
+        else:
+            st.info("前回比較には2回以上の参加が必要です")
+    
+    with col2:
+        # 前年比（同月のデータと比較）
+        if len(player_data) >= 2:
+            latest_date = player_data.iloc[-1]['日付']
+            current_year = latest_date[:4]
+            current_month = latest_date[5:7]
+            
+            # 前年の同月データを取得
+            previous_year = str(int(current_year) - 1)
+            previous_year_data = player_data[
+                (player_data['日付'].str[:4] == previous_year) &
+                (player_data['日付'].str[5:7] == current_month)
+            ]
+            
+            if not previous_year_data.empty:
+                latest_net = player_data.iloc[-1]['ネットスコア']
+                prev_year_net = previous_year_data.iloc[-1]['ネットスコア']
+                year_diff = latest_net - prev_year_net
+                
+                if year_diff < 0:
+                    st.metric(
+                        "前年同月比（ネット）",
+                        f"{latest_net:.1f}",
+                        f"{year_diff:.1f} 🎉",
+                        delta_color="inverse"
+                    )
+                elif year_diff > 0:
+                    st.metric(
+                        "前年同月比（ネット）",
+                        f"{latest_net:.1f}",
+                        f"+{year_diff:.1f}",
+                        delta_color="normal"
+                    )
+                else:
+                    st.metric("前年同月比（ネット）", f"{latest_net:.1f}", "±0")
+            else:
+                st.info("前年同月のデータがありません")
+        else:
+            st.info("前年比較には複数年のデータが必要です")
+    
+    # === スコア推移グラフ ===
+    st.markdown("---")
+    st.subheader("📉 スコア推移")
+    
+    # 折れ線グラフ
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # ネットスコアとグロススコアの推移
+    ax.plot(range(len(player_data)), player_data['ネットスコア'], 
+            marker='o', linestyle='-', linewidth=2, markersize=8, 
+            label='ネットスコア', color='#1f77b4')
+    ax.plot(range(len(player_data)), player_data['合計スコア'], 
+            marker='s', linestyle='--', linewidth=2, markersize=6, 
+            label='グロススコア', color='#ff7f0e', alpha=0.7)
+    
+    # 平均線を追加
+    ax.axhline(y=avg_net, color='#1f77b4', linestyle=':', alpha=0.5, label=f'平均ネット ({avg_net:.1f})')
+    ax.axhline(y=avg_gross, color='#ff7f0e', linestyle=':', alpha=0.5, label=f'平均グロス ({avg_gross:.1f})')
+    
+    # 日付ラベル
+    date_labels = [d[:10] for d in player_data['日付']]
+    ax.set_xticks(range(len(player_data)))
+    ax.set_xticklabels(date_labels, rotation=45, ha='right')
+    
+    ax.set_xlabel("競技日", fontsize=12)
+    ax.set_ylabel("スコア", fontsize=12)
+    ax.set_title(f"{selected_player} のスコア推移", fontsize=14, fontweight='bold')
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    st.pyplot(fig)
+    
+    # === ハンディキャップ履歴 ===
+    st.markdown("---")
+    st.subheader("🎯 ハンディキャップ履歴")
+    
+    fig2, ax2 = plt.subplots(figsize=(12, 5))
+    ax2.plot(range(len(player_data)), player_data['ハンディキャップ'], 
+            marker='D', linestyle='-', linewidth=2, markersize=6, 
+            color='#2ca02c')
+    
+    # 平均HC線
+    avg_hc = player_data['ハンディキャップ'].mean()
+    ax2.axhline(y=avg_hc, color='#2ca02c', linestyle=':', alpha=0.5, label=f'平均HC ({avg_hc:.1f})')
+    
+    ax2.set_xticks(range(len(player_data)))
+    ax2.set_xticklabels(date_labels, rotation=45, ha='right')
+    ax2.set_xlabel("競技日", fontsize=12)
+    ax2.set_ylabel("ハンディキャップ", fontsize=12)
+    ax2.set_title(f"{selected_player} のハンディキャップ推移", fontsize=14, fontweight='bold')
+    ax2.legend(loc='best')
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    st.pyplot(fig2)
+    
+    # === 最近5回の成績 ===
+    st.markdown("---")
+    st.subheader("📋 最近5回の成績")
+    
+    recent_5 = player_data.tail(5).copy()
+    
+    # 表示用にカラムを整理
+    display_columns = ['日付', 'コース', '順位', 'ネットスコア', '合計スコア', 
+                      'アウトスコア', 'インスコア', 'ハンディキャップ']
+    
+    recent_5_display = recent_5[display_columns].copy()
+    recent_5_display.columns = ['日付', 'コース', '順位', 'ネット', 'グロス', 
+                                'OUT', 'IN', 'HC']
+    
+    # 順位に応じて背景色を変更
+    def highlight_rank(row):
+        if row['順位'] == 1:
+            return ['background-color: #FFD70033'] * len(row)
+        elif row['順位'] == 2:
+            return ['background-color: #C0C0C033'] * len(row)
+        elif row['順位'] == 3:
+            return ['background-color: #CD7F3233'] * len(row)
+        return [''] * len(row)
+    
+    styled_recent = recent_5_display.style.apply(highlight_rank, axis=1).format({
+        'ネット': '{:.1f}',
+        'グロス': '{:.0f}',
+        'OUT': '{:.0f}',
+        'IN': '{:.0f}',
+        'HC': '{:.1f}',
+        '順位': '{:.0f}'
+    })
+    
+    st.dataframe(styled_recent, use_container_width=True, hide_index=True)
+    
+    # === 詳細統計 ===
+    st.markdown("---")
+    st.subheader("📊 詳細統計")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**🏆 入賞回数**")
+        top3_count = len(player_data[player_data['順位'] <= 3])
+        first_count = len(player_data[player_data['順位'] == 1])
+        st.write(f"- 優勝: {first_count}回")
+        st.write(f"- 3位以内: {top3_count}回")
+        if participation_count > 0:
+            st.write(f"- 入賞率: {(top3_count/participation_count*100):.1f}%")
+    
+    with col2:
+        st.markdown("**📈 スコア分布**")
+        st.write(f"- 最高ネット: {player_data['ネットスコア'].max():.1f}")
+        st.write(f"- 最低ネット: {player_data['ネットスコア'].min():.1f}")
+        st.write(f"- 標準偏差: {player_data['ネットスコア'].std():.2f}")
+    
+    with col3:
+        st.markdown("**⛳ コース別平均**")
+        course_avg = player_data.groupby('コース')['ネットスコア'].mean().sort_values()
+        if len(course_avg) > 0:
+            for course, avg in course_avg.head(3).items():
+                st.write(f"- {course}: {avg:.1f}")
+    
+    # ナビゲーションボタン
+    st.markdown("---")
+    if st.button("← メイン画面へ", key="back_to_main_from_stats"):
+        st.session_state.page = "main"
+        st.rerun()
+
 def competition_results_page():
     """競技結果一覧ページ"""
     st.title("🏆 競技結果一覧")
@@ -1258,17 +1524,21 @@ def main_app():
     
     # ボタンを最下部に配置
     st.markdown("---")
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     with col1:
-        if st.button("🏆 競技結果一覧", key="goto_results_button", use_container_width=True):
-            st.session_state.page = "results"
+        if st.button("📊 個人成績", key="goto_stats_button", use_container_width=True):
+            st.session_state.page = "stats"
             st.rerun()
     with col2:
-        if st.button("⚙️ 設定画面へ", key="goto_admin_button", use_container_width=True):
+        if st.button("🏆 競技結果", key="goto_results_button", use_container_width=True):
+            st.session_state.page = "results"
+            st.rerun()
+    with col3:
+        if st.button("⚙️ 設定", key="goto_admin_button", use_container_width=True):
             st.session_state.admin_logged_in = False  # 必ずログイン画面を表示
             st.session_state.page = "admin"
             st.rerun()
-    with col3:
+    with col4:
         if st.button("🚪 ログアウト", key="logout_button", use_container_width=True):
             # セッション状態を全てクリア
             st.session_state.logged_in = False
@@ -1353,6 +1623,11 @@ elif page == "main":
         st.session_state.page = "login"
         st.rerun()
     main_app()
+elif page == "stats":
+    if not st.session_state.get("logged_in", False):
+        st.session_state.page = "login"
+        st.rerun()
+    personal_stats_page()
 elif page == "results":
     if not st.session_state.get("logged_in", False):
         st.session_state.page = "login"

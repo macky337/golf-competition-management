@@ -700,58 +700,89 @@ def personal_stats_page():
     st.markdown("---")
     st.subheader("📉 スコア推移")
     
-    # 折れ線グラフ
-    fig, ax = plt.subplots(figsize=(12, 6))
+    # データ検証：異常値チェック
+    invalid_data = player_data[
+        (player_data['ネットスコア'] <= 0) | 
+        (player_data['合計スコア'] <= 0) |
+        (player_data['ネットスコア'] > 200) |
+        (player_data['合計スコア'] > 200)
+    ]
     
-    # ネットスコアとグロススコアの推移
-    ax.plot(range(len(player_data)), player_data['ネットスコア'], 
-            marker='o', linestyle='-', linewidth=2, markersize=8, 
-            label='ネットスコア', color='#1f77b4')
-    ax.plot(range(len(player_data)), player_data['合計スコア'], 
-            marker='s', linestyle='--', linewidth=2, markersize=6, 
-            label='グロススコア', color='#ff7f0e', alpha=0.7)
+    if not invalid_data.empty:
+        st.warning(f"⚠️ 異常なスコアデータが{len(invalid_data)}件検出されました（スコア0または200超）")
+        with st.expander("異常データの詳細を表示"):
+            st.dataframe(invalid_data[['日付', 'コース', 'ネットスコア', '合計スコア', 'ハンディキャップ']])
     
-    # 平均線を追加
-    ax.axhline(y=avg_net, color='#1f77b4', linestyle=':', alpha=0.5, label=f'平均ネット ({avg_net:.1f})')
-    ax.axhline(y=avg_gross, color='#ff7f0e', linestyle=':', alpha=0.5, label=f'平均グロス ({avg_gross:.1f})')
+    # 有効なデータのみでグラフ描画
+    valid_data = player_data[
+        (player_data['ネットスコア'] > 0) & 
+        (player_data['合計スコア'] > 0) &
+        (player_data['ネットスコア'] <= 200) &
+        (player_data['合計スコア'] <= 200)
+    ].copy()
     
-    # 日付ラベル
-    date_labels = [d[:10] for d in player_data['日付']]
-    ax.set_xticks(range(len(player_data)))
-    ax.set_xticklabels(date_labels, rotation=45, ha='right')
-    
-    ax.set_xlabel("競技日", fontsize=12)
-    ax.set_ylabel("スコア", fontsize=12)
-    ax.set_title(f"{selected_player} のスコア推移", fontsize=14, fontweight='bold')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    st.pyplot(fig)
+    if len(valid_data) == 0:
+        st.error("有効なスコアデータがありません。")
+    else:
+        # 折れ線グラフ
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        # ネットスコアとグロススコアの推移
+        ax.plot(range(len(valid_data)), valid_data['ネットスコア'], 
+                marker='o', linestyle='-', linewidth=2, markersize=8, 
+                label='ネットスコア', color='#1f77b4')
+        ax.plot(range(len(valid_data)), valid_data['合計スコア'], 
+                marker='s', linestyle='--', linewidth=2, markersize=6, 
+                label='グロススコア', color='#ff7f0e', alpha=0.7)
+        
+        # 平均線を追加（有効なデータの平均）
+        valid_avg_net = valid_data['ネットスコア'].mean()
+        valid_avg_gross = valid_data['合計スコア'].mean()
+        ax.axhline(y=valid_avg_net, color='#1f77b4', linestyle=':', alpha=0.5, label=f'平均ネット ({valid_avg_net:.1f})')
+        ax.axhline(y=valid_avg_gross, color='#ff7f0e', linestyle=':', alpha=0.5, label=f'平均グロス ({valid_avg_gross:.1f})')
+        
+        # 日付ラベル
+        date_labels = [d[:10] for d in valid_data['日付']]
+        ax.set_xticks(range(len(valid_data)))
+        ax.set_xticklabels(date_labels, rotation=45, ha='right')
+        
+        ax.set_xlabel("競技日", fontsize=12)
+        ax.set_ylabel("スコア", fontsize=12)
+        ax.set_title(f"{selected_player} のスコア推移", fontsize=14, fontweight='bold')
+        ax.legend(loc='best')
+        ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
     
     # === ハンディキャップ履歴 ===
     st.markdown("---")
     st.subheader("🎯 ハンディキャップ履歴")
     
-    fig2, ax2 = plt.subplots(figsize=(12, 5))
-    ax2.plot(range(len(player_data)), player_data['ハンディキャップ'], 
-            marker='D', linestyle='-', linewidth=2, markersize=6, 
-            color='#2ca02c')
-    
-    # 平均HC線
-    avg_hc = player_data['ハンディキャップ'].mean()
-    ax2.axhline(y=avg_hc, color='#2ca02c', linestyle=':', alpha=0.5, label=f'平均HC ({avg_hc:.1f})')
-    
-    ax2.set_xticks(range(len(player_data)))
-    ax2.set_xticklabels(date_labels, rotation=45, ha='right')
-    ax2.set_xlabel("競技日", fontsize=12)
-    ax2.set_ylabel("ハンディキャップ", fontsize=12)
-    ax2.set_title(f"{selected_player} のハンディキャップ推移", fontsize=14, fontweight='bold')
-    ax2.legend(loc='best')
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    st.pyplot(fig2)
+    if len(valid_data) == 0:
+        st.error("有効なスコアデータがありません。")
+    else:
+        fig2, ax2 = plt.subplots(figsize=(12, 5))
+        ax2.plot(range(len(valid_data)), valid_data['ハンディキャップ'], 
+                marker='D', linestyle='-', linewidth=2, markersize=6, 
+                color='#2ca02c')
+        
+        # 平均HC線
+        avg_hc = valid_data['ハンディキャップ'].mean()
+        ax2.axhline(y=avg_hc, color='#2ca02c', linestyle=':', alpha=0.5, label=f'平均HC ({avg_hc:.1f})')
+        
+        # 日付ラベル（valid_dataから取得）
+        hc_date_labels = [d[:10] for d in valid_data['日付']]
+        ax2.set_xticks(range(len(valid_data)))
+        ax2.set_xticklabels(hc_date_labels, rotation=45, ha='right')
+        ax2.set_xlabel("競技日", fontsize=12)
+        ax2.set_ylabel("ハンディキャップ", fontsize=12)
+        ax2.set_title(f"{selected_player} のハンディキャップ推移", fontsize=14, fontweight='bold')
+        ax2.legend(loc='best')
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        st.pyplot(fig2)
     
     # === 最近5回の成績 ===
     st.markdown("---")

@@ -342,14 +342,25 @@ def render_dashboard_navigation() -> None:
             _logout_user()
 
 
-def render_dashboard_status(scores_df: pd.DataFrame, players_df: pd.DataFrame) -> None:
+def render_dashboard_status(
+    scores_df: pd.DataFrame,
+    players_df: pd.DataFrame,
+    competitions_df: pd.DataFrame,
+) -> None:
     """安全なHTMLカードでダッシュボードの概要を表示"""
     valid_scores = scores_df[
         (scores_df["合計スコア"] > 0)
         & (scores_df["アウトスコア"] > 0)
         & (scores_df["インスコア"] > 0)
     ]
-    competition_count = valid_scores["競技ID"].nunique() if not valid_scores.empty else 0
+    # 大会回数はスコア登録済み件数ではなく、通常コンペIDの最新回を使用する。
+    # 100以上は特別・過去データ用IDのため、第◯回の回数には含めない。
+    competition_round = 0
+    if not competitions_df.empty and "competition_id" in competitions_df.columns:
+        competition_ids = pd.to_numeric(competitions_df["competition_id"], errors="coerce")
+        regular_ids = competition_ids[(competition_ids > 0) & (competition_ids < 100)]
+        if not regular_ids.empty:
+            competition_round = int(regular_ids.max())
     latest_date = "データなし"
     if not valid_scores.empty and "日付" in valid_scores.columns:
         latest_values = valid_scores["日付"].dropna()
@@ -360,7 +371,7 @@ def render_dashboard_status(scores_df: pd.DataFrame, players_df: pd.DataFrame) -
     cards = [
         ("登録プレイヤー", f"{len(players_df)} 名"),
         ("記録済みスコア", f"{len(valid_scores)} 件"),
-        ("開催コンペ", f"{competition_count} 回"),
+        ("開催コンペ", f"第{competition_round}回" if competition_round else "データなし"),
         ("最新記録", latest_date),
     ]
     columns = st.columns(4)
@@ -2216,9 +2227,10 @@ def main_app():
     # Supabaseからデータを取得
     scores_df = fetch_scores()
     players_df = fetch_players()
+    competitions_df = fetch_competitions()
     
     if not scores_df.empty and not players_df.empty:
-        render_dashboard_status(scores_df, players_df)
+        render_dashboard_status(scores_df, players_df, competitions_df)
         st.markdown('<div class="dashboard-section-label">成績ダイジェスト</div>', unsafe_allow_html=True)
         # 最終切り分け用: safe モードでは最小表示のみ行う
         render_mode = resolve_main_render_mode()

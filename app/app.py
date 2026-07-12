@@ -1030,7 +1030,7 @@ def display_winner_count_ranking(scores_df):
     rank_one_winners.index += 1
     rank_one_winners.index.name = '順位'
 
-    st.dataframe(rank_one_winners, use_container_width=True)
+    st.table(rank_one_winners)
     
     # グラフ表示
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -1933,19 +1933,21 @@ def main_app():
         past_data_df = past_data_df[columns_order]
         
         st.subheader("過去データ")
-        # 過去データのフォーマットを適用
-        st.dataframe(
-            past_data_df.style.format({
-                "ハンディキャップ": "{:.2f}", 
-                "ネットスコア": "{:.2f}",
-                "アウトスコア": "{:.0f}",
-                "インスコア": "{:.0f}",
-                "合計スコア": "{:.0f}",
-                "順位": "{:.0f}",
-                "競技ID": "{:.0f}"
-            }), 
-            use_container_width=True
-        )
+        # Streamlit DataFrameのブラウザ互換問題回避のため、静的テーブル表示に変換
+        past_display_df = past_data_df.copy()
+        format_cols = {
+            "ハンディキャップ": "{:.2f}",
+            "ネットスコア": "{:.2f}",
+            "アウトスコア": "{:.0f}",
+            "インスコア": "{:.0f}",
+            "合計スコア": "{:.0f}",
+            "順位": "{:.0f}",
+            "競技ID": "{:.0f}",
+        }
+        for col, fmt in format_cols.items():
+            if col in past_display_df.columns:
+                past_display_df[col] = past_display_df[col].map(lambda x: fmt.format(x) if pd.notna(x) else "")
+        st.table(past_display_df)
         
         # ベストグロススコアトップ10を準備
         st.subheader("ベストグロススコアトップ10")
@@ -2015,19 +2017,20 @@ def main_app():
         
         # 結果の表示
         if not best_gross_scores_detailed.empty:
-            # ベストグロススコアトップ10のフォーマットを適用
-            st.dataframe(
-                best_gross_scores_detailed.style.format({
-                    "ハンディキャップ": "{:.2f}",
-                    "ネットスコア": "{:.2f}",
-                    "アウトスコア": "{:.0f}",
-                    "インスコア": "{:.0f}",
-                    "合計スコア": "{:.0f}",
-                    "順位": "{:.0f}",
-                    "競技ID": "{:.0f}"
-                }), 
-                use_container_width=True
-            )
+            best_display_df = best_gross_scores_detailed.copy()
+            format_cols = {
+                "ハンディキャップ": "{:.2f}",
+                "ネットスコア": "{:.2f}",
+                "アウトスコア": "{:.0f}",
+                "インスコア": "{:.0f}",
+                "合計スコア": "{:.0f}",
+                "順位": "{:.0f}",
+                "競技ID": "{:.0f}",
+            }
+            for col, fmt in format_cols.items():
+                if col in best_display_df.columns:
+                    best_display_df[col] = best_display_df[col].map(lambda x: fmt.format(x) if pd.notna(x) else "")
+            st.table(best_display_df)
         else:
             st.warning("有効なスコアデータが見つかりませんでした。")
         

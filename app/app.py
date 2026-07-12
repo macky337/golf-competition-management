@@ -296,22 +296,34 @@ def render_dashboard_shell() -> None:
         """
         <style>
           .dashboard-hero {
-            padding: 1.6rem 1.7rem;
+                        padding: 1.8rem 1.9rem;
             margin: .4rem 0 1rem;
-            border-radius: 18px;
+                        border-radius: 20px;
             color: white;
-            background: linear-gradient(120deg, #0b5542 0%, #087f5b 55%, #13a36f 100%);
+                        background: linear-gradient(120deg, #073b30 0%, #087f5b 55%, #18a878 100%);
             box-shadow: 0 10px 26px rgba(8, 127, 91, .20);
           }
-          .dashboard-hero h1 { margin: 0; font-size: 2rem; color: white; }
+                    .dashboard-hero h1 { margin: 0; font-size: 2.15rem; color: white; letter-spacing: .02em; }
           .dashboard-hero p { margin: .45rem 0 0; color: #e4fff2; font-size: 1rem; }
-          .dashboard-section-label { margin: 1.4rem 0 .5rem; font-weight: 700; color: #155e4a; }
+                    .dashboard-section-label { margin: 1.55rem 0 .65rem; font-size: 1.35rem; font-weight: 750; color: #155e4a; }
           .dashboard-status-card {
-            border: 1px solid #dcece5; border-radius: 12px; padding: .85rem 1rem;
+                        border: 1px solid #dcece5; border-radius: 14px; padding: .95rem 1rem;
             background: #f7fcf9; color: #245447; min-height: 88px;
           }
           .dashboard-status-card strong { display: block; color: #0b5542; font-size: 1.3rem; margin-top: .18rem; }
           .dashboard-status-card span { color: #638277; font-size: .82rem; }
+                    .dashboard-notice-lead { color: #628276; margin: -.2rem 0 .9rem; }
+                    .dashboard-footer { margin: 2rem 0 .5rem; text-align: center; color: #78948a; font-size: .82rem; }
+                    .dashboard-chart { padding: 1rem 1.15rem; border: 1px solid #dcece5; border-radius: 14px; background: #fbfefd; }
+                    .dashboard-chart-row { display: grid; grid-template-columns: minmax(105px, 24%) 1fr 42px; gap: .65rem; align-items: center; margin: .72rem 0; }
+                    .dashboard-chart-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #235447; font-weight: 600; font-size: .92rem; }
+                    .dashboard-chart-track { height: 12px; overflow: hidden; border-radius: 999px; background: #e2f0e9; }
+                    .dashboard-chart-fill { height: 100%; min-width: 7px; border-radius: inherit; background: linear-gradient(90deg, #0b7a59, #28b982); }
+                    .dashboard-chart-value { text-align: right; color: #0b5542; font-size: .86rem; font-weight: 700; }
+                    @media (max-width: 640px) {
+                        .dashboard-hero { padding: 1.3rem 1.2rem; } .dashboard-hero h1 { font-size: 1.75rem; }
+                        .dashboard-chart-row { grid-template-columns: 95px 1fr 38px; gap: .45rem; }
+                    }
           div[data-testid="stButton"] > button { border-radius: 10px; min-height: 2.65rem; font-weight: 600; }
         </style>
         <div class="dashboard-hero">
@@ -342,6 +354,13 @@ def render_dashboard_navigation() -> None:
             _logout_user()
 
 
+def render_dashboard_tools() -> None:
+    """通常利用では目立たせない運用・障害対応用コントロール。"""
+    with st.expander("システム情報・表示設定", expanded=False):
+        render_deploy_fingerprint()
+        render_main_mode_switch_controls()
+
+
 def render_dashboard_status(
     scores_df: pd.DataFrame,
     players_df: pd.DataFrame,
@@ -357,10 +376,16 @@ def render_dashboard_status(
     # 100以上は特別・過去データ用IDのため、第◯回の回数には含めない。
     competition_round = 0
     if not competitions_df.empty and "competition_id" in competitions_df.columns:
-        competition_ids = pd.to_numeric(competitions_df["competition_id"], errors="coerce")
-        regular_ids = competition_ids[(competition_ids > 0) & (competition_ids < 100)]
-        if not regular_ids.empty:
-            competition_round = int(regular_ids.max())
+        regular_ids = []
+        for value in competitions_df["competition_id"].tolist():
+            try:
+                competition_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 0 < competition_id < 100:
+                regular_ids.append(competition_id)
+        if regular_ids:
+            competition_round = max(regular_ids)
     latest_date = "データなし"
     if not valid_scores.empty and "日付" in valid_scores.columns:
         latest_values = valid_scores["日付"].dropna()
@@ -878,7 +903,7 @@ def personal_stats_page():
                 latest_gross = player_data.iloc[-1]['合計スコア']
                 prev_year_gross = previous_year_data.iloc[-1]['合計スコア']
                 year_diff = latest_gross - prev_year_gross
-                
+
                 # ゴルフはスコアが低い方が良いので、マイナスが改善
                 if year_diff < 0:
                     st.markdown(f"### :green[{year_diff:.0f}打 改善 🎉]")
@@ -1137,10 +1162,10 @@ def competition_results_page():
                 
                 if len(top_3) >= 1:
                     cols = st.columns(len(top_3))
-                    
+
                     medals = ["🥇", "🥈", "🥉"]
                     colors = ["#FFD700", "#C0C0C0", "#CD7F32"]
-                    
+
                     for idx, (_, row) in enumerate(top_3.iterrows()):
                         with cols[idx]:
                             st.markdown(
@@ -1213,6 +1238,34 @@ def competition_results_page():
         st.session_state.page = "main"
         st.rerun()
 
+def get_winner_count_ranking(scores_df: pd.DataFrame) -> pd.DataFrame:
+    """通常コンペの有効な優勝記録だけから優勝回数を集計する。"""
+    required_columns = {"競技ID", "順位", "アウトスコア", "インスコア", "合計スコア", "プレイヤー名"}
+    if scores_df.empty or not required_columns.issubset(scores_df.columns):
+        return pd.DataFrame(columns=["プレイヤー名", "優勝回数"])
+
+    competition_ids = pd.to_numeric(scores_df["競技ID"], errors="coerce")
+    rankings = pd.to_numeric(scores_df["順位"], errors="coerce")
+    # 第41回はテスト用データのため、ベストスコアと同様に集計対象外とする。
+    valid_scores = scores_df[
+        (competition_ids > 0)
+        & (competition_ids < 100)
+        & (competition_ids != 41)
+        & (scores_df["アウトスコア"] > 0)
+        & (scores_df["インスコア"] > 0)
+        & (scores_df["合計スコア"] > 0)
+        & (rankings == 1)
+        & scores_df["プレイヤー名"].notna()
+    ]
+    return (
+        valid_scores.groupby("プレイヤー名")
+        .size()
+        .reset_index(name="優勝回数")
+        .sort_values(by=["優勝回数", "プレイヤー名"], ascending=[False, True])
+        .reset_index(drop=True)
+    )
+
+
 def display_winner_count_ranking(scores_df):
     st.subheader("優勝回数ランキング")
 
@@ -1223,11 +1276,10 @@ def display_winner_count_ranking(scores_df):
         year = st.selectbox("表示する年度を選択してください:", sorted(available_years))
         scores_df = scores_df[scores_df['日付'].str.startswith(year)]
 
-    rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
-    rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False).reset_index(drop=True)
+    rank_one_winners = get_winner_count_ranking(scores_df)
 
     render_html_table(rank_one_winners, max_rows=200)
-    st.caption("※ 現在は互換性優先のためグラフ表示を一時停止しています。")
+    st.caption("通常コンペ（ID 1〜99・第41回を除く）の有効な優勝記録を集計しています。グラフは一時停止中です。")
 
 
 def render_html_table(df: pd.DataFrame, max_rows: int = 200) -> None:
@@ -1277,17 +1329,21 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
 
     # 優勝回数ランキング（HTMLカード表示）
     st.subheader("🏆 優勝回数ランキング")
-    rank_one_winners = (
-        scores_df[scores_df['順位'] == 1]
-        .groupby('プレイヤー名')
-        .size()
-        .reset_index(name='優勝回数')
-        .sort_values(by='優勝回数', ascending=False)
-        .head(20)
-    )
+    rank_one_winners = get_winner_count_ranking(scores_df).head(20)
     if rank_one_winners.empty:
         st.caption("ランキング対象のデータがありません。")
     else:
+        max_wins = max(int(value) for value in rank_one_winners["優勝回数"].tolist())
+        st.markdown("#### TOP 5　優勝回数")
+        for rank, (_, row) in enumerate(rank_one_winners.head(5).iterrows(), start=1):
+            name = html.escape(str(row["プレイヤー名"]))
+            wins = int(row["優勝回数"])
+            chart_name_col, chart_bar_col, chart_value_col = st.columns([3, 6, 1])
+            chart_name_col.markdown(f"**{rank}. {name}**")
+            chart_bar_col.progress(wins / max_wins)
+            chart_value_col.markdown(f"**{wins}回**")
+        st.caption("通常コンペ（ID 1〜99・第41回を除く）の有効な優勝記録を横棒グラフで表示しています。")
+
         rank_columns = st.columns(2)
         for idx, (_, row) in enumerate(rank_one_winners.iterrows()):
             medal = ("🥇", "🥈", "🥉")[idx] if idx < 3 else f"{idx + 1}位"
@@ -2133,9 +2189,8 @@ def admin_login_page():
 
 def main_app():
     render_dashboard_shell()
-    render_deploy_fingerprint()
     render_dashboard_navigation()
-    render_main_mode_switch_controls()
+    render_dashboard_tools()
     
     # お知らせをデータベースから取得して表示
     try:
@@ -2147,48 +2202,46 @@ def main_app():
         
         if announcements_response and announcements_response.data and len(announcements_response.data) > 0:
             announcement = announcements_response.data[0]
-            
-            # タイトル表示
-            st.markdown(f"### 🏌️ {announcement.get('title', 'お知らせ')}")
-            
-            # 画像があれば表示
-            if announcement.get('image_url'):
-                try:
-                    st.image(announcement.get('image_url'), use_container_width=True)
-                except:
-                    pass
-            
-            # 本文表示
-            if announcement.get('content'):
-                st.info(announcement.get('content'))
-            
-            # 大会情報があれば整形して表示
-            if announcement.get('tournament_info'):
-                info = announcement.get('tournament_info')
-                if isinstance(info, str):
-                    info = json.loads(info)
-                
-                info_text = f"\n**【第{info.get('tournament_number', '')}回　88会】**\n"
-                if info.get('date'):
-                    info_text += f"📅 **開催日**: {info.get('date')} {info.get('start_time', '')}スタート\n"
-                if info.get('course_name'):
-                    info_text += f"⛳ **コース**: {info.get('course_name')}\n"
-                if info.get('course_url'):
-                    info_text += f"🔗 **HP**: {info.get('course_url')}\n"
-                if info.get('address'):
-                    info_text += f"📍 **住所**: {info.get('address')}\n"
-                if info.get('phone'):
-                    info_text += f"📞 **TEL**: {info.get('phone')}\n"
-                if info.get('groups'):
-                    info_text += f"👥 **組数**: {info.get('groups')}組\n"
-                if info.get('meeting_time'):
-                    info_text += f"🕗 **集合時間**: {info.get('meeting_time')}\n"
-                if info.get('fee'):
-                    info_text += f"💰 **費用**: {info.get('fee')}\n"
-                if info.get('organizers'):
-                    info_text += f"👔 **幹事**: {info.get('organizers')}\n"
-                
-                st.markdown(info_text)
+            st.markdown('<div class="dashboard-section-label">📣 お知らせ</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.subheader(f"🏌️ {announcement.get('title', 'お知らせ')}")
+                st.markdown('<div class="dashboard-notice-lead">次回の開催案内・連絡事項</div>', unsafe_allow_html=True)
+
+                if announcement.get('image_url'):
+                    try:
+                        st.image(announcement.get('image_url'), use_container_width=True)
+                    except Exception:
+                        pass
+
+                if announcement.get('content'):
+                    st.info(announcement.get('content'))
+
+                if announcement.get('tournament_info'):
+                    info = announcement.get('tournament_info')
+                    if isinstance(info, str):
+                        info = json.loads(info)
+
+                    info_text = f"\n**【第{info.get('tournament_number', '')}回　88会】**\n"
+                    if info.get('date'):
+                        info_text += f"📅 **開催日**: {info.get('date')} {info.get('start_time', '')}スタート\n"
+                    if info.get('course_name'):
+                        info_text += f"⛳ **コース**: {info.get('course_name')}\n"
+                    if info.get('course_url'):
+                        info_text += f"🔗 **HP**: {info.get('course_url')}\n"
+                    if info.get('address'):
+                        info_text += f"📍 **住所**: {info.get('address')}\n"
+                    if info.get('phone'):
+                        info_text += f"📞 **TEL**: {info.get('phone')}\n"
+                    if info.get('groups'):
+                        info_text += f"👥 **組数**: {info.get('groups')}組\n"
+                    if info.get('meeting_time'):
+                        info_text += f"🕗 **集合時間**: {info.get('meeting_time')}\n"
+                    if info.get('fee'):
+                        info_text += f"💰 **費用**: {info.get('fee')}\n"
+                    if info.get('organizers'):
+                        info_text += f"👔 **幹事**: {info.get('organizers')}\n"
+
+                    st.markdown(info_text)
         else:
             # デフォルトのお知らせ（データベースにデータがない場合）
             st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
@@ -2236,6 +2289,7 @@ def main_app():
         render_mode = resolve_main_render_mode()
         if render_mode == "safe":
             render_main_safe_mode(scores_df)
+            st.markdown('<div class="dashboard-footer">88会ゴルフコンペ・スコア管理システム</div>', unsafe_allow_html=True)
             return
 
         # 一部環境でフロント側の module script 読み込みに失敗するため、

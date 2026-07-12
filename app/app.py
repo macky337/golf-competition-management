@@ -1064,7 +1064,16 @@ def render_html_table(df: pd.DataFrame, max_rows: int = 200) -> None:
     """
     st.markdown(table_html, unsafe_allow_html=True)
 
-
+def sanitize_display_df(df: pd.DataFrame) -> pd.DataFrame:
+    """表示用に不要なインデックス由来カラムを除去"""
+    drop_cols = []
+    for col in df.columns:
+        col_str = str(col).strip().lower()
+        if col_str in ("", "index", "unnamed: 0") or col_str.startswith("unnamed"):
+            drop_cols.append(col)
+    if drop_cols:
+        return df.drop(columns=drop_cols, errors="ignore")
+    return df
 def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
     """module script エラー回避のため、最小コンポーネントでメイン画面を描画"""
     st.warning("互換性セーフモードで表示中です（DataFrame/グラフ描画を停止）。")
@@ -1097,6 +1106,7 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
     ]
     existing_cols = [col for col in preferred_cols if col in past_data_df.columns]
     past_data_df = past_data_df[existing_cols].head(100).reset_index(drop=True)
+    past_data_df = sanitize_display_df(past_data_df)
     st.code(past_data_df.to_string(index=False), language="text")
 
 
@@ -2005,6 +2015,7 @@ def main_app():
         ]
         existing_cols = [col for col in preferred_cols if col in past_data_df.columns]
         past_data_df = past_data_df[existing_cols].reset_index(drop=True)
+        past_data_df = sanitize_display_df(past_data_df)
         
         st.subheader("過去データ")
         # Streamlit DataFrameのブラウザ互換問題回避のため、静的テーブル表示に変換
@@ -2091,7 +2102,7 @@ def main_app():
         
         # 結果の表示
         if not best_gross_scores_detailed.empty:
-            best_display_df = best_gross_scores_detailed.copy()
+            best_display_df = sanitize_display_df(best_gross_scores_detailed.copy())
             format_cols = {
                 "ハンディキャップ": "{:.2f}",
                 "ネットスコア": "{:.2f}",

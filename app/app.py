@@ -22,7 +22,7 @@ import warnings
 import logging
 import japanize_matplotlib
 from matplotlib.ticker import MaxNLocator
-from typing import Optional
+from typing import Optional, Any, Dict, List
 import re
 
 # 他のモジュールをインポート
@@ -1043,38 +1043,478 @@ def display_winner_count_ranking(scores_df):
     st.pyplot(fig)
 
 
-def backup_database():
-    """Supabaseからデータをバックアップする（JSONファイルとして保存、およびbackupsテーブルに保存）"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return
-    
+RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]
+
+
+def _resolve_backup_dir() -> str:
     backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'backup'))
     if not os.path.exists(backup_dir):
-        # 一つ上の階層のbackupディレクトリを試す
         parent_backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backup'))
-        if (os.path.exists(parent_backup_dir)):
-            backup_dir = parent_backup_dir
+        if os.path.exists(parent_backup_dir):
+            return parent_backup_dir
+        os.makedirs(backup_dir)
+    return backup_dir
+
+
+def _fetch_backup_payload(supabase: Client) -> Dict[str, Any]:
+    competitions_response = supabase.table("competitions").select("*").execute()
+    players_response = supabase.table("players").select("*").execute()
+    participants_response = supabase.table("participants").select("*").execute()
+    scores_response = supabase.table("scores").select("*").execute()
+    announcements_response = supabase.table("announcements").select("*").execute()
+
+    return {
+        "competitions": competitions_response.data or [],
+        "players": players_response.data or [],
+        "participants": participants_response.data or [],
+        "scores": scores_response.data or [],
+        "announcements": announcements_response.data or [],
+    }
+
+
+def _collect_table_counts(supabase: Client) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for table in RESTORE_TABLES:
+        response = supabase.table(table).select("id", count="exact").limit(1).execute()  # type: ignore[arg-type]
+        counts[table] = int(response.count or 0)
+    return counts
+
+
+def _save_pre_restore_snapshot(supabase: Client) -> str:
+    backup_dir = _resolve_backup_dir()
+    snapshot_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+    snapshot_payload = _fetch_backup_payload(supabase)
+    snapshot_payload["backup_date"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    snapshot_payload["backup_type"] = "pre_restore"
+    snapshot_file = os.path.join(backup_dir, f"pre_restore_{snapshot_id}.json")
+
+    with open(snapshot_file, 'w', encoding='utf-8') as f:
+        json.dump(snapshot_payload, f, ensure_ascii=False, indent=2)
+
+    # 自動保持ポリシー（既定30日）で古いpre_restoreを整理
+    retention_days = _get_pre_restore_retention_days()
+    try:
+        deleted_files = _cleanup_old_pre_restore_snapshots(backup_dir, retention_days)
+        if deleted_files:
+            _append_snapshot_cleanup_log("自動保持整理", deleted_files, "system-auto")
+            st.info(f"自動保持ポリシーにより古いスナップショットを {len(deleted_files)} 件削除しました。")
+    except Exception:
+        pass
+
+    return snapshot_file
+
+
+def _get_pre_restore_retention_days() -> int:
+    raw_value = os.getenv("PRE_RESTORE_RETENTION_DAYS", "30").strip()
+    try:
+        days = int(raw_value)
+        return max(1, days)
+    except Exception:
+        return 30
+
+
+def _cleanup_old_pre_restore_snapshots(backup_dir: str, retention_days: int) -> List[str]:
+    cutoff_ts = datetime.now().timestamp() - (retention_days * 24 * 60 * 60)
+    deleted_files: List[str] = []
+    for file_name in os.listdir(backup_dir):
+        if not (file_name.startswith("pre_restore_") and file_name.endswith(".json")):
+            continue
+        file_path = os.path.join(backup_dir, file_name)
+        if not os.path.isfile(file_path):
+            continue
+        if os.path.getmtime(file_path) < cutoff_ts:
+            os.remove(file_path)
+            deleted_files.append(file_name)
+    return deleted_files
+
+
+def _get_snapshot_cleanup_log_path() -> str:
+    return os.path.join(_resolve_backup_dir(), "snapshot_cleanup_log.json")
+
+
+def _get_restore_report_log_path() -> str:
+    return os.path.join(_resolve_backup_dir(), "restore_report_log.json")
+
+
+def _get_snapshot_cleanup_log_retention_days() -> int:
+    raw_value = os.getenv("SNAPSHOT_CLEANUP_LOG_RETENTION_DAYS", "90").strip()
+    try:
+        days = int(raw_value)
+        return max(1, days)
+    except Exception:
+        return 90
+
+
+def _get_restore_report_log_retention_days() -> int:
+    raw_value = os.getenv("RESTORE_REPORT_LOG_RETENTION_DAYS", "180").strip()
+    try:
+        days = int(raw_value)
+        return max(1, days)
+    except Exception:
+        return 180
+
+
+def _prune_log_entries_by_retention(logs: List[Dict[str, Any]], retention_days: int) -> List[Dict[str, Any]]:
+    cutoff_ts = datetime.now().timestamp() - (retention_days * 24 * 60 * 60)
+    pruned: List[Dict[str, Any]] = []
+    for item in logs:
+        if not isinstance(item, dict):
+            continue
+        dt_str = item.get("実行日時")
+        if not isinstance(dt_str, str):
+            continue
+        try:
+            ts = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S').timestamp()
+        except Exception:
+            continue
+        if ts >= cutoff_ts:
+            pruned.append(item)
+    return pruned
+
+
+def _load_snapshot_cleanup_logs() -> List[Dict[str, Any]]:
+    log_path = _get_snapshot_cleanup_log_path()
+    if not os.path.exists(log_path):
+        return []
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            logs = [item for item in data if isinstance(item, dict)]
+            logs = _prune_log_entries_by_retention(logs, _get_snapshot_cleanup_log_retention_days())
+            if len(logs) > 200:
+                logs = logs[-200:]
+            return logs
+    except Exception:
+        return []
+    return []
+
+
+def _save_snapshot_cleanup_logs(logs: List[Dict[str, Any]]) -> None:
+    logs = _prune_log_entries_by_retention(logs, _get_snapshot_cleanup_log_retention_days())
+    if len(logs) > 200:
+        logs = logs[-200:]
+    log_path = _get_snapshot_cleanup_log_path()
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(logs, f, ensure_ascii=False, indent=2)
+
+
+def _load_restore_report_logs() -> List[Dict[str, Any]]:
+    log_path = _get_restore_report_log_path()
+    if not os.path.exists(log_path):
+        return []
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            logs = [item for item in data if isinstance(item, dict)]
+            logs = _prune_log_entries_by_retention(logs, _get_restore_report_log_retention_days())
+            return logs[-1000:] if len(logs) > 1000 else logs
+    except Exception:
+        return []
+    return []
+
+
+def _save_restore_report_logs(logs: List[Dict[str, Any]]) -> None:
+    logs = _prune_log_entries_by_retention(logs, _get_restore_report_log_retention_days())
+    if len(logs) > 1000:
+        logs = logs[-1000:]
+    log_path = _get_restore_report_log_path()
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(logs, f, ensure_ascii=False, indent=2)
+
+
+def _append_restore_report_log(report_rows: List[Dict[str, Any]]) -> None:
+    logs = _load_restore_report_logs()
+    logs.extend(report_rows)
+    _save_restore_report_logs(logs)
+
+
+def _append_snapshot_cleanup_log(operation: str, affected_files: List[str], operator_name: str = "") -> None:
+    logs = st.session_state.get("snapshot_cleanup_logs")
+    if not isinstance(logs, list):
+        logs = _load_snapshot_cleanup_logs()
+    logs.append(
+        {
+            "実行日時": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "作業者": operator_name.strip() or "未入力",
+            "操作": operation,
+            "対象件数": len(affected_files),
+            "対象ファイル": "\n".join(affected_files) if affected_files else "(なし)",
+        }
+    )
+    # メモリ肥大化を防ぐため最新200件に制限
+    if len(logs) > 200:
+        logs = logs[-200:]
+    st.session_state["snapshot_cleanup_logs"] = logs
+    _save_snapshot_cleanup_logs(logs)
+
+
+def _render_snapshot_cleanup_log_download() -> None:
+    logs = st.session_state.get("snapshot_cleanup_logs")
+    if not isinstance(logs, list):
+        logs = _load_snapshot_cleanup_logs()
+        st.session_state["snapshot_cleanup_logs"] = logs
+    if not logs:
+        return
+    st.write("### スナップショット整理ログ")
+    log_df = pd.DataFrame(logs)
+    st.dataframe(log_df.tail(20), use_container_width=True, hide_index=True)
+    log_ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    st.download_button(
+        label="整理ログをCSVダウンロード",
+        data=log_df.to_csv(index=False).encode("utf-8-sig"),
+        file_name=f"snapshot_cleanup_log_{log_ts}.csv",
+        mime="text/csv",
+        key=f"snapshot_cleanup_log_csv_{log_ts}",
+    )
+
+
+def _show_restore_count_report(
+    before_counts: Dict[str, int],
+    expected_counts: Dict[str, int],
+    after_counts: Dict[str, int],
+    restore_source: str,
+    backup_identifier: str,
+    operator_name: str,
+) -> None:
+    report_rows = []
+    executed_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for table in RESTORE_TABLES:
+        expected = expected_counts.get(table, 0)
+        after = after_counts.get(table, 0)
+        delta = after - expected
+        status = "OK" if after == expected else "MISMATCH"
+        report_rows.append({
+            "実行元": restore_source,
+            "バックアップ識別子": backup_identifier,
+            "実行者": operator_name or "未入力",
+            "実行日時": executed_at,
+            "テーブル": table,
+            "復元前": before_counts.get(table, 0),
+            "期待件数": expected,
+            "復元後": after,
+            "差分": delta,
+            "結果": status,
+        })
+
+    report_df = pd.DataFrame(report_rows)
+    _append_restore_report_log(report_rows)
+    st.write("### 復元件数レポート")
+    st.dataframe(report_df, use_container_width=True, hide_index=True)
+    report_ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    st.download_button(
+        label="復元レポートをCSVダウンロード",
+        data=report_df.to_csv(index=False).encode("utf-8-sig"),
+        file_name=f"restore_report_{report_ts}.csv",
+        mime="text/csv",
+        key=f"restore_report_csv_{report_ts}",
+    )
+    if any(row["結果"] == "MISMATCH" for row in report_rows):
+        st.warning("一部テーブルで期待件数との差分があります。pre_restore スナップショットを使って確認してください。")
+    else:
+        st.success("全テーブルで期待件数どおりに復元されました。")
+
+    with st.expander("復元レポート履歴（永続ログ）", expanded=False):
+        history_logs = _load_restore_report_logs()
+        if history_logs:
+            history_df = pd.DataFrame(history_logs)
+            st.dataframe(history_df.tail(50), use_container_width=True, hide_index=True)
+            history_ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+            st.download_button(
+                label="復元レポート履歴をCSVダウンロード",
+                data=history_df.to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"restore_report_history_{history_ts}.csv",
+                mime="text/csv",
+                key=f"restore_report_history_csv_{history_ts}",
+            )
         else:
-            os.makedirs(backup_dir)
-            st.info(f"バックアップディレクトリを作成しました: {backup_dir}")
+            st.info("復元レポート履歴はまだありません。")
+
+
+def _expected_counts_from_backup(backup_data: Dict[str, Any]) -> Dict[str, int]:
+    return {
+        table: len(backup_data.get(table, [])) if isinstance(backup_data.get(table, []), list) else 0
+        for table in RESTORE_TABLES
+    }
+
+
+def _show_expected_restore_counts(expected_counts: Dict[str, int], title: str) -> None:
+    st.write(title)
+    preview_df = pd.DataFrame(
+        [{"テーブル": table, "復元予定件数": expected_counts.get(table, 0)} for table in RESTORE_TABLES]
+    )
+    st.dataframe(preview_df, use_container_width=True, hide_index=True)
+
+
+def _render_pre_restore_snapshot_manager() -> None:
+    backup_dir = _resolve_backup_dir()
+    retention_days = _get_pre_restore_retention_days()
+    snapshot_files = sorted(
+        [f for f in os.listdir(backup_dir) if f.startswith("pre_restore_") and f.endswith(".json")],
+        reverse=True,
+    )
+
+    with st.expander("pre_restore スナップショット一覧", expanded=False):
+        st.caption(f"自動保持ポリシー: {retention_days}日（環境変数 PRE_RESTORE_RETENTION_DAYS で変更可能）")
+        cleanup_operator = st.text_input("整理作業者名（任意）", key="snapshot_cleanup_operator")
+
+        if not snapshot_files:
+            st.info("pre_restore スナップショットはまだありません。")
+            _render_snapshot_cleanup_log_download()
+            return
+
+        selected_snapshot = st.selectbox(
+            "確認するスナップショットを選択",
+            snapshot_files,
+            key="pre_restore_snapshot_select",
+        )
+        snapshot_path = os.path.join(backup_dir, selected_snapshot)
+        modified_at = datetime.fromtimestamp(os.path.getmtime(snapshot_path)).strftime('%Y-%m-%d %H:%M:%S')
+        st.caption(f"更新日時: {modified_at}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            delete_selected_confirm = st.checkbox(
+                "選択スナップショットを削除する",
+                key=f"confirm_delete_snapshot_{selected_snapshot}",
+            )
+            if st.button(
+                "選択スナップショット削除",
+                key=f"delete_snapshot_btn_{selected_snapshot}",
+                disabled=not delete_selected_confirm,
+            ):
+                try:
+                    os.remove(snapshot_path)
+                    _append_snapshot_cleanup_log("選択削除", [selected_snapshot], cleanup_operator)
+                    st.success(f"削除しました: {selected_snapshot}")
+                    st.rerun()
+                except Exception as delete_error:
+                    st.error(f"削除に失敗しました: {delete_error}")
+
+        with col2:
+            retain_count = st.number_input(
+                "保持する最新件数",
+                min_value=1,
+                max_value=max(1, len(snapshot_files)),
+                value=min(20, max(1, len(snapshot_files))),
+                step=1,
+                key="snapshot_retain_count",
+            )
+            planned_delete_count = max(0, len(snapshot_files) - int(retain_count))
+            st.caption(f"世代整理の対象: {planned_delete_count}件")
+            cleanup_confirm = st.checkbox(
+                "古いスナップショットを一括削除する",
+                key="confirm_cleanup_snapshots",
+            )
+            if st.button(
+                "世代整理を実行",
+                key="cleanup_snapshots_btn",
+                disabled=not cleanup_confirm,
+            ):
+                try:
+                    to_delete = snapshot_files[int(retain_count):]
+                    deleted_count = 0
+                    for name in to_delete:
+                        path = os.path.join(backup_dir, name)
+                        if os.path.exists(path):
+                            os.remove(path)
+                            deleted_count += 1
+                    _append_snapshot_cleanup_log("世代整理", to_delete, cleanup_operator)
+                    st.success(f"世代整理が完了しました（削除: {deleted_count}件 / 保持: {retain_count}件）")
+                    st.rerun()
+                except Exception as cleanup_error:
+                    st.error(f"世代整理に失敗しました: {cleanup_error}")
+
+        try:
+            with open(snapshot_path, 'r', encoding='utf-8') as f:
+                snapshot_data = json.load(f)
+            backup_date = snapshot_data.get("backup_date", "unknown") if isinstance(snapshot_data, dict) else "unknown"
+            backup_type = snapshot_data.get("backup_type", "unknown") if isinstance(snapshot_data, dict) else "unknown"
+            st.write(f"バックアップ日時: {backup_date}")
+            st.write(f"種別: {backup_type}")
+
+            if isinstance(snapshot_data, dict):
+                _show_expected_restore_counts(_expected_counts_from_backup(snapshot_data), "### スナップショット内テーブル件数")
+
+            st.download_button(
+                label="選択スナップショットをダウンロード",
+                data=json.dumps(snapshot_data, ensure_ascii=False, indent=2).encode("utf-8"),
+                file_name=selected_snapshot,
+                mime="application/json",
+                key=f"download_snapshot_{selected_snapshot}",
+            )
+        except Exception as snapshot_error:
+            st.error(f"スナップショットの読み込みに失敗しました: {snapshot_error}")
+
+        _render_snapshot_cleanup_log_download()
+
+
+def _execute_restore_with_guard(
+    backup_data: Dict[str, Any],
+    supabase: Client,
+    source_label: str,
+    backup_identifier: str,
+    operator_name: str,
+) -> None:
+    pre_snapshot_file = _save_pre_restore_snapshot(supabase)
+    before_counts = _collect_table_counts(supabase)
+    expected_counts = {table: len(backup_data.get(table, [])) for table in RESTORE_TABLES}
+
+    try:
+        perform_restore(backup_data, supabase)
+        after_counts = _collect_table_counts(supabase)
+        st.success(f"{source_label}からデータベースがリストアされました")
+        st.info(f"リストア前スナップショットを保存しました: {pre_snapshot_file}")
+        _show_restore_count_report(
+            before_counts,
+            expected_counts,
+            after_counts,
+            restore_source=source_label,
+            backup_identifier=backup_identifier,
+            operator_name=operator_name,
+        )
+    except Exception as restore_error:
+        st.error(f"リストアに失敗したため、自動ロールバックを実行します: {restore_error}")
+        try:
+            with open(pre_snapshot_file, 'r', encoding='utf-8') as f:
+                rollback_payload = json.load(f)
+            if not isinstance(rollback_payload, dict):
+                raise ValueError("ロールバックスナップショットの形式が不正です。")
+            perform_restore(rollback_payload, supabase)
+            st.warning("自動ロールバックにより、リストア開始前の状態へ戻しました。")
+            after_rollback_counts = _collect_table_counts(supabase)
+            _show_restore_count_report(
+                before_counts,
+                before_counts,
+                after_rollback_counts,
+                restore_source=f"{source_label}-rollback",
+                backup_identifier=pre_snapshot_file,
+                operator_name=operator_name,
+            )
+        except Exception as rollback_error:
+            st.error(f"自動ロールバックにも失敗しました: {rollback_error}")
+            st.error(f"手動復旧に備えてスナップショットを確認してください: {pre_snapshot_file}")
+            raise
+
+
+def backup_database(supabase: Optional[Client] = None):
+    """Supabaseからデータをバックアップする（JSONファイルとして保存、およびbackupsテーブルに保存）"""
+    if supabase is None:
+        supabase = get_supabase_admin_client()
+    if not supabase:
+        st.error("バックアップ用クライアントの初期化に失敗しました。")
+        return
+    
+    backup_dir = _resolve_backup_dir()
     
     try:
-        # 各テーブルのデータを取得
-        competitions_response = supabase.table("competitions").select("*").execute()
-        players_response = supabase.table("players").select("*").execute()
-        scores_response = supabase.table("scores").select("*").execute()
-        
         # バックアップデータを準備
         backup_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         backup_id = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        backup_data = {
-            "competitions": competitions_response.data,
-            "players": players_response.data,
-            "scores": scores_response.data,
-            "backup_date": backup_date
-        }
+
+        backup_data = _fetch_backup_payload(supabase)
+        backup_data["backup_date"] = backup_date
         
         # JSONファイルとして保存
         backup_file = os.path.join(backup_dir, f"backup_{backup_id}.json")
@@ -1111,15 +1551,11 @@ CREATE TABLE IF NOT EXISTS backups (
 -- RLSを有効化
 ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
 
--- 既存のポリシーがある場合は削除
-DROP POLICY IF EXISTS "管理者のみbackupsテーブルにアクセス可能" ON backups;
+-- 不要な公開権限は付与しない
+REVOKE ALL ON TABLE backups FROM anon;
+REVOKE ALL ON TABLE backups FROM authenticated;
 
--- すべてのユーザーがアクセスできるポリシーを作成
--- auth.roleの制限を使わず、すべての操作を許可
-CREATE POLICY "backupsテーブルへのフルアクセス" ON backups
-    FOR ALL
-    USING (true)
-    WITH CHECK (true);
+-- サーバー側（Service Role Key）でのみ運用する場合、ポリシー追加は不要
             """, language="sql")
             
             # 情報メッセージを表示
@@ -1133,10 +1569,12 @@ CREATE POLICY "backupsテーブルへのフルアクセス" ON backups
         import traceback
         st.error(traceback.format_exc())
 
-def restore_database():
+def restore_database(supabase: Optional[Client] = None):
     """JSONバックアップファイルまたはSupabaseのbackupsテーブルからデータをリストアする"""
-    supabase = get_supabase_client()
+    if supabase is None:
+        supabase = get_supabase_admin_client()
     if not supabase:
+        st.error("リストア用クライアントの初期化に失敗しました。")
         return
     
     # リストア方法の選択
@@ -1145,19 +1583,12 @@ def restore_database():
         "リストア方法を選択してください:",
         ["ローカルJSONファイルから", "Supabaseバックアップテーブルから"]
     )
+    operator_name = st.text_input("実行者名（任意）", key="restore_operator_name")
+    _render_pre_restore_snapshot_manager()
     
     if restore_method == "ローカルJSONファイルから":
         # 既存の実装：ローカルJSONファイルからのリストア
-        backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'backup'))
-        if not os.path.exists(backup_dir):
-            # 一つ上の階層のbackupディレクトリを試す
-            parent_backup_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backup'))
-            if os.path.exists(parent_backup_dir):
-                backup_dir = parent_backup_dir
-                st.info(f"上位ディレクトリのバックアップフォルダを使用します: {backup_dir}")
-            else:
-                st.warning(f"バックアップディレクトリが存在しません: {backup_dir}")
-                return
+        backup_dir = _resolve_backup_dir()
         
         # JSONバックアップファイルを検索
         backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
@@ -1166,18 +1597,47 @@ def restore_database():
             return
         
         selected_backup = st.selectbox("リストアするバックアップファイルを選択してください", backup_files)
-        
-        if st.button("リストア実行"):
+
+        backup_data: Optional[Dict[str, Any]] = None
+        try:
+            backup_file_path = os.path.join(backup_dir, selected_backup)
+            with open(backup_file_path, 'r', encoding='utf-8') as f:
+                loaded_data = json.load(f)
+            if not isinstance(loaded_data, dict):
+                raise ValueError("バックアップファイルの形式が不正です。")
+            backup_data = loaded_data
+            _show_expected_restore_counts(
+                _expected_counts_from_backup(backup_data),
+                "### 復元予定件数（ローカルバックアップ）",
+            )
+        except Exception as preview_error:
+            st.error(f"バックアップ内容の事前確認に失敗しました: {preview_error}")
+
+        confirm_local_restore = st.checkbox(
+            "上記件数を確認し、ローカルバックアップから復元を実行する",
+            key=f"confirm_local_restore_{selected_backup}",
+        )
+        confirm_local_final = st.checkbox(
+            "最終確認: 現在のデータを上書きすることを理解した上で実行する",
+            key=f"confirm_local_final_{selected_backup}",
+        )
+
+        if st.button(
+            "リストア実行",
+            key="execute_local_restore",
+            disabled=(not confirm_local_restore or not confirm_local_final or backup_data is None),
+        ):
             try:
-                # バックアップファイルからデータを読み込む
-                backup_file_path = os.path.join(backup_dir, selected_backup)
-                with open(backup_file_path, 'r', encoding='utf-8') as f:
-                    backup_data = json.load(f)
-                
-                # リストア処理を実行
-                perform_restore(backup_data)
-                
-                st.success(f"データベースがリストアされました: {selected_backup}")
+                if backup_data is None:
+                    raise ValueError("バックアップデータが読み込まれていません。")
+
+                _execute_restore_with_guard(
+                    backup_data,
+                    supabase,
+                    source_label="ローカルバックアップ",
+                    backup_identifier=selected_backup,
+                    operator_name=operator_name,
+                )
             except Exception as e:
                 st.error(f"リストア中にエラーが発生しました: {e}")
                 import traceback
@@ -1223,36 +1683,55 @@ def restore_database():
                 # バックアップ選択用のオプションリストを作成
                 backup_options = [f"{b.get('backup_id', b.get('id', 'unknown'))} ({b.get('backup_date', 'unknown date')})" for b in backups]
                 selected_backup_option = st.selectbox("リストアするバックアップを選択してください", backup_options)
-                
-                if st.button("リストア実行"):
-                    # 選択されたバックアップのIDを取得
-                    selected_id = selected_backup_option.split(" ")[0]
-                    
-                    # backup_idかidかを判断
-                    field_name = "backup_id" if any(b.get('backup_id') == selected_id for b in backups) else "id"
-                    
-                    # 選択されたバックアップのデータを取得
-                    backup_response = supabase.table("backups").select("*").eq(field_name, selected_id).execute()
-                    
-                    if not backup_response.data:
-                        st.error("選択されたバックアップが見つかりません。")
-                        return
-                    
-                    # dataフィールドを取得
-                    if "data" in backup_response.data[0]:
-                        backup_data = backup_response.data[0]["data"]
-                        
-                        # リストア処理を実行
-                        st.info("リストア処理を開始します...")
-                        perform_restore(backup_data)
-                        
-                        st.success(f"Supabaseバックアップテーブルからデータがリストアされました: {selected_backup_option}")
+
+                selected_id = selected_backup_option.split(" ")[0]
+                field_name = "backup_id" if any(b.get('backup_id') == selected_id for b in backups) else "id"
+                backup_response = supabase.table("backups").select("*").eq(field_name, selected_id).execute()
+
+                selected_backup_data: Optional[Dict[str, Any]] = None
+                if not backup_response.data:
+                    st.error("選択されたバックアップが見つかりません。")
+                elif "data" not in backup_response.data[0]:
+                    st.error(f"バックアップデータの形式が不正です。フィールド: {list(backup_response.data[0].keys())}")
+                    st.info("バックアップデータの構造:")
+                    st.json(backup_response.data[0])
+                else:
+                    candidate_data = backup_response.data[0]["data"]
+                    if not isinstance(candidate_data, dict):
+                        st.error("Supabaseバックアップデータの形式が不正です。")
                     else:
-                        st.error(f"バックアップデータの形式が不正です。フィールド: {list(backup_response.data[0].keys())}")
-                        
-                        # バックアップデータの構造を表示（デバッグ用）
-                        st.info("バックアップデータの構造:")
-                        st.json(backup_response.data[0])
+                        selected_backup_data = candidate_data
+                        _show_expected_restore_counts(
+                            _expected_counts_from_backup(selected_backup_data),
+                            "### 復元予定件数（Supabaseバックアップ）",
+                        )
+
+                confirm_remote_restore = st.checkbox(
+                    "上記件数を確認し、Supabaseバックアップから復元を実行する",
+                    key=f"confirm_remote_restore_{selected_id}",
+                )
+                confirm_remote_final = st.checkbox(
+                    "最終確認: 現在のデータを上書きすることを理解した上で実行する",
+                    key=f"confirm_remote_final_{selected_id}",
+                )
+
+                if st.button(
+                    "リストア実行",
+                    key="execute_remote_restore",
+                    disabled=(not confirm_remote_restore or not confirm_remote_final or selected_backup_data is None),
+                ):
+                    # 選択されたバックアップのIDを取得
+                    if selected_backup_data is None:
+                        st.error("選択されたバックアップデータが読み込めませんでした。")
+                    else:
+                        st.info("リストア処理を開始します...")
+                        _execute_restore_with_guard(
+                            selected_backup_data,
+                            supabase,
+                            source_label="Supabaseバックアップ",
+                            backup_identifier=selected_backup_option,
+                            operator_name=operator_name,
+                        )
             
             except Exception as table_error:
                 # バックアップテーブルが存在しない場合やアクセス権限がない場合
@@ -1272,12 +1751,11 @@ CREATE TABLE IF NOT EXISTS backups (
 -- RLSを有効化
 ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
 
--- 既存のポリシーがある場合は削除
-DROP POLICY IF EXISTS "管理者のみbackupsテーブルにアクセス可能" ON backups;
+-- 不要な公開権限は付与しない
+REVOKE ALL ON TABLE backups FROM anon;
+REVOKE ALL ON TABLE backups FROM authenticated;
 
--- 管理者のみがアクセスできるポリシーを作成
-CREATE POLICY "管理者のみbackupsテーブルにアクセス可能" ON backups
-    USING (true);  -- すべてのユーザーがアクセス可能に変更
+-- サーバー側（Service Role Key）でのみ運用する場合、ポリシー追加は不要
                 """, language="sql")
         
         except Exception as e:
@@ -1285,27 +1763,40 @@ CREATE POLICY "管理者のみbackupsテーブルにアクセス可能" ON backu
             import traceback
             st.error(traceback.format_exc())
 
-def perform_restore(backup_data):
+def perform_restore(backup_data, supabase: Client):
     """実際のリストア処理を実行する共通関数"""
-    supabase = get_supabase_client()
-    if not supabase:
-        return
-    
-    # 既存のデータを削除
-    supabase.table("scores").delete().execute()
-    supabase.table("competitions").delete().execute()
-    supabase.table("players").delete().execute()
-    
-    # データを復元
-    supabase.table("competitions").insert(backup_data["competitions"]).execute()
-    supabase.table("players").insert(backup_data["players"]).execute()
-    
+    competitions = backup_data.get("competitions", []) if isinstance(backup_data, dict) else []
+    players = backup_data.get("players", []) if isinstance(backup_data, dict) else []
+    participants = backup_data.get("participants", []) if isinstance(backup_data, dict) else []
+    scores = backup_data.get("scores", []) if isinstance(backup_data, dict) else []
+    announcements = backup_data.get("announcements", []) if isinstance(backup_data, dict) else []
+
+    if not isinstance(competitions, list) or not isinstance(players, list):
+        raise ValueError("バックアップデータ形式が不正です。competitions / players が配列ではありません。")
+
+    # 子テーブルから削除して外部キー制約を回避
+    supabase.table("scores").delete().gt("id", 0).execute()
+    supabase.table("participants").delete().gt("id", 0).execute()
+    supabase.table("announcements").delete().gt("id", 0).execute()
+    supabase.table("competitions").delete().gt("id", 0).execute()
+    supabase.table("players").delete().gt("id", 0).execute()
+
+    # 親テーブル -> 関連テーブルの順で復元
+    if competitions:
+        supabase.table("competitions").insert(competitions).execute()
+    if players:
+        supabase.table("players").insert(players).execute()
+    if announcements:
+        supabase.table("announcements").insert(announcements).execute()
+    if participants:
+        supabase.table("participants").insert(participants).execute()
+
     # スコアデータは量が多い可能性があるのでチャンクに分ける
-    scores = backup_data["scores"]
-    chunk_size = 100
-    for i in range(0, len(scores), chunk_size):
-        chunk = scores[i:i+chunk_size]
-        supabase.table("scores").insert(chunk).execute()
+    if scores:
+        chunk_size = 100
+        for i in range(0, len(scores), chunk_size):
+            chunk = scores[i:i+chunk_size]
+            supabase.table("scores").insert(chunk).execute()
 
 def login_page():
     st.title("88会ログイン")
@@ -1622,11 +2113,11 @@ def admin_app():
     with tabs[4]:
         st.subheader("データベースのバックアップ")
         if st.button("バックアップを実行", key="backup_button"):
-            backup_database()
+            backup_database(supabase_admin)
 
     with tabs[5]:
         st.subheader("データベースのリストア")
-        restore_database()
+        restore_database(supabase_admin)
 
 
 def login_app():

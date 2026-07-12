@@ -208,6 +208,16 @@ def get_app_last_update():
 APP_VERSION = get_app_version()
 APP_LAST_UPDATE = get_app_last_update()
 
+
+def render_deploy_fingerprint() -> None:
+    """デプロイ反映確認用の識別子を表示"""
+    git_rev = get_git_revision()
+    safe_mode_raw = os.getenv("MAIN_SAFE_MODE", "true")
+    safe_mode_value = safe_mode_raw.strip().lower() == "true"
+    st.caption(
+        f"Build: v{APP_VERSION} | rev: {git_rev} | updated: {APP_LAST_UPDATE} | MAIN_SAFE_MODE={'true' if safe_mode_value else 'false'}"
+    )
+
 # ページ最上部に追加（st.titleの前）
 st.markdown("""
 <style>
@@ -1896,6 +1906,7 @@ def admin_login_page():
 
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
+    render_deploy_fingerprint()
     
     # お知らせをデータベースから取得して表示
     try:
@@ -1993,7 +2004,6 @@ def main_app():
         safe_mode = os.getenv("MAIN_SAFE_MODE", "true").strip().lower() == "true"
         if safe_mode:
             render_main_safe_mode(scores_df)
-            st.caption("MAIN_SAFE_MODE=true（環境変数）")
             return
 
         # 一部環境でフロント側の module script 読み込みに失敗するため、

@@ -219,6 +219,12 @@ APP_LAST_UPDATE = get_app_last_update()
 
 def resolve_main_render_mode() -> str:
     """メイン画面の描画モードを解決（safe / compat）"""
+    session_override = st.session_state.get("main_render_mode_override", "")
+    if isinstance(session_override, str):
+        session_override = session_override.strip().lower()
+        if session_override in {"safe", "compat"}:
+            return session_override
+
     explicit_mode = os.getenv("MAIN_RENDER_MODE", "").strip().lower()
     if explicit_mode in {"safe", "compat"}:
         return explicit_mode
@@ -239,9 +245,33 @@ def render_deploy_fingerprint() -> None:
         or "unknown"
     )
     render_mode = resolve_main_render_mode()
+    session_override = st.session_state.get("main_render_mode_override", "")
+    override_label = ""
+    if isinstance(session_override, str) and session_override.strip().lower() in {"safe", "compat"}:
+        override_label = f" | SESSION_OVERRIDE={session_override.strip().lower()}"
     st.caption(
-        f"Build: v{APP_VERSION} | rev: {git_rev} | branch: {deploy_branch} | updated: {APP_LAST_UPDATE} | MAIN_RENDER_MODE={render_mode}"
+        f"Build: v{APP_VERSION} | rev: {git_rev} | branch: {deploy_branch} | updated: {APP_LAST_UPDATE} | MAIN_RENDER_MODE={render_mode}{override_label}"
     )
+
+
+def render_main_mode_switch_controls() -> None:
+    """運用中の段階復旧用に表示モードをセッション単位で切替"""
+    current_mode = resolve_main_render_mode()
+    st.caption("表示モード切替（このブラウザセッションのみ）")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("safe表示", key="switch_mode_safe", use_container_width=True):
+            st.session_state["main_render_mode_override"] = "safe"
+            st.rerun()
+    with col2:
+        if st.button("compat表示", key="switch_mode_compat", use_container_width=True):
+            st.session_state["main_render_mode_override"] = "compat"
+            st.rerun()
+    with col3:
+        if st.button("環境設定に戻す", key="switch_mode_env", use_container_width=True):
+            st.session_state.pop("main_render_mode_override", None)
+            st.rerun()
+    st.caption(f"現在モード: {current_mode}")
 
 # ページ最上部に追加（st.titleの前）
 st.markdown("""
@@ -1955,6 +1985,7 @@ def admin_login_page():
 def main_app():
     st.title("88会ゴルフコンペ・スコア管理システム")
     render_deploy_fingerprint()
+    render_main_mode_switch_controls()
     
     # お知らせをデータベースから取得して表示
     try:

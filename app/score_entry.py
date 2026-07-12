@@ -43,11 +43,15 @@ load_dotenv()
 try:
     # まずStreamlit secretsを試す
     SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
-    SUPABASE_KEY = st.secrets.get("supabase", {}).get("key", "")
+    SUPABASE_KEY = (
+        st.secrets.get("supabase", {}).get("key", "")
+        or st.secrets.get("supabase", {}).get("anon_key", "")
+        or st.secrets.get("supabase", {}).get("anonKey", "")
+    )
 except Exception:
     # 次に環境変数を試す
     SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
 
 # ログイン用のパスワード設定
 USER_PASSWORD = "88"

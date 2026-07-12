@@ -1,5 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 import platform
+import html
 
 
 import os
@@ -1028,8 +1029,40 @@ def display_winner_count_ranking(scores_df):
     rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
     rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False).reset_index(drop=True)
 
-    st.table(rank_one_winners)
+    render_html_table(rank_one_winners, max_rows=200)
     st.caption("※ 現在は互換性優先のためグラフ表示を一時停止しています。")
+
+
+def render_html_table(df: pd.DataFrame, max_rows: int = 200) -> None:
+    """ブラウザ互換性重視のシンプルなHTMLテーブル描画"""
+    if df.empty:
+        st.info("表示するデータがありません。")
+        return
+
+    view_df = df.head(max_rows).reset_index(drop=True)
+
+    headers = "".join(
+        f"<th style='padding:8px;border:1px solid #ddd;background:#f6f8fa;text-align:left;'>{html.escape(str(col))}</th>"
+        for col in view_df.columns
+    )
+
+    body_rows = []
+    for _, row in view_df.iterrows():
+        cells = []
+        for value in row.tolist():
+            text = "" if pd.isna(value) else str(value)
+            cells.append(f"<td style='padding:8px;border:1px solid #ddd;'>{html.escape(text)}</td>")
+        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+
+    table_html = f"""
+    <div style='overflow-x:auto;'>
+      <table style='border-collapse:collapse;width:100%;font-size:14px;'>
+        <thead><tr>{headers}</tr></thead>
+        <tbody>{''.join(body_rows)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
 
 
 RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]
@@ -1929,7 +1962,7 @@ def main_app():
             "アウトスコア", "インスコア", "合計スコア", "ハンディキャップ", "ネットスコア",
         ]
         existing_cols = [col for col in preferred_cols if col in past_data_df.columns]
-        past_data_df = past_data_df[existing_cols]
+        past_data_df = past_data_df[existing_cols].reset_index(drop=True)
         
         st.subheader("過去データ")
         # Streamlit DataFrameのブラウザ互換問題回避のため、静的テーブル表示に変換
@@ -1946,7 +1979,7 @@ def main_app():
         for col, fmt in format_cols.items():
             if col in past_display_df.columns:
                 past_display_df[col] = past_display_df[col].map(lambda x: fmt.format(x) if pd.notna(x) else "")
-        st.table(past_display_df.head(200))
+        render_html_table(past_display_df, max_rows=200)
         
         # ベストグロススコアトップ10を準備
         st.subheader("ベストグロススコアトップ10")
@@ -2029,7 +2062,7 @@ def main_app():
             for col, fmt in format_cols.items():
                 if col in best_display_df.columns:
                     best_display_df[col] = best_display_df[col].map(lambda x: fmt.format(x) if pd.notna(x) else "")
-            st.table(best_display_df)
+            render_html_table(best_display_df, max_rows=200)
         else:
             st.warning("有効なスコアデータが見つかりませんでした。")
         

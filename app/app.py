@@ -1911,8 +1911,9 @@ def main_app():
     players_df = fetch_players()
     
     if not scores_df.empty and not players_df.empty:
-        display_aggregations(scores_df)
-        display_visualizations(scores_df, players_df)
+        # 一部環境でフロント側の module script 読み込みに失敗するため、
+        # メイン画面のグラフ描画は一時的に停止（ランキング表とデータ表は表示継続）
+        st.info("互換性モード: グラフ表示を一時停止しています。")
         display_winner_count_ranking(scores_df)
         
         # 過去データを準備（表示不整合を避けるため有効データのみ、index列は表示しない）

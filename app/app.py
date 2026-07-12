@@ -67,10 +67,18 @@ def _get_static_version_fallback() -> str:
 
 
 def _get_static_git_rev_fallback() -> str:
-    for key in ("APP_GIT_REV", "GIT_REVISION"):
+    for key in (
+        "APP_GIT_REV",
+        "GIT_REVISION",
+        "RAILWAY_GIT_COMMIT_SHA",
+        "SOURCE_VERSION",
+        "GITHUB_SHA",
+        "VERCEL_GIT_COMMIT_SHA",
+        "RENDER_GIT_COMMIT",
+    ):
         value = os.getenv(key, "").strip()
         if value:
-            return value
+            return value[:8]
     return "unknown"
 
 # 実行環境に応じてフォントを設定
@@ -212,10 +220,16 @@ APP_LAST_UPDATE = get_app_last_update()
 def render_deploy_fingerprint() -> None:
     """デプロイ反映確認用の識別子を表示"""
     git_rev = get_git_revision()
+    deploy_branch = (
+        os.getenv("RAILWAY_GIT_BRANCH", "").strip()
+        or os.getenv("VERCEL_GIT_COMMIT_REF", "").strip()
+        or os.getenv("GITHUB_REF_NAME", "").strip()
+        or "unknown"
+    )
     safe_mode_raw = os.getenv("MAIN_SAFE_MODE", "true")
     safe_mode_value = safe_mode_raw.strip().lower() == "true"
     st.caption(
-        f"Build: v{APP_VERSION} | rev: {git_rev} | updated: {APP_LAST_UPDATE} | MAIN_SAFE_MODE={'true' if safe_mode_value else 'false'}"
+        f"Build: v{APP_VERSION} | rev: {git_rev} | branch: {deploy_branch} | updated: {APP_LAST_UPDATE} | MAIN_SAFE_MODE={'true' if safe_mode_value else 'false'}"
     )
 
 # ページ最上部に追加（st.titleの前）

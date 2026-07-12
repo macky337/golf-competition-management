@@ -1027,20 +1027,9 @@ def display_winner_count_ranking(scores_df):
 
     rank_one_winners = scores_df[scores_df['順位'] == 1].groupby('プレイヤー名').size().reset_index(name='優勝回数')
     rank_one_winners = rank_one_winners.sort_values(by='優勝回数', ascending=False).reset_index(drop=True)
-    rank_one_winners.index += 1
-    rank_one_winners.index.name = '順位'
 
     st.table(rank_one_winners)
-    
-    # グラフ表示
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(rank_one_winners['プレイヤー名'], rank_one_winners['優勝回数'], color='skyblue')
-    ax.set_ylabel("優勝回数")
-    ax.set_title("優勝回数ランキング")
-    ax.set_xticks(range(len(rank_one_winners['プレイヤー名'])))
-    ax.set_xticklabels(rank_one_winners['プレイヤー名'], rotation=45, ha='right')
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-    st.pyplot(fig)
+    st.caption("※ 現在は互換性優先のためグラフ表示を一時停止しています。")
 
 
 RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]
@@ -1926,11 +1915,20 @@ def main_app():
         display_visualizations(scores_df, players_df)
         display_winner_count_ranking(scores_df)
         
-        # 過去データを準備
-        past_data_df = scores_df.sort_values(by=["競技ID", "順位"], ascending=[True, True])
-        past_data_df = past_data_df.reset_index()
-        columns_order = ["順位"] + [col for col in past_data_df.columns if col != "順位" and col != "index"] + ["index"]
-        past_data_df = past_data_df[columns_order]
+        # 過去データを準備（表示不整合を避けるため有効データのみ、index列は表示しない）
+        past_data_df = scores_df.copy()
+        past_data_df = past_data_df[
+            (past_data_df["合計スコア"] > 0)
+            & (past_data_df["アウトスコア"] > 0)
+            & (past_data_df["インスコア"] > 0)
+        ]
+        past_data_df = past_data_df.sort_values(by=["日付", "順位"], ascending=[False, True])
+        preferred_cols = [
+            "順位", "競技ID", "日付", "コース", "プレイヤー名",
+            "アウトスコア", "インスコア", "合計スコア", "ハンディキャップ", "ネットスコア",
+        ]
+        existing_cols = [col for col in preferred_cols if col in past_data_df.columns]
+        past_data_df = past_data_df[existing_cols]
         
         st.subheader("過去データ")
         # Streamlit DataFrameのブラウザ互換問題回避のため、静的テーブル表示に変換
@@ -1947,7 +1945,7 @@ def main_app():
         for col, fmt in format_cols.items():
             if col in past_display_df.columns:
                 past_display_df[col] = past_display_df[col].map(lambda x: fmt.format(x) if pd.notna(x) else "")
-        st.table(past_display_df)
+        st.table(past_display_df.head(200))
         
         # ベストグロススコアトップ10を準備
         st.subheader("ベストグロススコアトップ10")

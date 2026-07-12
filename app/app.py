@@ -1065,6 +1065,41 @@ def render_html_table(df: pd.DataFrame, max_rows: int = 200) -> None:
     st.markdown(table_html, unsafe_allow_html=True)
 
 
+def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
+    """module script エラー回避のため、最小コンポーネントでメイン画面を描画"""
+    st.warning("互換性セーフモードで表示中です（DataFrame/グラフ描画を停止）。")
+
+    # 優勝回数ランキング（テキスト表示）
+    st.subheader("優勝回数ランキング（簡易表示）")
+    rank_one_winners = (
+        scores_df[scores_df['順位'] == 1]
+        .groupby('プレイヤー名')
+        .size()
+        .reset_index(name='優勝回数')
+        .sort_values(by='優勝回数', ascending=False)
+        .head(20)
+    )
+    ranking_lines = [f"{idx+1:>2}. {row['プレイヤー名']} - {int(row['優勝回数'])}回" for idx, (_, row) in enumerate(rank_one_winners.iterrows())]
+    st.code("\n".join(ranking_lines) if ranking_lines else "データなし", language="text")
+
+    # 過去データ（先頭100件をテキスト表示）
+    st.subheader("過去データ（簡易表示）")
+    past_data_df = scores_df.copy()
+    past_data_df = past_data_df[
+        (past_data_df["合計スコア"] > 0)
+        & (past_data_df["アウトスコア"] > 0)
+        & (past_data_df["インスコア"] > 0)
+    ]
+    past_data_df = past_data_df.sort_values(by=["日付", "順位"], ascending=[False, True])
+    preferred_cols = [
+        "順位", "競技ID", "日付", "コース", "プレイヤー名",
+        "アウトスコア", "インスコア", "合計スコア", "ハンディキャップ", "ネットスコア",
+    ]
+    existing_cols = [col for col in preferred_cols if col in past_data_df.columns]
+    past_data_df = past_data_df[existing_cols].head(100).reset_index(drop=True)
+    st.code(past_data_df.to_string(index=False), language="text")
+
+
 RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]
 
 
@@ -1944,6 +1979,13 @@ def main_app():
     players_df = fetch_players()
     
     if not scores_df.empty and not players_df.empty:
+        # 最終切り分け用: セーフモードでは最小表示のみ行う
+        safe_mode = os.getenv("MAIN_SAFE_MODE", "true").strip().lower() == "true"
+        if safe_mode:
+            render_main_safe_mode(scores_df)
+            st.caption("MAIN_SAFE_MODE=true（環境変数）")
+            return
+
         # 一部環境でフロント側の module script 読み込みに失敗するため、
         # メイン画面のグラフ描画は一時的に停止（ランキング表とデータ表は表示継続）
         st.info("互換性モード: グラフ表示を一時停止しています。")

@@ -263,8 +263,8 @@ def login_page():
 def score_entry_page():
     st.title("88会ゴルフコンペ・スコア入力")
     
-    if "competitions" not in st.session_state:
-        st.session_state.competitions = fetch_competitions()
+    # 管理画面で作成・更新したコンペを、スコア入力画面へ即時反映する。
+    st.session_state.competitions = fetch_competitions()
     
     if "players" not in st.session_state:
         st.session_state.players = fetch_players()
@@ -277,27 +277,23 @@ def score_entry_page():
             st.rerun()
         return
     
-    # コンペ選択
-    competition_options = [
-        f"{row['competition_id']} - {row['date']} {row['course']}" 
-        for _, row in st.session_state.get("competitions", pd.DataFrame()).iterrows()
-    ]
-    
-    competition_selection = st.selectbox(
+    # コンペ選択（文字列を分解せず、選択したレコードからIDを取得する）
+    competition_records = st.session_state.competitions.to_dict("records")
+    selected_competition = st.selectbox(
         "スコアを入力するコンペを選択してください",
-        competition_options
+        competition_records,
+        format_func=lambda competition: (
+            f"第{competition.get('competition_id', '')}回 - "
+            f"{competition.get('date', '')} {competition.get('course', '')}"
+        ),
+        key="score_entry_competition_selector",
     )
     
-    if competition_selection:
-        # コンペIDを抽出
-        competition_id = int(competition_selection.split(" - ")[0])
+    if selected_competition:
+        competition_id = int(selected_competition["competition_id"])
         
         if st.session_state.get("selected_competition") != competition_id:
             st.session_state.selected_competition = competition_id
-            # 参加者を取得
-            if "participants" not in st.session_state:
-                st.session_state.participants = []
-            st.session_state.participants = fetch_participants(competition_id)
             # 既存のスコアを取得
             existing_scores = fetch_existing_scores(competition_id)
             
@@ -320,6 +316,10 @@ def score_entry_page():
                     }
             
             st.rerun()
+
+        # コンペ設定で登録された参加者を毎回反映する。
+        # スコア入力画面では参加者を重複して選択しない。
+        st.session_state.participants = fetch_participants(competition_id)
         
         # プレイヤーデータをID->名前の辞書に変換
         players_df = st.session_state.get("players", pd.DataFrame())
@@ -330,22 +330,10 @@ def score_entry_page():
             st.warning("プレイヤーデータが正しく読み込まれていません。")
         
         if not st.session_state.get("participants", []):
-            # 参加者が登録されていない場合、全プレイヤーから選択できるようにする
-            st.warning("このコンペの参加者情報が登録されていません。全プレイヤーから選択できます。")
-            with st.expander("参加者を選択"):
-                selected_players = []
-                for player_id, player_name in players_dict.items():
-                    if st.checkbox(player_name, key=f"player_{player_id}"):
-                        selected_players.append(player_id)
-                
-                if st.button("参加者を確定"):
-                    if "participants" not in st.session_state:
-
-                        st.session_state.participants = []
-
-                    st.session_state.participants = selected_players
-                    st.rerun()
+            st.warning("このコンペには参加者が登録されていません。")
+            st.info("「コンペ設定」→「参加者管理」で参加者を登録してから、スコア入力画面へ戻ってください。")
         else:
+            st.success(f"第{competition_id}回の登録済み参加者 {len(st.session_state.participants)} 名を読み込みました。")
             # スコア入力フォームの表示
             st.subheader("スコア入力")
             

@@ -273,6 +273,104 @@ def render_main_mode_switch_controls() -> None:
             st.rerun()
     st.caption(f"現在モード: {current_mode}")
 
+
+def _navigate(page: str) -> None:
+    """画面遷移を統一する"""
+    st.session_state.page = page
+    st.rerun()
+
+
+def _logout_user() -> None:
+    """ログイン状態と一時データをクリアする"""
+    st.session_state.logged_in = False
+    st.session_state.admin_logged_in = False
+    st.session_state.page = "login"
+    st.session_state.pop("score_data", None)
+    st.session_state.pop("main_render_mode_override", None)
+    st.rerun()
+
+
+def render_dashboard_shell() -> None:
+    """ログイン後ホーム共通の視覚デザイン"""
+    st.markdown(
+        """
+        <style>
+          .dashboard-hero {
+            padding: 1.6rem 1.7rem;
+            margin: .4rem 0 1rem;
+            border-radius: 18px;
+            color: white;
+            background: linear-gradient(120deg, #0b5542 0%, #087f5b 55%, #13a36f 100%);
+            box-shadow: 0 10px 26px rgba(8, 127, 91, .20);
+          }
+          .dashboard-hero h1 { margin: 0; font-size: 2rem; color: white; }
+          .dashboard-hero p { margin: .45rem 0 0; color: #e4fff2; font-size: 1rem; }
+          .dashboard-section-label { margin: 1.4rem 0 .5rem; font-weight: 700; color: #155e4a; }
+          .dashboard-status-card {
+            border: 1px solid #dcece5; border-radius: 12px; padding: .85rem 1rem;
+            background: #f7fcf9; color: #245447; min-height: 88px;
+          }
+          .dashboard-status-card strong { display: block; color: #0b5542; font-size: 1.3rem; margin-top: .18rem; }
+          .dashboard-status-card span { color: #638277; font-size: .82rem; }
+          div[data-testid="stButton"] > button { border-radius: 10px; min-height: 2.65rem; font-weight: 600; }
+        </style>
+        <div class="dashboard-hero">
+          <h1>88会 ゴルフコンペ</h1>
+          <p>ようこそ。大会のお知らせ、成績、競技結果をここから確認できます。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_dashboard_navigation() -> None:
+    """主要機能へのショートカット"""
+    st.markdown('<div class="dashboard-section-label">メニュー</div>', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if st.button("📊 個人成績", key="dashboard_stats", use_container_width=True):
+            _navigate("stats")
+    with col2:
+        if st.button("🏆 競技結果", key="dashboard_results", use_container_width=True):
+            _navigate("results")
+    with col3:
+        if st.button("⚙️ 管理", key="dashboard_admin", use_container_width=True):
+            st.session_state.admin_logged_in = False
+            _navigate("admin")
+    with col4:
+        if st.button("🚪 ログアウト", key="dashboard_logout", use_container_width=True):
+            _logout_user()
+
+
+def render_dashboard_status(scores_df: pd.DataFrame, players_df: pd.DataFrame) -> None:
+    """安全なHTMLカードでダッシュボードの概要を表示"""
+    valid_scores = scores_df[
+        (scores_df["合計スコア"] > 0)
+        & (scores_df["アウトスコア"] > 0)
+        & (scores_df["インスコア"] > 0)
+    ]
+    competition_count = valid_scores["競技ID"].nunique() if not valid_scores.empty else 0
+    latest_date = "データなし"
+    if not valid_scores.empty and "日付" in valid_scores.columns:
+        latest_values = valid_scores["日付"].dropna()
+        if not latest_values.empty:
+            latest_date = str(latest_values.max())
+
+    st.markdown('<div class="dashboard-section-label">大会状況</div>', unsafe_allow_html=True)
+    cards = [
+        ("登録プレイヤー", f"{len(players_df)} 名"),
+        ("記録済みスコア", f"{len(valid_scores)} 件"),
+        ("開催コンペ", f"{competition_count} 回"),
+        ("最新記録", latest_date),
+    ]
+    columns = st.columns(4)
+    for column, (label, value) in zip(columns, cards):
+        with column:
+            st.markdown(
+                f'<div class="dashboard-status-card"><span>{html.escape(label)}</span><strong>{html.escape(value)}</strong></div>',
+                unsafe_allow_html=True,
+            )
+
 # ページ最上部に追加（st.titleの前）
 st.markdown("""
 <style>
@@ -1163,11 +1261,11 @@ def sanitize_display_df(df: pd.DataFrame) -> pd.DataFrame:
         return df.drop(columns=drop_cols, errors="ignore")
     return df
 def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
-    """module script エラー回避のため、最小コンポーネントでメイン画面を描画"""
-    st.warning("互換性セーフモードで表示中です（DataFrame/グラフ描画を停止）。")
+    """DataFrame/グラフを使わずに、カードUIで主要情報を表示する"""
+    st.info("安定表示モードです。グラフは停止していますが、最新の成績とランキングを確認できます。")
 
-    # 優勝回数ランキング（テキスト表示）
-    st.subheader("優勝回数ランキング（簡易表示）")
+    # 優勝回数ランキング（HTMLカード表示）
+    st.subheader("🏆 優勝回数ランキング")
     rank_one_winners = (
         scores_df[scores_df['順位'] == 1]
         .groupby('プレイヤー名')
@@ -1176,11 +1274,22 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
         .sort_values(by='優勝回数', ascending=False)
         .head(20)
     )
-    ranking_lines = [f"{idx+1:>2}. {row['プレイヤー名']} - {int(row['優勝回数'])}回" for idx, (_, row) in enumerate(rank_one_winners.iterrows())]
-    st.code("\n".join(ranking_lines) if ranking_lines else "データなし", language="text")
+    if rank_one_winners.empty:
+        st.caption("ランキング対象のデータがありません。")
+    else:
+        rank_columns = st.columns(2)
+        for idx, (_, row) in enumerate(rank_one_winners.iterrows()):
+            medal = ("🥇", "🥈", "🥉")[idx] if idx < 3 else f"{idx + 1}位"
+            name = html.escape(str(row["プレイヤー名"]))
+            wins = int(row["優勝回数"])
+            with rank_columns[idx % 2]:
+                st.markdown(
+                    f'<div class="dashboard-status-card"><span>{medal}</span><strong>{name}</strong><span>優勝 {wins} 回</span></div>',
+                    unsafe_allow_html=True,
+                )
 
-    # 過去データ（先頭100件をテキスト表示）
-    st.subheader("過去データ（簡易表示）")
+    # 過去データ（最新12件をカード表示）
+    st.subheader("🗓️ 最近の記録")
     past_data_df = scores_df.copy()
     past_data_df = past_data_df[
         (past_data_df["合計スコア"] > 0)
@@ -1193,9 +1302,38 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
         "アウトスコア", "インスコア", "合計スコア", "ハンディキャップ", "ネットスコア",
     ]
     existing_cols = [col for col in preferred_cols if col in past_data_df.columns]
-    past_data_df = past_data_df[existing_cols].head(100).reset_index(drop=True)
+    past_data_df = past_data_df[existing_cols].head(12).reset_index(drop=True)
     past_data_df = sanitize_display_df(past_data_df)
-    st.code(past_data_df.to_string(index=False), language="text")
+    if past_data_df.empty:
+        st.caption("表示できる過去データがありません。")
+        return
+
+    def format_number(value: Any) -> str:
+        if pd.isna(value):
+            return "-"
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
+    for _, row in past_data_df.iterrows():
+        date = html.escape(str(row.get("日付", "")))
+        course = html.escape(str(row.get("コース", "")))
+        player = html.escape(str(row.get("プレイヤー名", "")))
+        ranking = format_number(row.get("順位", "-"))
+        total = format_number(row.get("合計スコア", "-"))
+        out_score = format_number(row.get("アウトスコア", "-"))
+        in_score = format_number(row.get("インスコア", "-"))
+        st.markdown(
+            f"""
+            <div class="dashboard-status-card" style="margin-bottom:.5rem;">
+              <span>{date}　{course}</span>
+              <strong>{player}　{ranking}位　{total}</strong>
+              <span>OUT {out_score}　/　IN {in_score}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.caption("最新12件を表示しています。全件は「競技結果」から確認できます。")
 
 
 RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]
@@ -1983,8 +2121,9 @@ def admin_login_page():
             st.error("パスワードが間違っています")
 
 def main_app():
-    st.title("88会ゴルフコンペ・スコア管理システム")
+    render_dashboard_shell()
     render_deploy_fingerprint()
+    render_dashboard_navigation()
     render_main_mode_switch_controls()
     
     # お知らせをデータベースから取得して表示
@@ -2079,6 +2218,8 @@ def main_app():
     players_df = fetch_players()
     
     if not scores_df.empty and not players_df.empty:
+        render_dashboard_status(scores_df, players_df)
+        st.markdown('<div class="dashboard-section-label">成績ダイジェスト</div>', unsafe_allow_html=True)
         # 最終切り分け用: safe モードでは最小表示のみ行う
         render_mode = resolve_main_render_mode()
         if render_mode == "safe":
@@ -2219,32 +2360,8 @@ def main_app():
             st.warning("プレイヤーデータが取得できませんでした。")
         st.error("データの取得に失敗しました。Supabase接続情報とRLS設定を確認してください。")
     
-    # ボタンを最下部に配置
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-    with col1:
-        if st.button("📊 個人成績", key="goto_stats_button", use_container_width=True):
-            st.session_state.page = "stats"
-            st.rerun()
-    with col2:
-        if st.button("🏆 競技結果", key="goto_results_button", use_container_width=True):
-            st.session_state.page = "results"
-            st.rerun()
-    with col3:
-        if st.button("⚙️ 設定", key="goto_admin_button", use_container_width=True):
-            st.session_state.admin_logged_in = False  # 必ずログイン画面を表示
-            st.session_state.page = "admin"
-            st.rerun()
-    with col4:
-        if st.button("🚪 ログアウト", key="logout_button", use_container_width=True):
-            # セッション状態を全てクリア
-            st.session_state.logged_in = False
-            st.session_state.admin_logged_in = False
-            st.session_state.page = "login"
-            # スコアデータもクリア
-            if "score_data" in st.session_state:
-                del st.session_state.score_data
-            st.rerun()
+    st.caption("88会ゴルフコンペ・スコア管理システム")
 
 def admin_app():
     """管理者向けアプリ"""

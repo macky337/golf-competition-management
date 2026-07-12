@@ -16,6 +16,18 @@ def add_competition(supabase, comp_date, course, description=""):
     """コンペを新規追加"""
     try:
         from datetime import date as date_type
+        date_value = comp_date.isoformat() if isinstance(comp_date, date_type) else str(comp_date)
+
+        existing = (
+            supabase.table("competitions")
+            .select("competition_id")
+            .eq("date", date_value)
+            .eq("course", course.strip())
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return False, f"同じ開催日・コースのコンペ（第{existing.data[0]['competition_id']}回）が既に登録されています。"
         
         # 100未満の最大のcompetition_idを取得して+1する（100以上は特別ID用）
         max_id_response = supabase.table("competitions").select("competition_id").lt("competition_id", 100).order("competition_id", desc=True).limit(1).execute()
@@ -26,8 +38,8 @@ def add_competition(supabase, comp_date, course, description=""):
         
         response = supabase.table("competitions").insert({
             "competition_id": next_id,
-            "date": comp_date.isoformat() if isinstance(comp_date, date_type) else str(comp_date),
-            "course": course,
+            "date": date_value,
+            "course": course.strip(),
             "description": description if description else None
         }).execute()
         return True, "コンペを追加しました"
@@ -73,12 +85,25 @@ def fetch_players_for_participation(supabase):
         return []
 
 def fetch_participants(supabase, competition_id):
-    """特定のコンペの参加者を取得"""
+    """特定のコンペの参加者を取得（外部キー未設定の旧DBにも対応）"""
     try:
-        response = supabase.table("participants").select(
-            "*, players!inner(*)"
-        ).eq("competition_id", competition_id).execute()
-        return response.data
+        response = supabase.table("participants").select("*").eq("competition_id", competition_id).execute()
+        participant_rows = response.data or []
+        if not participant_rows:
+            return []
+
+        players_response = supabase.table("players").select("id,name").execute()
+        player_names = {
+            player["id"]: player.get("name", "不明なプレイヤー")
+            for player in (players_response.data or [])
+        }
+        return [
+            {
+                **participant,
+                "players": {"name": player_names.get(participant.get("player_id"), "不明なプレイヤー")},
+            }
+            for participant in participant_rows
+        ]
     except Exception as e:
         st.error(f"参加者データの取得に失敗しました: {e}")
         return []
@@ -276,7 +301,7 @@ def competition_management_tab(supabase):
             
             if selected_competition_key:
                 selected_competition = competition_options[selected_competition_key]
-                competition_id = selected_competition.get('id')
+                competition_id = selected_competition.get('competition_id')
                 if not competition_id:
                     st.error("コンペIDが見つかりません。")
                     return

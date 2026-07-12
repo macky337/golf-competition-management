@@ -217,6 +217,18 @@ APP_VERSION = get_app_version()
 APP_LAST_UPDATE = get_app_last_update()
 
 
+def resolve_main_render_mode() -> str:
+    """メイン画面の描画モードを解決（safe / compat）"""
+    explicit_mode = os.getenv("MAIN_RENDER_MODE", "").strip().lower()
+    if explicit_mode in {"safe", "compat"}:
+        return explicit_mode
+
+    # 後方互換: MAIN_SAFE_MODE=true なら safe, それ以外は compat
+    safe_mode_raw = os.getenv("MAIN_SAFE_MODE", "true")
+    safe_mode_value = safe_mode_raw.strip().lower() == "true"
+    return "safe" if safe_mode_value else "compat"
+
+
 def render_deploy_fingerprint() -> None:
     """デプロイ反映確認用の識別子を表示"""
     git_rev = get_git_revision()
@@ -226,10 +238,9 @@ def render_deploy_fingerprint() -> None:
         or os.getenv("GITHUB_REF_NAME", "").strip()
         or "unknown"
     )
-    safe_mode_raw = os.getenv("MAIN_SAFE_MODE", "true")
-    safe_mode_value = safe_mode_raw.strip().lower() == "true"
+    render_mode = resolve_main_render_mode()
     st.caption(
-        f"Build: v{APP_VERSION} | rev: {git_rev} | branch: {deploy_branch} | updated: {APP_LAST_UPDATE} | MAIN_SAFE_MODE={'true' if safe_mode_value else 'false'}"
+        f"Build: v{APP_VERSION} | rev: {git_rev} | branch: {deploy_branch} | updated: {APP_LAST_UPDATE} | MAIN_RENDER_MODE={render_mode}"
     )
 
 # ページ最上部に追加（st.titleの前）
@@ -2037,9 +2048,9 @@ def main_app():
     players_df = fetch_players()
     
     if not scores_df.empty and not players_df.empty:
-        # 最終切り分け用: セーフモードでは最小表示のみ行う
-        safe_mode = os.getenv("MAIN_SAFE_MODE", "true").strip().lower() == "true"
-        if safe_mode:
+        # 最終切り分け用: safe モードでは最小表示のみ行う
+        render_mode = resolve_main_render_mode()
+        if render_mode == "safe":
             render_main_safe_mode(scores_df)
             return
 

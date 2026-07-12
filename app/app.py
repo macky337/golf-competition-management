@@ -270,6 +270,18 @@ def _get_secret_supabase(*keys: str) -> str:
         return ""
 
 
+def _get_secret_auth(*keys: str) -> str:
+    try:
+        auth_secrets = st.secrets.get("auth", {})
+        for key in keys:
+            value = auth_secrets.get(key, "")
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+    except Exception:
+        return ""
+
+
 SUPABASE_URL = _get_secret_supabase("url") or os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = (
     _get_secret_supabase("key", "anon_key", "anonKey")
@@ -314,8 +326,19 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     """)
 
 # ログイン用のパスワード設定
-USER_PASSWORD = "88"
-ADMIN_PASSWORD = "admin88"
+USER_PASSWORD = (
+    _get_secret_auth("user_password", "password")
+    or os.getenv("USER_PASSWORD", "").strip()
+    or "88"
+)
+ADMIN_PASSWORD = (
+    _get_secret_auth("admin_password")
+    or os.getenv("ADMIN_PASSWORD", "").strip()
+    or "admin88"
+)
+
+if USER_PASSWORD == "88" or ADMIN_PASSWORD == "admin88":
+    logging.warning("Default passwords are in use. Set USER_PASSWORD and ADMIN_PASSWORD in secrets or env.")
 
 # エラーハンドリング用のヘルパー関数
 def handle_error(error: Exception, context: str = "", show_details: bool = False):

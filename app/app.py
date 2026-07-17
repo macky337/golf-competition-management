@@ -1752,16 +1752,25 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
             )
         st.markdown(f'<div class="dashboard-chart">{"".join(chart_rows)}</div>', unsafe_allow_html=True)
 
-        rank_columns = st.columns(2)
-        for idx, (_, row) in enumerate(rank_one_winners.iterrows()):
-            medal = ("🥇", "🥈", "🥉")[idx] if idx < 3 else f"{idx + 1}位"
-            name = html.escape(str(row["プレイヤー名"]))
-            wins = int(row["優勝回数"])
-            with rank_columns[idx % 2]:
-                st.markdown(
-                    f'<div class="dashboard-status-card"><span>{medal}</span><strong>{name}</strong><span>優勝 {wins} 回</span></div>',
-                    unsafe_allow_html=True,
-                )
+        # 列ごとに順位を積むと、スマホで列が縦に並んだときに
+        # 「1・3・5位 → 2・4・6位」と読まれてしまう。順位のペアごとに
+        # 行を作ることで、PC・スマホともに1位から順に読めるようにする。
+        winner_rows = list(rank_one_winners.iterrows())
+        for start_index in range(0, len(winner_rows), 2):
+            rank_columns = st.columns(2)
+            for offset, column in enumerate(rank_columns):
+                item_index = start_index + offset
+                if item_index >= len(winner_rows):
+                    continue
+                _, row = winner_rows[item_index]
+                medal = ("🥇", "🥈", "🥉")[item_index] if item_index < 3 else f"{item_index + 1}位"
+                name = html.escape(str(row["プレイヤー名"]))
+                wins = int(row["優勝回数"])
+                with column:
+                    st.markdown(
+                        f'<div class="dashboard-status-card"><span>{medal}</span><strong>{name}</strong><span>優勝 {wins} 回</span></div>',
+                        unsafe_allow_html=True,
+                    )
 
     # 過去データ（最新12件をカード表示）
     st.markdown('<div class="dashboard-section-label">最近の記録<small>直近のスコアを12件表示</small></div>', unsafe_allow_html=True)

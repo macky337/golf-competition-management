@@ -114,7 +114,7 @@ def player_management_tab(supabase):
         players = fetch_players_data(supabase)
         if players:
             df = pd.DataFrame(players)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width="stretch")
         else:
             st.info("現在登録されているプレイヤーはいません。")
 

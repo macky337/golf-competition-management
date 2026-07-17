@@ -257,7 +257,7 @@ def login_page():
     # ログイン画面に画像を表示
     image_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'image', '01205972-9563-43D7-B862-5B2B8DECF9FA.png')
     if os.path.exists(image_path):
-        st.image(image_path, use_container_width=True)
+        st.image(image_path, width="stretch")
     
     if not USER_PASSWORD and not ADMIN_PASSWORD:
         st.error("ログインパスワードが設定されていません。")
@@ -486,7 +486,7 @@ def score_entry_page(supabase=None):
                     
                     # DataFrameに変換して表示
                     ranking_df = pd.DataFrame(ranking_data)
-                    st.dataframe(ranking_df.sort_values("順位"), use_container_width=True)
+                    st.dataframe(ranking_df.sort_values("順位"), width="stretch")
                 else:
                     st.info("有効なスコアデータがありません。各プレイヤーのOUT/INスコアを入力してください。")
     

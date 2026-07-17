@@ -177,9 +177,9 @@ def competition_management_tab(supabase):
             display_columns = [col for col in display_df.columns if col not in exclude_cols]
             
             if display_columns:
-                st.dataframe(display_df[display_columns], use_container_width=True)
+                st.dataframe(display_df[display_columns], width="stretch")
             else:
-                st.dataframe(display_df, use_container_width=True)
+                st.dataframe(display_df, width="stretch")
         else:
             st.info("現在登録されているコンペはありません。")
 

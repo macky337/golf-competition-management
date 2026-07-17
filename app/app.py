@@ -37,7 +37,9 @@ from score_entry import score_entry_page as score_entry_tab
 
 def get_project_root():
     """プロジェクトのルートディレクトリを取得"""
-    return os.path.dirname(os.path.dirname(__file__))
+    # Streamlit/Railway では __file__ が相対パスになることがあるため、
+    # 必ず絶対パスにしてからプロジェクトルートを求める。
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _get_static_version_fallback() -> str:
@@ -341,17 +343,17 @@ def render_dashboard_navigation() -> None:
     st.markdown('<div class="dashboard-section-label">メニュー<small>見たい情報を選んでください</small></div>', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("📈  個人成績を見る", key="dashboard_stats", use_container_width=True):
+        if st.button("📈  個人成績を見る", key="dashboard_stats", width="stretch"):
             _navigate("stats")
     with col2:
-        if st.button("🏆  競技結果を見る", key="dashboard_results", use_container_width=True):
+        if st.button("🏆  競技結果を見る", key="dashboard_results", width="stretch"):
             _navigate("results")
     with col3:
-        if st.button("⚙️  管理メニュー", key="dashboard_admin", use_container_width=True):
+        if st.button("⚙️  管理メニュー", key="dashboard_admin", width="stretch"):
             st.session_state.admin_logged_in = False
             _navigate("admin")
     with col4:
-        if st.button("↗  ログアウト", key="dashboard_logout", use_container_width=True):
+        if st.button("↗  ログアウト", key="dashboard_logout", width="stretch"):
             _logout_user()
 
 
@@ -1032,7 +1034,7 @@ def _legacy_personal_stats_page():
         '順位': '{:.0f}'
     })
     
-    st.dataframe(styled_recent, use_container_width=True, hide_index=True)
+    st.dataframe(styled_recent, width="stretch", hide_index=True)
     
     # === 詳細統計 ===
     st.markdown("---")
@@ -1351,7 +1353,7 @@ def _legacy_competition_results_page():
                     '順位': '{:.0f}'
                 })
                 
-                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                st.dataframe(styled_df, width="stretch", hide_index=True)
                 
                 # 統計情報
                 col1, col2, col3, col4 = st.columns(4)
@@ -2038,7 +2040,7 @@ def _render_snapshot_cleanup_log_download() -> None:
         return
     st.write("### スナップショット整理ログ")
     log_df = pd.DataFrame(logs)
-    st.dataframe(log_df.tail(20), use_container_width=True, hide_index=True)
+    st.dataframe(log_df.tail(20), width="stretch", hide_index=True)
     log_ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
     st.download_button(
         label="整理ログをCSVダウンロード",
@@ -2080,7 +2082,7 @@ def _show_restore_count_report(
     report_df = pd.DataFrame(report_rows)
     _append_restore_report_log(report_rows)
     st.write("### 復元件数レポート")
-    st.dataframe(report_df, use_container_width=True, hide_index=True)
+    st.dataframe(report_df, width="stretch", hide_index=True)
     report_ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
     st.download_button(
         label="復元レポートをCSVダウンロード",
@@ -2098,7 +2100,7 @@ def _show_restore_count_report(
         history_logs = _load_restore_report_logs()
         if history_logs:
             history_df = pd.DataFrame(history_logs)
-            st.dataframe(history_df.tail(50), use_container_width=True, hide_index=True)
+            st.dataframe(history_df.tail(50), width="stretch", hide_index=True)
             history_ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
             st.download_button(
                 label="復元レポート履歴をCSVダウンロード",
@@ -2123,7 +2125,7 @@ def _show_expected_restore_counts(expected_counts: Dict[str, int], title: str) -
     preview_df = pd.DataFrame(
         [{"テーブル": table, "復元予定件数": expected_counts.get(table, 0)} for table in RESTORE_TABLES]
     )
-    st.dataframe(preview_df, use_container_width=True, hide_index=True)
+    st.dataframe(preview_df, width="stretch", hide_index=True)
 
 
 def _render_pre_restore_snapshot_manager() -> None:
@@ -2560,7 +2562,7 @@ def login_page():
     # ログイン画面に画像を表示
     image_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'image', '01205972-9563-43D7-B862-5B2B8DECF9FA.png')
     if os.path.exists(image_path):
-        st.image(image_path, use_container_width=True)
+        st.image(image_path, width="stretch")
     
     if not USER_PASSWORD:
         st.error("利用者パスワードが設定されていないため、ログインできません。管理者に連絡してください。")
@@ -2635,7 +2637,7 @@ def render_dashboard_announcement(announcement: Dict[str, Any]) -> None:
     )
     if announcement.get("image_url"):
         try:
-            st.image(announcement["image_url"], use_container_width=True)
+            st.image(announcement["image_url"], width="stretch")
         except Exception:
             pass
 

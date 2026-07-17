@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS players (
 );
 
 CREATE TABLE IF NOT EXISTS competitions (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
+    competition_id SERIAL PRIMARY KEY,
+    name TEXT,
     date DATE NOT NULL,
     location TEXT,
     course TEXT,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS competitions (
 
 CREATE TABLE IF NOT EXISTS participants (
     id SERIAL PRIMARY KEY,
-    competition_id INTEGER NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+    competition_id INTEGER NOT NULL REFERENCES competitions(competition_id) ON DELETE CASCADE,
     player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
     UNIQUE (competition_id, player_id)
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS participants (
 
 CREATE TABLE IF NOT EXISTS scores (
     id SERIAL PRIMARY KEY,
-    competition_id INTEGER NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+    competition_id INTEGER NOT NULL REFERENCES competitions(competition_id) ON DELETE CASCADE,
     player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     course TEXT,

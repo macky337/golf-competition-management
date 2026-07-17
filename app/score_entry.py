@@ -53,9 +53,20 @@ except Exception:
     SUPABASE_URL = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
 
-# ログイン用のパスワード設定
-USER_PASSWORD = "88"
-ADMIN_PASSWORD = "admin88"
+# 単体起動時にも固定パスワードへフォールバックしない。
+try:
+    auth_secrets = st.secrets.get("auth", {})
+except Exception:
+    auth_secrets = {}
+USER_PASSWORD = (
+    auth_secrets.get("user_password", "")
+    or auth_secrets.get("password", "")
+    or os.getenv("USER_PASSWORD", "")
+).strip()
+ADMIN_PASSWORD = (
+    auth_secrets.get("admin_password", "")
+    or os.getenv("ADMIN_PASSWORD", "")
+).strip()
 
 # セッション状態の初期化
 if "logged_in" not in st.session_state:
@@ -86,9 +97,9 @@ def get_supabase_client():
         st.error(f"Supabase接続エラー: {e}")
         return None
 
-def fetch_competitions():
+def fetch_competitions(supabase=None):
     """コンペデータをSupabaseから取得"""
-    supabase = get_supabase_client()
+    supabase = supabase or get_supabase_client()
     if not supabase:
         return pd.DataFrame()
     
@@ -104,9 +115,9 @@ def fetch_competitions():
         st.error(f"コンペデータ取得エラー: {e}")
         return pd.DataFrame()
 
-def fetch_players():
+def fetch_players(supabase=None):
     """プレイヤーデータをSupabaseから取得"""
-    supabase = get_supabase_client()
+    supabase = supabase or get_supabase_client()
     if not supabase:
         return pd.DataFrame()
     
@@ -122,9 +133,9 @@ def fetch_players():
         st.error(f"プレイヤーデータ取得エラー: {e}")
         return pd.DataFrame()
 
-def fetch_participants(competition_id):
+def fetch_participants(competition_id, supabase=None):
     """参加者データをSupabaseから取得"""
-    supabase = get_supabase_client()
+    supabase = supabase or get_supabase_client()
     if not supabase:
         return []
     
@@ -149,9 +160,9 @@ def fetch_participants(competition_id):
         st.error(f"参加者データ取得エラー: {e}")
         return []
 
-def fetch_existing_scores(competition_id):
+def fetch_existing_scores(competition_id, supabase=None):
     """既存のスコアデータをSupabaseから取得"""
-    supabase = get_supabase_client()
+    supabase = supabase or get_supabase_client()
     if not supabase:
         return pd.DataFrame()
     
@@ -184,16 +195,13 @@ def calculate_rankings(scores_data):
     
     return rankings
 
-def save_scores(competition_id, scores_data, players_data):
+def save_scores(competition_id, scores_data, players_data, supabase=None):
     """スコアデータをSupabaseに保存"""
-    supabase = get_supabase_client()
+    supabase = supabase or get_supabase_client()
     if not supabase:
         return False
     
     try:
-        # 既存のスコアを削除
-        supabase.table("scores").delete().eq("competition_id", competition_id).execute()
-        
         # データ登録用の辞書のリストを作成
         records_to_insert = []
         competition_info = st.session_state.competitions[
@@ -225,9 +233,13 @@ def save_scores(competition_id, scores_data, players_data):
                 }
                 records_to_insert.append(record)
         
-        # データを登録
+        # 一意制約 (competition_id, player_id) を使って原子的に追加・更新する。
+        # 先に既存行を削除しないため、通信・検証エラーでも保存済みデータを失わない。
         if records_to_insert:
-            response = supabase.table("scores").insert(records_to_insert).execute()
+            supabase.table("scores").upsert(
+                records_to_insert,
+                on_conflict="competition_id,player_id",
+            ).execute()
             return True
         else:
             st.warning("登録するスコアデータがありません。")
@@ -247,33 +259,37 @@ def login_page():
     if os.path.exists(image_path):
         st.image(image_path, use_container_width=True)
     
+    if not USER_PASSWORD and not ADMIN_PASSWORD:
+        st.error("ログインパスワードが設定されていません。")
+        return
+
     password = st.text_input("パスワードを入力してください", type="password")
     if st.button("ログイン"):
-        if password == USER_PASSWORD:
+        if USER_PASSWORD and password == USER_PASSWORD:
             st.session_state.logged_in = True
             st.session_state.page = "main"
             st.rerun()  # ページを強制的に再読み込み
-        elif password == ADMIN_PASSWORD:
+        elif ADMIN_PASSWORD and password == ADMIN_PASSWORD:
             st.session_state.admin_logged_in = True
             st.session_state.page = "main"
             st.rerun()
         else:
             st.error("パスワードが間違っています")
 
-def score_entry_page():
+def score_entry_page(supabase=None):
     st.title("88会ゴルフコンペ・スコア入力")
     
     # 管理画面で作成・更新したコンペを、スコア入力画面へ即時反映する。
-    st.session_state.competitions = fetch_competitions()
+    st.session_state.competitions = fetch_competitions(supabase)
     
     if "players" not in st.session_state:
-        st.session_state.players = fetch_players()
+        st.session_state.players = fetch_players(supabase)
     
     if st.session_state.get("competitions", pd.DataFrame()).empty or st.session_state.get("players", pd.DataFrame()).empty:
         st.error("コンペまたはプレイヤーのデータが取得できませんでした。")
         if st.button("再試行"):
-            st.session_state.competitions = fetch_competitions()
-            st.session_state.players = fetch_players()
+            st.session_state.competitions = fetch_competitions(supabase)
+            st.session_state.players = fetch_players(supabase)
             st.rerun()
         return
     
@@ -295,7 +311,7 @@ def score_entry_page():
         if st.session_state.get("selected_competition") != competition_id:
             st.session_state.selected_competition = competition_id
             # 既存のスコアを取得
-            existing_scores = fetch_existing_scores(competition_id)
+            existing_scores = fetch_existing_scores(competition_id, supabase)
             
             # スコアデータの初期化
             st.session_state.score_data = {}
@@ -319,7 +335,7 @@ def score_entry_page():
 
         # コンペ設定で登録された参加者を毎回反映する。
         # スコア入力画面では参加者を重複して選択しない。
-        st.session_state.participants = fetch_participants(competition_id)
+        st.session_state.participants = fetch_participants(competition_id, supabase)
         
         # プレイヤーデータをID->名前の辞書に変換
         players_df = st.session_state.get("players", pd.DataFrame())
@@ -417,10 +433,10 @@ def score_entry_page():
                 
                 if submit_button:
                     # スコアに基づいて順位を計算し、データを保存
-                    if save_scores(competition_id, st.session_state.get("score_data", {}), st.session_state.get("players", pd.DataFrame())):
+                    if save_scores(competition_id, st.session_state.get("score_data", {}), st.session_state.get("players", pd.DataFrame()), supabase):
                         st.success("スコアが正常に登録されました！")
                         # 最新のデータを再取得
-                        existing_scores = fetch_existing_scores(competition_id)
+                        existing_scores = fetch_existing_scores(competition_id, supabase)
                         st.session_state.score_data = {}
                         if not existing_scores.empty:
                             for _, score in existing_scores.iterrows():

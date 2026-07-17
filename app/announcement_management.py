@@ -93,7 +93,7 @@ def delete_announcement(announcement_id):
     except Exception as e:
         return False, f"エラー: {e}"
 
-def announcement_management_tab(supabase_client: Client):
+def _legacy_announcement_management_tab(supabase_client: Client):
     """お知らせ管理タブのUI"""
     init_announcement_management(supabase_client)
     st.subheader("📢 お知らせ・大会案内管理")
@@ -244,3 +244,135 @@ def announcement_management_tab(supabase_client: Client):
                             st.error(message)
         else:
             st.info("編集できるお知らせがありません")
+
+
+def announcement_management_tab(supabase_client: Client):
+    """公開状態が分かる、お知らせ・大会案内の管理画面。"""
+    init_announcement_management(supabase_client)
+    st.subheader("📢 お知らせ・大会案内管理")
+    st.info("ホームには「表示する」が有効な案内のうち、表示順が最も大きい1件だけが表示されます。同じ表示順の場合は、新しく作成した案内が優先されます。")
+
+    active_announcements = fetch_announcements(is_active_only=True)
+    all_announcements = fetch_announcements(is_active_only=False)
+    tabs = st.tabs(["公開状況", "新しい案内を作る", "編集・公開設定"])
+
+    with tabs[0]:
+        st.write("### 現在ホームに表示される案内")
+        if active_announcements:
+            primary = active_announcements[0]
+            st.success(f"現在表示中: 「{primary.get('title', '無題')}」")
+            st.caption(f"表示順 {primary.get('display_order', 0)} ・ 作成日 {primary.get('created_at', '')}")
+            st.write(primary.get("content", ""))
+            if primary.get("image_url"):
+                try:
+                    st.image(primary["image_url"], width=360)
+                except Exception:
+                    st.warning("画像を読み込めませんでした。URLを確認してください。")
+            if len(active_announcements) > 1:
+                st.warning(f"公開設定の案内が他に {len(active_announcements) - 1} 件あります。ホームに表示されるのは最上位の1件です。")
+        else:
+            st.warning("現在ホームに表示する案内がありません。新しい案内を作成するか、既存の案内を「表示する」に変更してください。")
+
+        st.write("### すべての案内")
+        if all_announcements:
+            primary_id = active_announcements[0].get("id") if active_announcements else None
+            rows = []
+            for announcement in all_announcements:
+                rows.append({
+                    "ホーム表示": "表示中" if announcement.get("id") == primary_id else ("公開候補" if announcement.get("is_active") else "非表示"),
+                    "タイトル": announcement.get("title", "無題"),
+                    "表示順": announcement.get("display_order", 0),
+                    "作成日": announcement.get("created_at", ""),
+                })
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        else:
+            st.info("作成済みの案内はありません。")
+
+    with tabs[1]:
+        st.write("### 新しい案内を作る")
+        st.caption("作成直後はホームに表示されます。表示したくない場合は、作成後に「編集・公開設定」で非表示にしてください。")
+        with st.form("create_announcement_form"):
+            title = st.text_input("タイトル", placeholder="第55回88会ゴルフコンペのご案内")
+            content = st.text_area("本文", placeholder="次回の開催場所は...", height=120)
+            image_url = st.text_input("画像URL（任意）", placeholder="https://example.com/image.jpg")
+            display_order = st.number_input("ホームでの優先順位（大きいほど優先）", min_value=0, value=10)
+            with_tournament_info = st.checkbox("大会情報も登録する")
+
+            tournament_info = None
+            if with_tournament_info:
+                col1, col2 = st.columns(2)
+                with col1:
+                    tournament_number = st.number_input("大会回数", min_value=1, value=55)
+                    tournament_date = st.date_input("開催日")
+                    start_time = st.time_input("スタート時間")
+                    course_name = st.text_input("コース名")
+                with col2:
+                    meeting_time = st.time_input("集合時間")
+                    groups = st.number_input("組数", min_value=1, value=3)
+                    fee = st.text_input("費用")
+                    organizers = st.text_input("幹事")
+                tournament_info = {
+                    "tournament_number": tournament_number,
+                    "date": str(tournament_date),
+                    "start_time": str(start_time),
+                    "course_name": course_name,
+                    "groups": groups,
+                    "meeting_time": str(meeting_time),
+                    "fee": fee,
+                    "organizers": organizers,
+                }
+
+            if st.form_submit_button("作成してホームに表示する", type="primary"):
+                if not title.strip() or not content.strip():
+                    st.error("タイトルと本文は必須です。")
+                else:
+                    success, message = create_announcement(title.strip(), content.strip(), image_url or None, tournament_info, display_order)
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
+
+    with tabs[2]:
+        st.write("### 編集・公開設定")
+        if not all_announcements:
+            st.info("編集できる案内はありません。")
+        else:
+            options = {
+                f"{'表示中' if ann.get('is_active') else '非表示'} ｜ {ann.get('title', '無題')} （表示順 {ann.get('display_order', 0)}）": ann
+                for ann in all_announcements
+            }
+            selected_label = st.selectbox("編集する案内を選択", list(options.keys()), key="announcement_edit_selector")
+            selected = options[selected_label]
+            with st.form("edit_announcement_form"):
+                new_title = st.text_input("タイトル", value=selected.get("title", ""))
+                new_content = st.text_area("本文", value=selected.get("content", ""), height=120)
+                new_image_url = st.text_input("画像URL（任意）", value=selected.get("image_url", "") or "")
+                new_display_order = st.number_input("ホームでの優先順位（大きいほど優先）", min_value=0, value=int(selected.get("display_order", 0)))
+                new_is_active = st.checkbox("ホームに表示する", value=bool(selected.get("is_active", True)))
+                if st.form_submit_button("変更を保存", type="primary"):
+                    if not new_title.strip() or not new_content.strip():
+                        st.error("タイトルと本文は必須です。")
+                    else:
+                        success, message = update_announcement(
+                            selected.get("id"), new_title.strip(), new_content.strip(), new_image_url or None,
+                            display_order=new_display_order, is_active=new_is_active,
+                        )
+                        if success:
+                            st.success(message)
+                            st.rerun()
+                        else:
+                            st.error(message)
+
+            st.markdown("---")
+            st.caption("削除はデータを消さず、ホームから非表示にする操作です。")
+            if selected.get("is_active"):
+                if st.button("この案内をホームから非表示にする", type="secondary", key=f"hide_announcement_{selected.get('id')}"):
+                    success, message = delete_announcement(selected.get("id"))
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
+            else:
+                st.info("この案内は現在非表示です。チェックボックスを「ホームに表示する」にして保存すると再公開できます。")

@@ -263,19 +263,35 @@ def competition_management_tab(supabase):
                             st.error(message)
                     
                     if delete_submitted:
-                        comp_course = selected_competition.get('course', 'このコンペ')
-                        st.warning(f"本当に「{comp_course}」を削除しますか？この操作は元に戻せません。")
-                        if st.checkbox("はい、削除します。"):
-                            comp_id = selected_competition.get('competition_id')
-                            if comp_id:
-                                success, message = delete_competition(supabase, comp_id)
-                            else:
-                                success, message = False, "コンペIDが見つかりません"
+                        st.session_state["pending_competition_delete"] = selected_competition.get("competition_id")
+
+                comp_id = selected_competition.get("competition_id")
+                if comp_id and st.session_state.get("pending_competition_delete") == comp_id:
+                    comp_course = str(selected_competition.get("course", "このコンペ"))
+                    st.warning(f"第{comp_id}回「{comp_course}」を削除します。この操作は元に戻せません。")
+                    confirmation = st.text_input(
+                        f"削除するには「{comp_course}」と入力してください",
+                        key=f"confirm_competition_delete_{comp_id}",
+                    )
+                    col_confirm, col_cancel = st.columns(2)
+                    with col_confirm:
+                        if st.button(
+                            "削除を確定する",
+                            type="primary",
+                            key=f"confirm_competition_delete_button_{comp_id}",
+                            disabled=confirmation != comp_course,
+                        ):
+                            success, message = delete_competition(supabase, comp_id)
                             if success:
+                                st.session_state.pop("pending_competition_delete", None)
                                 st.success(message)
                                 st.rerun()
                             else:
                                 st.error(message)
+                    with col_cancel:
+                        if st.button("削除を取り消す", key=f"cancel_competition_delete_{comp_id}"):
+                            st.session_state.pop("pending_competition_delete", None)
+                            st.rerun()
         else:
             st.info("編集・削除できるコンペがありません。")
 

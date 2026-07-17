@@ -177,15 +177,33 @@ def player_management_tab(supabase):
                             st.error(message)
                     
                     if delete_submitted:
-                        # 削除前の確認
-                        st.warning(f"本当に {selected_player['name']} さんを削除しますか？この操作は元に戻せません。")
-                        if st.checkbox("はい、削除します。"):
-                            success, message = delete_player(supabase, selected_player['id'])
+                        st.session_state["pending_player_delete"] = selected_player["id"]
+
+                if st.session_state.get("pending_player_delete") == selected_player["id"]:
+                    st.warning(f"「{selected_player['name']}」さんを削除します。この操作は元に戻せません。")
+                    confirmation = st.text_input(
+                        f"削除するには「{selected_player['name']}」と入力してください",
+                        key=f"confirm_player_delete_{selected_player['id']}",
+                    )
+                    col_confirm, col_cancel = st.columns(2)
+                    with col_confirm:
+                        if st.button(
+                            "削除を確定する",
+                            type="primary",
+                            key=f"confirm_player_delete_button_{selected_player['id']}",
+                            disabled=confirmation != selected_player["name"],
+                        ):
+                            success, message = delete_player(supabase, selected_player["id"])
                             if success:
+                                st.session_state.pop("pending_player_delete", None)
                                 st.success(message)
                                 st.rerun()
                             else:
                                 st.error(message)
+                    with col_cancel:
+                        if st.button("削除を取り消す", key=f"cancel_player_delete_{selected_player['id']}"):
+                            st.session_state.pop("pending_player_delete", None)
+                            st.rerun()
 
         else:
             st.info("編集・削除できるプレイヤーがいません。")

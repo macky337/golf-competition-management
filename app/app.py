@@ -219,12 +219,6 @@ APP_LAST_UPDATE = get_app_last_update()
 
 def resolve_main_render_mode() -> str:
     """メイン画面の描画モードを解決（safe / compat）"""
-    session_override = st.session_state.get("main_render_mode_override", "")
-    if isinstance(session_override, str):
-        session_override = session_override.strip().lower()
-        if session_override in {"safe", "compat"}:
-            return session_override
-
     explicit_mode = os.getenv("MAIN_RENDER_MODE", "").strip().lower()
     if explicit_mode in {"safe", "compat"}:
         return explicit_mode
@@ -233,45 +227,6 @@ def resolve_main_render_mode() -> str:
     safe_mode_raw = os.getenv("MAIN_SAFE_MODE", "true")
     safe_mode_value = safe_mode_raw.strip().lower() == "true"
     return "safe" if safe_mode_value else "compat"
-
-
-def render_deploy_fingerprint() -> None:
-    """デプロイ反映確認用の識別子を表示"""
-    git_rev = get_git_revision()
-    deploy_branch = (
-        os.getenv("RAILWAY_GIT_BRANCH", "").strip()
-        or os.getenv("VERCEL_GIT_COMMIT_REF", "").strip()
-        or os.getenv("GITHUB_REF_NAME", "").strip()
-        or "unknown"
-    )
-    render_mode = resolve_main_render_mode()
-    session_override = st.session_state.get("main_render_mode_override", "")
-    override_label = ""
-    if isinstance(session_override, str) and session_override.strip().lower() in {"safe", "compat"}:
-        override_label = f" | SESSION_OVERRIDE={session_override.strip().lower()}"
-    st.caption(
-        f"Build: v{APP_VERSION} | rev: {git_rev} | branch: {deploy_branch} | updated: {APP_LAST_UPDATE} | MAIN_RENDER_MODE={render_mode}{override_label}"
-    )
-
-
-def render_main_mode_switch_controls() -> None:
-    """運用中の段階復旧用に表示モードをセッション単位で切替"""
-    current_mode = resolve_main_render_mode()
-    st.caption("表示モード切替（このブラウザセッションのみ）")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("safe表示", key="switch_mode_safe", use_container_width=True):
-            st.session_state["main_render_mode_override"] = "safe"
-            st.rerun()
-    with col2:
-        if st.button("compat表示", key="switch_mode_compat", use_container_width=True):
-            st.session_state["main_render_mode_override"] = "compat"
-            st.rerun()
-    with col3:
-        if st.button("環境設定に戻す", key="switch_mode_env", use_container_width=True):
-            st.session_state.pop("main_render_mode_override", None)
-            st.rerun()
-    st.caption(f"現在モード: {current_mode}")
 
 
 def _navigate(page: str) -> None:
@@ -286,7 +241,6 @@ def _logout_user() -> None:
     st.session_state.admin_logged_in = False
     st.session_state.page = "login"
     st.session_state.pop("score_data", None)
-    st.session_state.pop("main_render_mode_override", None)
     st.rerun()
 
 
@@ -295,40 +249,87 @@ def render_dashboard_shell() -> None:
     st.markdown(
         """
         <style>
+          :root {
+            --club-ink: #16332b;
+            --club-muted: #6f817a;
+            --club-green: #0e6b4f;
+            --club-green-deep: #073d31;
+            --club-mint: #e9f5ef;
+            --club-line: #dce9e2;
+            --club-cream: #fbfaf4;
+            --club-gold: #d3aa4a;
+          }
+          .stApp { background: linear-gradient(180deg, #f7faf8 0, #ffffff 430px); }
+          .block-container { max-width: 1180px; padding-top: 1.5rem; padding-bottom: 4rem; }
           .dashboard-hero {
-                        padding: 1.8rem 1.9rem;
-            margin: .4rem 0 1rem;
-                        border-radius: 20px;
+            position: relative; overflow: hidden;
+            padding: 2.4rem 2.5rem 2.25rem;
+            margin: .25rem 0 1.25rem;
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: 28px;
             color: white;
-                        background: linear-gradient(120deg, #073b30 0%, #087f5b 55%, #18a878 100%);
-            box-shadow: 0 10px 26px rgba(8, 127, 91, .20);
+            background:
+              radial-gradient(circle at 90% 15%, rgba(255,255,255,.16) 0 90px, transparent 91px),
+              radial-gradient(circle at 85% 80%, rgba(211,170,74,.18) 0 150px, transparent 151px),
+              linear-gradient(125deg, #052f27 0%, #0c674c 58%, #17845f 100%);
+            box-shadow: 0 22px 55px rgba(7, 61, 49, .20);
           }
-                    .dashboard-hero h1 { margin: 0; font-size: 2.15rem; color: white; letter-spacing: .02em; }
-          .dashboard-hero p { margin: .45rem 0 0; color: #e4fff2; font-size: 1rem; }
-                    .dashboard-section-label { margin: 1.55rem 0 .65rem; font-size: 1.35rem; font-weight: 750; color: #155e4a; }
+          .dashboard-hero::after { content: "88"; position: absolute; right: 2rem; bottom: -2.5rem; color: rgba(255,255,255,.07); font-size: 9rem; line-height: 1; font-weight: 900; }
+          .dashboard-eyebrow { color: #bcead7; font-size: .76rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+          .dashboard-hero h1 { margin: .45rem 0 0; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1.08; color: white; letter-spacing: -.035em; }
+          .dashboard-hero p { max-width: 650px; margin: .8rem 0 0; color: #d9f3e8; font-size: 1rem; line-height: 1.75; }
+          .dashboard-hero-badge { display: inline-block; margin-top: 1.2rem; padding: .42rem .75rem; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(255,255,255,.10); color: #fff7dc; font-size: .78rem; font-weight: 700; }
+          .dashboard-section-label { margin: 1.8rem 0 .75rem; color: var(--club-ink); font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; }
+          .dashboard-section-label small { display: block; margin-top: .2rem; color: var(--club-muted); font-size: .78rem; font-weight: 500; letter-spacing: 0; }
           .dashboard-status-card {
-                        border: 1px solid #dcece5; border-radius: 14px; padding: .95rem 1rem;
-            background: #f7fcf9; color: #245447; min-height: 88px;
+            min-height: 116px; padding: 1.05rem 1.1rem;
+            border: 1px solid var(--club-line); border-radius: 18px;
+            background: rgba(255,255,255,.88); color: var(--club-ink);
+            box-shadow: 0 8px 24px rgba(23, 72, 57, .055);
           }
-          .dashboard-status-card strong { display: block; color: #0b5542; font-size: 1.3rem; margin-top: .18rem; }
-          .dashboard-status-card span { color: #638277; font-size: .82rem; }
-                    .dashboard-notice-lead { color: #628276; margin: -.2rem 0 .9rem; }
-                    .dashboard-footer { margin: 2rem 0 .5rem; text-align: center; color: #78948a; font-size: .82rem; }
-                    .dashboard-chart { padding: 1rem 1.15rem; border: 1px solid #dcece5; border-radius: 14px; background: #fbfefd; }
-                    .dashboard-chart-row { display: grid; grid-template-columns: minmax(105px, 24%) 1fr 42px; gap: .65rem; align-items: center; margin: .72rem 0; }
-                    .dashboard-chart-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #235447; font-weight: 600; font-size: .92rem; }
-                    .dashboard-chart-track { height: 12px; overflow: hidden; border-radius: 999px; background: #e2f0e9; }
-                    .dashboard-chart-fill { height: 100%; min-width: 7px; border-radius: inherit; background: linear-gradient(90deg, #0b7a59, #28b982); }
-                    .dashboard-chart-value { text-align: right; color: #0b5542; font-size: .86rem; font-weight: 700; }
-                    @media (max-width: 640px) {
-                        .dashboard-hero { padding: 1.3rem 1.2rem; } .dashboard-hero h1 { font-size: 1.75rem; }
-                        .dashboard-chart-row { grid-template-columns: 95px 1fr 38px; gap: .45rem; }
-                    }
-          div[data-testid="stButton"] > button { border-radius: 10px; min-height: 2.65rem; font-weight: 600; }
+          .dashboard-status-card .metric-icon { display: block; margin-bottom: .62rem; font-size: 1.15rem; }
+          .dashboard-status-card strong { display: block; margin-top: .12rem; color: var(--club-green-deep); font-size: 1.45rem; letter-spacing: -.02em; }
+          .dashboard-status-card span { color: var(--club-muted); font-size: .78rem; }
+          .dashboard-notice { padding: 1.45rem 1.55rem; border: 1px solid #e9e3d1; border-radius: 22px; background: linear-gradient(135deg, #fffdf7, #fbf7e9); box-shadow: 0 10px 28px rgba(90,70,24,.06); }
+          .dashboard-notice h3 { margin: 0; color: #43391e; font-size: 1.3rem; }
+          .dashboard-notice p { margin: .65rem 0 0; color: #665f4d; line-height: 1.7; }
+          .dashboard-footer { margin: 2.5rem 0 .5rem; padding-top: 1rem; border-top: 1px solid var(--club-line); text-align: center; color: #84968f; font-size: .78rem; }
+          .dashboard-chart { padding: 1rem 1.15rem; border: 1px solid var(--club-line); border-radius: 18px; background: #fff; }
+          .dashboard-chart-row { display: grid; grid-template-columns: minmax(105px, 24%) 1fr 42px; gap: .65rem; align-items: center; margin: .72rem 0; }
+          .dashboard-chart-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #235447; font-weight: 650; font-size: .9rem; }
+          .dashboard-chart-track { height: 10px; overflow: hidden; border-radius: 999px; background: #e5f0eb; }
+          .dashboard-chart-fill { height: 100%; min-width: 7px; border-radius: inherit; background: linear-gradient(90deg, var(--club-green), #36a77e); }
+          .dashboard-chart-value { text-align: right; color: var(--club-green-deep); font-size: .84rem; font-weight: 800; }
+          .dashboard-spotlight { min-height: 165px; padding: 1.35rem 1.45rem; border: 1px solid var(--club-line); border-radius: 20px; background: #fff; box-shadow: 0 10px 28px rgba(20,65,51,.06); }
+          .dashboard-spotlight.gold { border-color: #eadcae; background: linear-gradient(135deg, #fffdf7, #fbf3d7); }
+          .dashboard-spotlight .eyebrow { color: var(--club-muted); font-size: .75rem; font-weight: 800; letter-spacing: .09em; }
+          .dashboard-spotlight strong { display: block; margin: .55rem 0 .25rem; color: var(--club-green-deep); font-size: 1.55rem; letter-spacing: -.02em; }
+          .dashboard-spotlight.gold strong { color: #735a18; }
+          .dashboard-spotlight p { margin: 0; color: #687b73; font-size: .86rem; line-height: 1.65; }
+          .dashboard-podium { min-height: 116px; padding: 1rem; border: 1px solid var(--club-line); border-radius: 16px; background: #fff; text-align: center; }
+          .dashboard-podium .medal { font-size: 1.35rem; }
+          .dashboard-podium strong { display: block; margin: .28rem 0 .1rem; color: var(--club-ink); font-size: 1rem; }
+          .dashboard-podium span { color: var(--club-muted); font-size: .8rem; }
+          .dashboard-competition { min-height: 128px; padding: 1rem; border-left: 4px solid var(--club-green); border-radius: 0 16px 16px 0; background: #f7fbf9; }
+          .dashboard-competition strong { display: block; margin: .3rem 0; color: var(--club-ink); font-size: .95rem; }
+          .dashboard-competition span { color: var(--club-muted); font-size: .78rem; }
+          div[data-testid="stButton"] > button { min-height: 3.15rem; border: 1px solid var(--club-line); border-radius: 14px; background: rgba(255,255,255,.92); color: var(--club-ink); font-weight: 700; box-shadow: 0 5px 16px rgba(20,65,51,.045); transition: all .16s ease; }
+          div[data-testid="stButton"] > button:hover { border-color: #82b5a2; color: var(--club-green); transform: translateY(-1px); box-shadow: 0 9px 22px rgba(20,65,51,.10); }
+          div[data-testid="stExpander"] { border-color: var(--club-line); border-radius: 14px; background: rgba(255,255,255,.72); }
+          @media (max-width: 640px) {
+            .block-container { padding: .8rem 1rem 3rem; }
+            .dashboard-hero { padding: 1.65rem 1.35rem; border-radius: 22px; }
+            .dashboard-hero::after { right: .5rem; font-size: 7rem; }
+            .dashboard-status-card { min-height: 102px; margin-bottom: .45rem; }
+            .dashboard-spotlight { min-height: 0; margin-bottom: .55rem; }
+            .dashboard-chart-row { grid-template-columns: 88px 1fr 36px; gap: .45rem; }
+          }
         </style>
         <div class="dashboard-hero">
-          <h1>88会 ゴルフコンペ</h1>
-          <p>ようこそ。大会のお知らせ、成績、競技結果をここから確認できます。</p>
+          <div class="dashboard-eyebrow">Happakai Golf Society</div>
+          <h1>いい仲間と、<br>いいゴルフを。</h1>
+          <p>88会の開催案内から個人成績、歴代の競技結果まで。いつもの情報を、ひとつの場所で。</p>
+          <div class="dashboard-hero-badge">⛳ 88会 メンバーズポータル</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -337,28 +338,21 @@ def render_dashboard_shell() -> None:
 
 def render_dashboard_navigation() -> None:
     """主要機能へのショートカット"""
-    st.markdown('<div class="dashboard-section-label">メニュー</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-section-label">メニュー<small>見たい情報を選んでください</small></div>', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("📊 個人成績", key="dashboard_stats", use_container_width=True):
+        if st.button("📈  個人成績を見る", key="dashboard_stats", use_container_width=True):
             _navigate("stats")
     with col2:
-        if st.button("🏆 競技結果", key="dashboard_results", use_container_width=True):
+        if st.button("🏆  競技結果を見る", key="dashboard_results", use_container_width=True):
             _navigate("results")
     with col3:
-        if st.button("⚙️ 管理", key="dashboard_admin", use_container_width=True):
+        if st.button("⚙️  管理メニュー", key="dashboard_admin", use_container_width=True):
             st.session_state.admin_logged_in = False
             _navigate("admin")
     with col4:
-        if st.button("🚪 ログアウト", key="dashboard_logout", use_container_width=True):
+        if st.button("↗  ログアウト", key="dashboard_logout", use_container_width=True):
             _logout_user()
-
-
-def render_dashboard_tools() -> None:
-    """通常利用では目立たせない運用・障害対応用コントロール。"""
-    with st.expander("システム情報・表示設定", expanded=False):
-        render_deploy_fingerprint()
-        render_main_mode_switch_controls()
 
 
 def render_dashboard_status(
@@ -392,18 +386,18 @@ def render_dashboard_status(
         if not latest_values.empty:
             latest_date = str(latest_values.max())
 
-    st.markdown('<div class="dashboard-section-label">大会状況</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-section-label">大会状況<small>88会の記録をひと目で確認</small></div>', unsafe_allow_html=True)
     cards = [
-        ("登録プレイヤー", f"{len(players_df)} 名"),
-        ("記録済みスコア", f"{len(valid_scores)} 件"),
-        ("開催コンペ", f"第{competition_round}回" if competition_round else "データなし"),
-        ("最新記録", latest_date),
+        ("👥", "登録プレイヤー", f"{len(players_df)} 名"),
+        ("📝", "記録済みスコア", f"{len(valid_scores)} 件"),
+        ("⛳", "開催コンペ", f"第{competition_round}回" if competition_round else "データなし"),
+        ("📅", "最新記録", latest_date),
     ]
     columns = st.columns(4)
-    for column, (label, value) in zip(columns, cards):
+    for column, (icon, label, value) in zip(columns, cards):
         with column:
             st.markdown(
-                f'<div class="dashboard-status-card"><span>{html.escape(label)}</span><strong>{html.escape(value)}</strong></div>',
+                f'<div class="dashboard-status-card"><span class="metric-icon">{icon}</span><span>{html.escape(label)}</span><strong>{html.escape(value)}</strong></div>',
                 unsafe_allow_html=True,
             )
 
@@ -474,8 +468,6 @@ if os.getenv("DEBUG_SUPABASE") == "true":
     st.write("DEBUG: SUPABASE_URL =", "SET" if SUPABASE_URL else "NOT SET")
     st.write("DEBUG: SUPABASE_KEY =", "SET" if SUPABASE_KEY else "NOT SET") 
     st.write("DEBUG: SUPABASE_SERVICE_KEY =", "SET" if SUPABASE_SERVICE_KEY else "NOT SET")
-    st.write("DEBUG: from secrets =", _get_secret_supabase("service_key"))
-    st.write("DEBUG: from env =", os.getenv("SUPABASE_SERVICE_KEY", "NOT SET"))
 
 # 接続情報が不足している場合の対応
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -504,16 +496,16 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 USER_PASSWORD = (
     _get_secret_auth("user_password", "password")
     or os.getenv("USER_PASSWORD", "").strip()
-    or "88"
 )
 ADMIN_PASSWORD = (
     _get_secret_auth("admin_password")
     or os.getenv("ADMIN_PASSWORD", "").strip()
-    or "admin88"
 )
 
-if USER_PASSWORD == "88" or ADMIN_PASSWORD == "admin88":
-    logging.warning("Default passwords are in use. Set USER_PASSWORD and ADMIN_PASSWORD in secrets or env.")
+if not USER_PASSWORD:
+    logging.error("USER_PASSWORD is not configured. User login is disabled.")
+if not ADMIN_PASSWORD:
+    logging.error("ADMIN_PASSWORD is not configured. Administrator login is disabled.")
 
 # エラーハンドリング用のヘルパー関数
 def handle_error(error: Exception, context: str = "", show_details: bool = False):
@@ -788,7 +780,7 @@ def display_visualizations(scores_df, players_df):
     plt.tight_layout()
     st.pyplot(plt.gcf())
 
-def personal_stats_page():
+def _legacy_personal_stats_page():
     """個人成績ダッシュボード"""
     st.title("📊 個人成績ダッシュボード")
     
@@ -1076,7 +1068,147 @@ def personal_stats_page():
         st.session_state.page = "main"
         st.rerun()
 
-def competition_results_page():
+
+def personal_stats_page():
+    """個人の記録を、通常コンペの有効スコアだけで見やすく表示する。"""
+    scores_df = fetch_scores()
+    if scores_df.empty:
+        st.warning("個人成績データを取得できません。")
+        return
+
+    player_counts = scores_df["プレイヤー名"].dropna().value_counts()
+    players_list = player_counts.index.tolist()
+    if not players_list:
+        st.info("表示できるプレイヤーがいません。")
+        return
+
+    if st.session_state.get("selected_player_for_stats") not in players_list:
+        st.session_state.selected_player_for_stats = players_list[0]
+    selected_player = st.selectbox(
+        "プレイヤーを選択",
+        players_list,
+        index=players_list.index(st.session_state.selected_player_for_stats),
+        key="selected_player_for_stats_selector",
+    )
+    st.session_state.selected_player_for_stats = selected_player
+
+    all_player_data = scores_df[scores_df["プレイヤー名"] == selected_player].copy()
+    player_data = _valid_dashboard_scores(scores_df)
+    player_data = player_data[player_data["プレイヤー名"] == selected_player].copy()
+    if player_data.empty:
+        st.markdown(f'<div class="dashboard-hero"><div class="dashboard-eyebrow">PLAYER NOTE</div><h1>{html.escape(selected_player)}</h1><p>通常コンペの詳細スコアがまだ登録されていません。</p></div>', unsafe_allow_html=True)
+        return
+
+    player_data["_date"] = pd.to_datetime(player_data["日付"], errors="coerce")
+    player_data = player_data.sort_values("_date")
+    latest = player_data.iloc[-1]
+    previous = player_data.iloc[-2] if len(player_data) >= 2 else None
+    latest_gross = float(latest["_gross"])
+    previous_gross = float(previous["_gross"]) if previous is not None else None
+    gross_delta = latest_gross - previous_gross if previous_gross is not None else None
+    regular_competitions = pd.to_numeric(all_player_data["競技ID"], errors="coerce")
+    ranked_history = all_player_data[(regular_competitions > 0) & (regular_competitions < 100) & (regular_competitions != 41)]
+    ranked_history_ranks = pd.to_numeric(ranked_history["順位"], errors="coerce")
+    wins = int((ranked_history_ranks == 1).sum())
+    top3 = int((ranked_history_ranks <= 3).sum())
+    avg_net = pd.to_numeric(player_data["ネットスコア"], errors="coerce").mean()
+    avg_gross = player_data["_gross"].mean()
+    best_net_row = player_data.loc[pd.to_numeric(player_data["ネットスコア"], errors="coerce").idxmin()]
+    best_gross_row = player_data.loc[player_data["_gross"].idxmin()]
+
+    st.markdown(
+        f'<div class="dashboard-hero"><div class="dashboard-eyebrow">PLAYER NOTE</div>'
+        f'<h1>{html.escape(selected_player)} さんのゴルフノート</h1>'
+        f'<p>通常コンペの詳細スコア {len(player_data)} 回分をもとにした個人成績です。</p></div>',
+        unsafe_allow_html=True,
+    )
+
+    hero_columns = st.columns(2)
+    latest_rank = _dashboard_text(latest.get("順位"))
+    delta_label = "初回記録" if gross_delta is None else (f"前回比 {gross_delta:+.0f}打" if gross_delta else "前回比 ±0打")
+    with hero_columns[0]:
+        st.markdown(
+            f'<div class="dashboard-spotlight"><div class="eyebrow">LATEST ROUND</div>'
+            f'<strong>⛳ {_dashboard_text(latest.get("合計スコア"))}　<span style="font-size:1rem">{latest_rank}位</span></strong>'
+            f'<p>{_dashboard_text(latest.get("日付"))} ・ {html.escape(_dashboard_text(latest.get("コース")))}<br>'
+            f'NET {_dashboard_text(latest.get("ネットスコア"))} ・ {delta_label}</p></div>',
+            unsafe_allow_html=True,
+        )
+    with hero_columns[1]:
+        st.markdown(
+            f'<div class="dashboard-spotlight gold"><div class="eyebrow">PERSONAL BEST</div>'
+            f'<strong>⚡ GROSS {_dashboard_text(best_gross_row.get("合計スコア"))}</strong>'
+            f'<p>{_dashboard_text(best_gross_row.get("日付"))} ・ {html.escape(_dashboard_text(best_gross_row.get("コース")))}<br>'
+            f'ベストネット {_dashboard_text(best_net_row.get("ネットスコア"))}</p></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('<div class="dashboard-section-label">成績サマリー<small>有効スコアの通常コンペを集計</small></div>', unsafe_allow_html=True)
+    metrics = [
+        ("📝", "出場回数", f"{len(player_data)}回"),
+        ("🏆", "優勝回数", f"{wins}回"),
+        ("📈", "平均ネット", f"{avg_net:.1f}"),
+        ("⛳", "平均グロス", f"{avg_gross:.1f}"),
+    ]
+    metric_columns = st.columns(4)
+    for column, (icon, label, value) in zip(metric_columns, metrics):
+        with column:
+            st.markdown(f'<div class="dashboard-status-card"><span class="metric-icon">{icon}</span><span>{label}</span><strong>{value}</strong></div>', unsafe_allow_html=True)
+
+    overview_tab, trend_tab, history_tab = st.tabs(["概要", "スコア推移", "成績履歴"])
+    with overview_tab:
+        overview_columns = st.columns(3)
+        with overview_columns[0]:
+            top3_rate = top3 / len(player_data) * 100
+            st.markdown(f'<div class="dashboard-podium"><div class="medal">🏅</div><strong>入賞 {top3} 回</strong><span>3位以内率 {top3_rate:.1f}%</span></div>', unsafe_allow_html=True)
+        with overview_columns[1]:
+            st.markdown(f'<div class="dashboard-podium"><div class="medal">🎯</div><strong>NET {_dashboard_text(best_net_row.get("ネットスコア"))}</strong><span>自己ベストネット</span></div>', unsafe_allow_html=True)
+        with overview_columns[2]:
+            course_average = player_data.groupby("コース")["ネットスコア"].mean().sort_values()
+            favourite_course = _dashboard_text(course_average.index[0]) if not course_average.empty else "－"
+            favourite_average = _dashboard_text(course_average.iloc[0]) if not course_average.empty else "－"
+            st.markdown(f'<div class="dashboard-podium"><div class="medal">🌿</div><strong>{html.escape(favourite_course)}</strong><span>平均ネット {favourite_average}</span></div>', unsafe_allow_html=True)
+
+    with trend_tab:
+        fig, ax = plt.subplots(figsize=(12, 5))
+        x_values = range(len(player_data))
+        net_scores = pd.to_numeric(player_data["ネットスコア"], errors="coerce")
+        ax.plot(x_values, net_scores, marker="o", linewidth=2.2, label="ネット", color="#0e6b4f")
+        ax.plot(x_values, player_data["_gross"], marker="s", linewidth=1.6, linestyle="--", label="グロス", color="#d3aa4a")
+        ax.axhline(net_scores.mean(), color="#0e6b4f", linestyle=":", alpha=.55, label=f"平均ネット {net_scores.mean():.1f}")
+        labels = [str(value)[:10] for value in player_data["日付"].tolist()]
+        ax.set_xticks(list(x_values))
+        ax.set_xticklabels(labels, rotation=45, ha="right")
+        ax.set_ylabel("スコア")
+        ax.grid(axis="y", alpha=.22)
+        ax.legend()
+        fig.tight_layout()
+        st.pyplot(fig, width="stretch")
+
+        handicap = pd.to_numeric(player_data["ハンディキャップ"], errors="coerce")
+        if handicap.notna().any():
+            fig_hc, ax_hc = plt.subplots(figsize=(12, 4))
+            ax_hc.plot(x_values, handicap, marker="o", linewidth=2, color="#477fbb")
+            ax_hc.set_xticks(list(x_values))
+            ax_hc.set_xticklabels(labels, rotation=45, ha="right")
+            ax_hc.set_ylabel("ハンディキャップ")
+            ax_hc.grid(axis="y", alpha=.22)
+            fig_hc.tight_layout()
+            st.pyplot(fig_hc, width="stretch")
+
+    with history_tab:
+        history = player_data.sort_values("_date", ascending=False).head(10).copy()
+        history = history[["日付", "コース", "順位", "ネットスコア", "合計スコア", "アウトスコア", "インスコア", "ハンディキャップ"]]
+        history.columns = ["日付", "コース", "順位", "ネット", "グロス", "OUT", "IN", "HC"]
+        render_html_table(history, max_rows=10)
+        st.caption("直近10回の有効スコアを表示しています。")
+
+    if st.button("← メイン画面へ", key="back_to_main_from_stats_modern"):
+        st.session_state.page = "main"
+        st.rerun()
+
+
+def _legacy_competition_results_page():
     """競技結果一覧ページ"""
     st.title("🏆 競技結果一覧")
     
@@ -1238,22 +1370,132 @@ def competition_results_page():
         st.session_state.page = "main"
         st.rerun()
 
+
+def competition_results_page():
+    """競技を一つずつ選び、順位とスコアを見やすく確認する。"""
+    scores_df = fetch_scores()
+    if scores_df.empty:
+        st.warning("競技結果データがありません。")
+        return
+
+    results = scores_df.copy()
+    results["_competition_id"] = pd.to_numeric(results["競技ID"], errors="coerce")
+    results["_date_text"] = results["日付"].fillna("").astype(str)
+    results["_course_text"] = results["コース"].fillna("コース未設定").astype(str)
+
+    filter_columns = st.columns([1, 1, 1.3])
+    years = sorted([year for year in results["_date_text"].str[:4].unique() if year], reverse=True)
+    with filter_columns[0]:
+        selected_year = st.selectbox("開催年", ["すべて"] + years, key="results_year_filter")
+    with filter_columns[1]:
+        courses = sorted(results["_course_text"].unique().tolist())
+        selected_course = st.selectbox("コース", ["すべて"] + courses, key="results_course_filter")
+    with filter_columns[2]:
+        include_archive = st.checkbox("特別・過去データも表示", value=False, key="results_include_archive")
+
+    if not include_archive:
+        results = results[
+            (results["_competition_id"] > 0)
+            & (results["_competition_id"] < 100)
+            & (results["_competition_id"] != 41)
+        ]
+    if selected_year != "すべて":
+        results = results[results["_date_text"].str.startswith(selected_year)]
+    if selected_course != "すべて":
+        results = results[results["_course_text"] == selected_course]
+
+    if results.empty:
+        st.info("選択した条件に一致する競技結果がありません。")
+        return
+
+    competition_index = (
+        results.groupby("_competition_id", as_index=False)
+        .agg({"_date_text": "max", "_course_text": "first"})
+        .sort_values(["_date_text", "_competition_id"], ascending=False)
+        .reset_index(drop=True)
+    )
+    selected_competition = st.selectbox(
+        "競技を選択",
+        competition_index.to_dict("records"),
+        format_func=lambda item: f'第{int(item["_competition_id"])}回　{item["_date_text"]}　{item["_course_text"]}',
+        key="results_competition_selector",
+    )
+    competition_id = selected_competition["_competition_id"]
+    competition_rows = results[results["_competition_id"] == competition_id].copy()
+    rankings = pd.to_numeric(competition_rows["順位"], errors="coerce")
+    competition_rows["_ranking"] = rankings
+    competition_rows = competition_rows.sort_values(["_ranking", "プレイヤー名"], na_position="last")
+    detailed_rows = _valid_dashboard_scores(competition_rows)
+
+    participants = len(competition_rows)
+    valid_participants = len(detailed_rows)
+    average_net = pd.to_numeric(detailed_rows.get("ネットスコア"), errors="coerce").mean() if not detailed_rows.empty else None
+    average_gross = detailed_rows["_gross"].mean() if not detailed_rows.empty else None
+    st.markdown(
+        f'<div class="dashboard-hero"><div class="dashboard-eyebrow">COMPETITION RESULT</div>'
+        f'<h1>第{int(competition_id)}回　競技結果</h1>'
+        f'<p>{_dashboard_text(selected_competition["_date_text"])} ・ {html.escape(selected_competition["_course_text"])}<br>'
+        f'順位登録 {participants} 名 / 詳細スコア登録 {valid_participants} 名</p></div>',
+        unsafe_allow_html=True,
+    )
+
+    summary_cards = [
+        ("👥", "順位登録人数", f"{participants}名"),
+        ("📊", "平均ネット", f"{average_net:.1f}" if pd.notna(average_net) else "－"),
+        ("⛳", "平均グロス", f"{average_gross:.1f}" if pd.notna(average_gross) else "－"),
+        ("📝", "詳細スコア", f"{valid_participants}名"),
+    ]
+    summary_columns = st.columns(4)
+    for column, (icon, label, value) in zip(summary_columns, summary_cards):
+        with column:
+            st.markdown(f'<div class="dashboard-status-card"><span class="metric-icon">{icon}</span><span>{label}</span><strong>{value}</strong></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="dashboard-section-label">表彰台<small>順位が登録されている上位3名</small></div>', unsafe_allow_html=True)
+    podium_rows = competition_rows[competition_rows["_ranking"].notna()].head(3)
+    podium_columns = st.columns(3)
+    medals = ("🥇", "🥈", "🥉")
+    for index, column in enumerate(podium_columns):
+        with column:
+            if index < len(podium_rows):
+                row = podium_rows.iloc[index]
+                name = html.escape(_dashboard_text(row.get("プレイヤー名")))
+                net = _dashboard_text(row.get("ネットスコア"))
+                gross = _dashboard_text(row.get("合計スコア"))
+                st.markdown(f'<div class="dashboard-podium"><div class="medal">{medals[index]}</div><strong>{name} さん</strong><span>NET {net} ・ GROSS {gross}</span></div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="dashboard-podium"><div class="medal">⛳</div><strong>順位未登録</strong><span>結果を入力すると表示されます</span></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="dashboard-section-label">完全順位表<small>詳細スコア未登録の順位記録も含みます</small></div>', unsafe_allow_html=True)
+    result_columns = ["順位", "プレイヤー名", "合計スコア", "アウトスコア", "インスコア", "ハンディキャップ", "ネットスコア"]
+    result_table = competition_rows[result_columns].copy()
+    result_table.columns = ["順位", "プレイヤー名", "グロス", "OUT", "IN", "HC", "ネット"]
+    render_html_table(result_table, max_rows=200)
+
+    if not detailed_rows.empty:
+        st.caption("平均値は、OUT/INが入力された詳細スコアのみで計算しています。")
+    elif not competition_rows.empty:
+        st.caption("この競技には詳細スコアが登録されていないため、平均スコアは表示していません。")
+
+    if st.button("← メイン画面へ", key="back_to_main_from_results_modern"):
+        st.session_state.page = "main"
+        st.rerun()
+
+
 def get_winner_count_ranking(scores_df: pd.DataFrame) -> pd.DataFrame:
-    """通常コンペの有効な優勝記録だけから優勝回数を集計する。"""
-    required_columns = {"競技ID", "順位", "アウトスコア", "インスコア", "合計スコア", "プレイヤー名"}
+    """通常コンペの順位1位記録から優勝回数を集計する。"""
+    required_columns = {"競技ID", "順位", "プレイヤー名"}
     if scores_df.empty or not required_columns.issubset(scores_df.columns):
         return pd.DataFrame(columns=["プレイヤー名", "優勝回数"])
 
     competition_ids = pd.to_numeric(scores_df["競技ID"], errors="coerce")
     rankings = pd.to_numeric(scores_df["順位"], errors="coerce")
+    # 過去データには詳細スコアが未入力でも順位が登録された回があるため、
+    # 優勝回数はスコアの有無ではなく順位のみを正とする。
     # 第41回はテスト用データのため、ベストスコアと同様に集計対象外とする。
     valid_scores = scores_df[
         (competition_ids > 0)
         & (competition_ids < 100)
         & (competition_ids != 41)
-        & (scores_df["アウトスコア"] > 0)
-        & (scores_df["インスコア"] > 0)
-        & (scores_df["合計スコア"] > 0)
         & (rankings == 1)
         & scores_df["プレイヤー名"].notna()
     ]
@@ -1279,7 +1521,7 @@ def display_winner_count_ranking(scores_df):
     rank_one_winners = get_winner_count_ranking(scores_df)
 
     render_html_table(rank_one_winners, max_rows=200)
-    st.caption("通常コンペ（ID 1〜99・第41回を除く）の有効な優勝記録を集計しています。グラフは一時停止中です。")
+    st.caption("通常コンペ（ID 1〜99・第41回を除く）の順位1位記録を集計しています。")
 
 
 def render_html_table(df: pd.DataFrame, max_rows: int = 200) -> None:
@@ -1323,26 +1565,154 @@ def sanitize_display_df(df: pd.DataFrame) -> pd.DataFrame:
     if drop_cols:
         return df.drop(columns=drop_cols, errors="ignore")
     return df
+
+
+def _valid_dashboard_scores(scores_df: pd.DataFrame) -> pd.DataFrame:
+    """グロス・出場回数表示に使える、詳細スコア登録済みの通常コンペを返す。"""
+    required_columns = {"競技ID", "アウトスコア", "インスコア", "合計スコア", "プレイヤー名"}
+    if scores_df.empty or not required_columns.issubset(scores_df.columns):
+        return pd.DataFrame()
+
+    valid_scores = scores_df.copy()
+    valid_scores["_competition_id"] = pd.to_numeric(valid_scores["競技ID"], errors="coerce")
+    valid_scores["_gross"] = pd.to_numeric(valid_scores["合計スコア"], errors="coerce")
+    valid_scores["_out"] = pd.to_numeric(valid_scores["アウトスコア"], errors="coerce")
+    valid_scores["_in"] = pd.to_numeric(valid_scores["インスコア"], errors="coerce")
+    return valid_scores[
+        (valid_scores["_competition_id"] > 0)
+        & (valid_scores["_competition_id"] < 100)
+        & (valid_scores["_out"] > 0)
+        & (valid_scores["_in"] > 0)
+        & (valid_scores["_gross"] > 0)
+        & valid_scores["プレイヤー名"].notna()
+    ].copy()
+
+
+def _dashboard_text(value: Any, fallback: str = "－") -> str:
+    if pd.isna(value) or value is None or str(value).strip() == "":
+        return fallback
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def render_dashboard_highlights(scores_df: pd.DataFrame) -> None:
+    """トップページ用の主要記録・ランキングを表示する。"""
+    valid_scores = _valid_dashboard_scores(scores_df)
+    if valid_scores.empty:
+        return
+
+    st.markdown('<div class="dashboard-section-label">88会 ハイライト<small>記録から見る、みんなのゴルフ</small></div>', unsafe_allow_html=True)
+
+    latest_scores = valid_scores.sort_values(["日付", "_competition_id"], ascending=False)
+    latest_competition_id = latest_scores.iloc[0]["_competition_id"]
+    latest_competition = valid_scores[valid_scores["_competition_id"] == latest_competition_id]
+    latest_date = _dashboard_text(latest_competition.iloc[0].get("日付"))
+    latest_course = html.escape(_dashboard_text(latest_competition.iloc[0].get("コース")))
+    latest_ranking = pd.to_numeric(latest_competition.get("順位"), errors="coerce")
+    latest_winners = latest_competition[latest_ranking == 1]
+    if latest_winners.empty:
+        winner_name = "順位未登録"
+        winner_detail = "最新コンペの順位を登録すると表示されます"
+    else:
+        winner = latest_winners.sort_values("ネットスコア", na_position="last").iloc[0]
+        winner_name = html.escape(_dashboard_text(winner.get("プレイヤー名")))
+        winner_detail = f'NET {_dashboard_text(winner.get("ネットスコア"))} / GROSS {_dashboard_text(winner.get("合計スコア"))}'
+
+    best_gross = valid_scores.sort_values("_gross", ascending=True).iloc[0]
+    best_name = html.escape(_dashboard_text(best_gross.get("プレイヤー名")))
+    best_detail = (
+        f'{_dashboard_text(best_gross.get("日付"))} ・ '
+        f'{html.escape(_dashboard_text(best_gross.get("コース")))}'
+    )
+
+    spotlight_columns = st.columns(2)
+    with spotlight_columns[0]:
+        st.markdown(
+            f'<div class="dashboard-spotlight"><div class="eyebrow">LATEST CHAMPION</div>'
+            f'<strong>🏆 {winner_name}</strong><p>第{int(latest_competition_id)}回 ・ {latest_date} ・ {latest_course}<br>{winner_detail}</p></div>',
+            unsafe_allow_html=True,
+        )
+    with spotlight_columns[1]:
+        st.markdown(
+            f'<div class="dashboard-spotlight gold"><div class="eyebrow">BEST GROSS</div>'
+            f'<strong>⚡ {best_name}　{_dashboard_text(best_gross.get("合計スコア"))}</strong>'
+            f'<p>{best_detail}<br>OUT {_dashboard_text(best_gross.get("アウトスコア"))} / IN {_dashboard_text(best_gross.get("インスコア"))}</p></div>',
+            unsafe_allow_html=True,
+        )
+
+    winners = get_winner_count_ranking(scores_df).head(3)
+    appearances = (
+        valid_scores.groupby("プレイヤー名")["_competition_id"]
+        .nunique()
+        .sort_values(ascending=False)
+        .head(5)
+    )
+    st.markdown('<div class="dashboard-section-label">歴代ランキング<small>優勝と出場の記録</small></div>', unsafe_allow_html=True)
+    podium_columns = st.columns(3)
+    medals = ("🥇", "🥈", "🥉")
+    for index, column in enumerate(podium_columns):
+        with column:
+            if index < len(winners):
+                row = winners.iloc[index]
+                name = html.escape(_dashboard_text(row["プレイヤー名"]))
+                wins = _dashboard_text(row["優勝回数"])
+                st.markdown(f'<div class="dashboard-podium"><div class="medal">{medals[index]}</div><strong>{name}</strong><span>優勝 {wins} 回</span></div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="dashboard-podium"><div class="medal">⛳</div><strong>記録なし</strong><span>優勝記録を待っています</span></div>', unsafe_allow_html=True)
+
+    if not appearances.empty:
+        appearance_rows = "".join(
+            f'<div class="dashboard-chart-row"><div class="dashboard-chart-name">{rank}. {html.escape(_dashboard_text(name))}</div>'
+            f'<div class="dashboard-chart-track"><div class="dashboard-chart-fill" style="width:{max(8, round(count / appearances.iloc[0] * 100))}%"></div></div>'
+            f'<div class="dashboard-chart-value">{int(count)}回</div></div>'
+            for rank, (name, count) in enumerate(appearances.items(), start=1)
+        )
+        st.markdown('<div class="dashboard-section-label">出場回数ランキング<small>詳細スコアが登録された通常コンペを集計</small></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="dashboard-chart">{appearance_rows}</div>', unsafe_allow_html=True)
+
+    recent_competitions = (
+        valid_scores.groupby("_competition_id", as_index=False)
+        .agg({"日付": "max", "コース": "first"})
+        .sort_values(["日付", "_competition_id"], ascending=False)
+        .head(3)
+    )
+    st.markdown('<div class="dashboard-section-label">最近のコンペ<small>直近3回の開催記録</small></div>', unsafe_allow_html=True)
+    recent_columns = st.columns(3)
+    for index, (_, competition) in enumerate(recent_competitions.iterrows()):
+        competition_id = competition["_competition_id"]
+        rows = valid_scores[valid_scores["_competition_id"] == competition_id]
+        rankings = pd.to_numeric(rows.get("順位"), errors="coerce")
+        winner_rows = rows[rankings == 1]
+        winner = html.escape(_dashboard_text(winner_rows.iloc[0].get("プレイヤー名"))) if not winner_rows.empty else "順位未登録"
+        with recent_columns[index]:
+            st.markdown(
+                f'<div class="dashboard-competition"><span>第{int(competition_id)}回 ・ {_dashboard_text(competition.get("日付"))}</span>'
+                f'<strong>{html.escape(_dashboard_text(competition.get("コース")))}</strong><span>🏆 {winner}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+
 def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
     """DataFrame/グラフを使わずに、カードUIで主要情報を表示する"""
-    st.info("安定表示モードです。グラフは停止していますが、最新の成績とランキングを確認できます。")
-
     # 優勝回数ランキング（HTMLカード表示）
-    st.subheader("🏆 優勝回数ランキング")
+    st.markdown('<div class="dashboard-section-label">優勝回数ランキング<small>歴代チャンピオンの記録</small></div>', unsafe_allow_html=True)
     rank_one_winners = get_winner_count_ranking(scores_df).head(20)
     if rank_one_winners.empty:
         st.caption("ランキング対象のデータがありません。")
     else:
         max_wins = max(int(value) for value in rank_one_winners["優勝回数"].tolist())
-        st.markdown("#### TOP 5　優勝回数")
+        chart_rows = []
         for rank, (_, row) in enumerate(rank_one_winners.head(5).iterrows(), start=1):
             name = html.escape(str(row["プレイヤー名"]))
             wins = int(row["優勝回数"])
-            chart_name_col, chart_bar_col, chart_value_col = st.columns([3, 6, 1])
-            chart_name_col.markdown(f"**{rank}. {name}**")
-            chart_bar_col.progress(wins / max_wins)
-            chart_value_col.markdown(f"**{wins}回**")
-        st.caption("通常コンペ（ID 1〜99・第41回を除く）の有効な優勝記録を横棒グラフで表示しています。")
+            width = max(8, round(wins / max_wins * 100))
+            chart_rows.append(
+                f'<div class="dashboard-chart-row"><div class="dashboard-chart-name">{rank}. {name}</div>'
+                f'<div class="dashboard-chart-track"><div class="dashboard-chart-fill" style="width:{width}%"></div></div>'
+                f'<div class="dashboard-chart-value">{wins}回</div></div>'
+            )
+        st.markdown(f'<div class="dashboard-chart">{"".join(chart_rows)}</div>', unsafe_allow_html=True)
 
         rank_columns = st.columns(2)
         for idx, (_, row) in enumerate(rank_one_winners.iterrows()):
@@ -1356,7 +1726,7 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
                 )
 
     # 過去データ（最新12件をカード表示）
-    st.subheader("🗓️ 最近の記録")
+    st.markdown('<div class="dashboard-section-label">最近の記録<small>直近のスコアを12件表示</small></div>', unsafe_allow_html=True)
     past_data_df = scores_df.copy()
     past_data_df = past_data_df[
         (past_data_df["合計スコア"] > 0)
@@ -1382,7 +1752,8 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
             return str(int(value))
         return str(value)
 
-    for _, row in past_data_df.iterrows():
+    record_columns = st.columns(2)
+    for idx, (_, row) in enumerate(past_data_df.iterrows()):
         date = html.escape(str(row.get("日付", "")))
         course = html.escape(str(row.get("コース", "")))
         player = html.escape(str(row.get("プレイヤー名", "")))
@@ -1390,17 +1761,17 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
         total = format_number(row.get("合計スコア", "-"))
         out_score = format_number(row.get("アウトスコア", "-"))
         in_score = format_number(row.get("インスコア", "-"))
-        st.markdown(
-            f"""
-            <div class="dashboard-status-card" style="margin-bottom:.5rem;">
-              <span>{date}　{course}</span>
-              <strong>{player}　{ranking}位　{total}</strong>
-              <span>OUT {out_score}　/　IN {in_score}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    st.caption("最新12件を表示しています。全件は「競技結果」から確認できます。")
+        with record_columns[idx % 2]:
+            st.markdown(
+                f"""
+                <div class="dashboard-status-card" style="margin-bottom:.65rem;">
+                  <span>{date}　{course}</span>
+                  <strong>{player}</strong>
+                  <span>{ranking}位 ・ TOTAL {total}　（OUT {out_score} / IN {in_score}）</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]
@@ -1435,7 +1806,8 @@ def _fetch_backup_payload(supabase: Client) -> Dict[str, Any]:
 def _collect_table_counts(supabase: Client) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     for table in RESTORE_TABLES:
-        response = supabase.table(table).select("id", count="exact").limit(1).execute()  # type: ignore[arg-type]
+        primary_key = "competition_id" if table == "competitions" else "id"
+        response = supabase.table(table).select(primary_key, count="exact").limit(1).execute()  # type: ignore[arg-type]
         counts[table] = int(response.count or 0)
     return counts
 
@@ -2124,39 +2496,16 @@ REVOKE ALL ON TABLE backups FROM authenticated;
             st.error(traceback.format_exc())
 
 def perform_restore(backup_data, supabase: Client):
-    """実際のリストア処理を実行する共通関数"""
-    competitions = backup_data.get("competitions", []) if isinstance(backup_data, dict) else []
-    players = backup_data.get("players", []) if isinstance(backup_data, dict) else []
-    participants = backup_data.get("participants", []) if isinstance(backup_data, dict) else []
-    scores = backup_data.get("scores", []) if isinstance(backup_data, dict) else []
-    announcements = backup_data.get("announcements", []) if isinstance(backup_data, dict) else []
+    """サーバー側RPCで、全テーブルを単一トランザクション内に復元する。"""
+    if not isinstance(backup_data, dict):
+        raise ValueError("バックアップデータ形式が不正です。JSONオブジェクトではありません。")
 
-    if not isinstance(competitions, list) or not isinstance(players, list):
-        raise ValueError("バックアップデータ形式が不正です。competitions / players が配列ではありません。")
+    for table in RESTORE_TABLES:
+        rows = backup_data.get(table, [])
+        if not isinstance(rows, list):
+            raise ValueError(f"バックアップデータ形式が不正です。{table} が配列ではありません。")
 
-    # 子テーブルから削除して外部キー制約を回避
-    supabase.table("scores").delete().gt("id", 0).execute()
-    supabase.table("participants").delete().gt("id", 0).execute()
-    supabase.table("announcements").delete().gt("id", 0).execute()
-    supabase.table("competitions").delete().gt("id", 0).execute()
-    supabase.table("players").delete().gt("id", 0).execute()
-
-    # 親テーブル -> 関連テーブルの順で復元
-    if competitions:
-        supabase.table("competitions").insert(competitions).execute()
-    if players:
-        supabase.table("players").insert(players).execute()
-    if announcements:
-        supabase.table("announcements").insert(announcements).execute()
-    if participants:
-        supabase.table("participants").insert(participants).execute()
-
-    # スコアデータは量が多い可能性があるのでチャンクに分ける
-    if scores:
-        chunk_size = 100
-        for i in range(0, len(scores), chunk_size):
-            chunk = scores[i:i+chunk_size]
-            supabase.table("scores").insert(chunk).execute()
+    supabase.rpc("restore_golf_database", {"backup_data": backup_data}).execute()
 
 def login_page():
     st.title("88会ログイン")
@@ -2166,6 +2515,10 @@ def login_page():
     if os.path.exists(image_path):
         st.image(image_path, use_container_width=True)
     
+    if not USER_PASSWORD:
+        st.error("利用者パスワードが設定されていないため、ログインできません。管理者に連絡してください。")
+        return
+
     password = st.text_input("パスワードを入力してください", type="password")
     if st.button("ログイン"):
         if password == USER_PASSWORD:
@@ -2178,6 +2531,10 @@ def login_page():
 def admin_login_page():
     st.title("管理者ログイン")
     
+    if not ADMIN_PASSWORD:
+        st.error("管理者パスワードが設定されていないため、管理機能は無効です。")
+        return
+
     password = st.text_input("管理者パスワードを入力してください", type="password", key="admin_password_input")
     if st.button("ログイン", key="admin_login_button"):
         if password == ADMIN_PASSWORD:
@@ -2187,10 +2544,72 @@ def admin_login_page():
         else:
             st.error("パスワードが間違っています")
 
+
+def render_dashboard_announcement(announcement: Dict[str, Any]) -> None:
+    """次回案内をホーム用のカードとして表示する。"""
+    title = html.escape(str(announcement.get("title") or "次回コンペのお知らせ"))
+    content = html.escape(str(announcement.get("content") or "")).replace("\n", "<br>")
+    info = announcement.get("tournament_info") or {}
+    if isinstance(info, str):
+        try:
+            info = json.loads(info)
+        except (TypeError, json.JSONDecodeError):
+            info = {}
+    if not isinstance(info, dict):
+        info = {}
+
+    detail_items = []
+    details = [
+        ("📅", "開催日", " ".join(filter(None, [str(info.get("date") or ""), str(info.get("start_time") or "")] ))),
+        ("⛳", "コース", str(info.get("course_name") or "")),
+        ("🕗", "集合", str(info.get("meeting_time") or "")),
+        ("👥", "組数", f'{info.get("groups")}組' if info.get("groups") else ""),
+    ]
+    for icon, label, value in details:
+        if value.strip():
+            detail_items.append(
+                f'<div style="padding:.7rem .8rem;border-radius:12px;background:rgba(255,255,255,.68);">'
+                f'<span style="font-size:.74rem;color:#81775d;">{icon} {label}</span>'
+                f'<strong style="display:block;margin-top:.15rem;color:#43391e;font-size:.9rem;">{html.escape(value)}</strong></div>'
+            )
+
+    details_html = ""
+    if detail_items:
+        details_html = (
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.55rem;margin-top:1rem;">'
+            + "".join(detail_items)
+            + "</div>"
+        )
+    content_html = f"<p>{content}</p>" if content else ""
+    st.markdown(
+        f'<div class="dashboard-section-label">次回のご案内<small>開催情報と幹事からのお知らせ</small></div>'
+        f'<div class="dashboard-notice"><h3>🏌️ {title}</h3>{content_html}{details_html}</div>',
+        unsafe_allow_html=True,
+    )
+    if announcement.get("image_url"):
+        try:
+            st.image(announcement["image_url"], use_container_width=True)
+        except Exception:
+            pass
+
+
+def get_default_dashboard_announcement() -> Dict[str, Any]:
+    return {
+        "title": "第52回 88会ゴルフコンペのご案内",
+        "content": "次回の開催場所は、前回同様に本千葉カントリークラブとなりました。",
+        "tournament_info": {
+            "date": "12月6日",
+            "start_time": "9:07スタート",
+            "course_name": "本千葉カントリークラブ",
+            "meeting_time": "8:30",
+            "groups": 3,
+        },
+    }
+
+
 def main_app():
     render_dashboard_shell()
     render_dashboard_navigation()
-    render_dashboard_tools()
     
     # お知らせをデータベースから取得して表示
     try:
@@ -2202,80 +2621,13 @@ def main_app():
         
         if announcements_response and announcements_response.data and len(announcements_response.data) > 0:
             announcement = announcements_response.data[0]
-            st.markdown('<div class="dashboard-section-label">📣 お知らせ</div>', unsafe_allow_html=True)
-            with st.container(border=True):
-                st.subheader(f"🏌️ {announcement.get('title', 'お知らせ')}")
-                st.markdown('<div class="dashboard-notice-lead">次回の開催案内・連絡事項</div>', unsafe_allow_html=True)
-
-                if announcement.get('image_url'):
-                    try:
-                        st.image(announcement.get('image_url'), use_container_width=True)
-                    except Exception:
-                        pass
-
-                if announcement.get('content'):
-                    st.info(announcement.get('content'))
-
-                if announcement.get('tournament_info'):
-                    info = announcement.get('tournament_info')
-                    if isinstance(info, str):
-                        info = json.loads(info)
-
-                    info_text = f"\n**【第{info.get('tournament_number', '')}回　88会】**\n"
-                    if info.get('date'):
-                        info_text += f"📅 **開催日**: {info.get('date')} {info.get('start_time', '')}スタート\n"
-                    if info.get('course_name'):
-                        info_text += f"⛳ **コース**: {info.get('course_name')}\n"
-                    if info.get('course_url'):
-                        info_text += f"🔗 **HP**: {info.get('course_url')}\n"
-                    if info.get('address'):
-                        info_text += f"📍 **住所**: {info.get('address')}\n"
-                    if info.get('phone'):
-                        info_text += f"📞 **TEL**: {info.get('phone')}\n"
-                    if info.get('groups'):
-                        info_text += f"👥 **組数**: {info.get('groups')}組\n"
-                    if info.get('meeting_time'):
-                        info_text += f"🕗 **集合時間**: {info.get('meeting_time')}\n"
-                    if info.get('fee'):
-                        info_text += f"💰 **費用**: {info.get('fee')}\n"
-                    if info.get('organizers'):
-                        info_text += f"👔 **幹事**: {info.get('organizers')}\n"
-
-                    st.markdown(info_text)
+            render_dashboard_announcement(announcement)
         else:
             # デフォルトのお知らせ（データベースにデータがない場合）
-            st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
-            st.info("""
-次回の開催場所は前回同様本千葉カントリーとなりました。
-
-**【52回　88会】**  
-📅 **開催日**: 12月6日　9:07スタート  
-⛳ **コース**: 本千葉カントリークラブ  
-🔗 **HP**: https://www.honchiba-cc.co.jp/  
-📍 **住所**: 千葉市緑区大金沢町311  
-📞 **TEL**: 043-292-0191  
-👥 **組数**: 3組  
-🕗 **集合時間**: 8:30  
-💰 **費用**: 18,000+昼食（少し引いてくれるかも）  
-👔 **幹事**: 吉井.福澤
-    """)
-    except Exception as e:
+            render_dashboard_announcement(get_default_dashboard_announcement())
+    except Exception:
         # エラー時はデフォルトのお知らせを表示
-        st.markdown("### 🏌️ 第52回88会ゴルフコンペのご案内")
-        st.info("""
-次回の開催場所は前回同様本千葉カントリーとなりました。
-
-**【52回　88会】**  
-📅 **開催日**: 12月6日　9:07スタート  
-⛳ **コース**: 本千葉カントリークラブ  
-🔗 **HP**: https://www.honchiba-cc.co.jp/  
-📍 **住所**: 千葉市緑区大金沢町311  
-📞 **TEL**: 043-292-0191  
-👥 **組数**: 3組  
-🕗 **集合時間**: 8:30  
-💰 **費用**: 18,000+昼食（少し引いてくれるかも）  
-👔 **幹事**: 吉井.福澤
-    """)
+        render_dashboard_announcement(get_default_dashboard_announcement())
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()
@@ -2284,7 +2636,7 @@ def main_app():
     
     if not scores_df.empty and not players_df.empty:
         render_dashboard_status(scores_df, players_df, competitions_df)
-        st.markdown('<div class="dashboard-section-label">成績ダイジェスト</div>', unsafe_allow_html=True)
+        render_dashboard_highlights(scores_df)
         # 最終切り分け用: safe モードでは最小表示のみ行う
         render_mode = resolve_main_render_mode()
         if render_mode == "safe":
@@ -2429,11 +2781,34 @@ def main_app():
     st.markdown("---")
     st.caption("88会ゴルフコンペ・スコア管理システム")
 
+def render_admin_shared_styles() -> None:
+    """管理画面へ直接アクセスした場合にも共通カードスタイルを適用する。"""
+    st.markdown(
+        """
+        <style>
+          .dashboard-hero { padding: 2rem 2.2rem; margin: .3rem 0 1rem; border-radius: 24px; color: #fff; background: linear-gradient(125deg, #052f27, #0c674c 58%, #17845f); box-shadow: 0 18px 42px rgba(7,61,49,.18); }
+          .dashboard-eyebrow { color: #bcead7; font-size: .76rem; font-weight: 800; letter-spacing: .14em; }
+          .dashboard-hero h1 { margin: .4rem 0 0; color: #fff; font-size: 2.25rem; }
+          .dashboard-hero p { margin: .65rem 0 0; color: #d9f3e8; }
+          .dashboard-section-label { margin: 1.4rem 0 .65rem; color: #16332b; font-size: 1.15rem; font-weight: 800; }
+          .dashboard-section-label small { display:block; margin-top:.18rem; color:#6f817a; font-size:.78rem; font-weight:500; }
+          div[data-testid="stButton"] > button { min-height: 2.8rem; border-radius: 12px; font-weight: 700; }
+          @media (max-width:640px) { .dashboard-hero { padding: 1.45rem 1.25rem; } .dashboard-hero h1 { font-size: 1.75rem; } }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def admin_app():
-    """管理者向けアプリ"""
-    st.title("ゴルフコンペ管理 - 管理者モード")
-    
-    # 上部にナビゲーションボタンを配置
+    """必要な機能だけを読み込む、運営者向けの管理画面。"""
+    render_admin_shared_styles()
+    st.markdown(
+        '<div class="dashboard-hero"><div class="dashboard-eyebrow">ADMIN CONSOLE</div>'
+        '<h1>88会 運営メニュー</h1><p>お知らせ、コンペ、スコア、メンバー情報をここから管理します。</p></div>',
+        unsafe_allow_html=True,
+    )
+
     col1, col2, col3 = st.columns([1, 1, 4])
     with col1:
         if st.button("← メイン画面へ", key="admin_to_main", type="primary"):
@@ -2447,35 +2822,45 @@ def admin_app():
             st.session_state.page = "login"
             st.rerun()
     
-    st.markdown("---")
-
     supabase_admin = get_supabase_admin_client()
     if not supabase_admin:
         st.error("管理者用クライアントの初期化に失敗しました。設定を確認してください。")
         st.info("💡 ヒント: 環境変数 SUPABASE_SERVICE_KEY が正しく設定されているか確認してください。")
         return
 
-    tab_titles = ["お知らせ管理", "プレイヤー管理", "コンペ設定", "スコア入力", "バックアップ", "リストア"]
-    tabs = st.tabs(tab_titles)
+    admin_sections = {
+        "📢 お知らせ・次回案内": "ホームに表示する案内を作成・編集します。",
+        "🏆 コンペ・参加者": "コンペの作成、編集、参加者登録を行います。",
+        "✍️ スコア入力": "開催済みコンペのスコアと順位を入力します。",
+        "👤 プレイヤー管理": "プレイヤーの追加・編集・削除を行います。",
+        "💾 バックアップ": "現在のデータをバックアップとして保存します。",
+        "⚠️ リストア（危険な操作）": "バックアップから全データを復元します。現在のデータは置き換わります。",
+    }
+    st.markdown('<div class="dashboard-section-label">管理する内容を選択<small>選んだ機能だけを読み込みます</small></div>', unsafe_allow_html=True)
+    selected_section = st.selectbox(
+        "管理メニュー",
+        list(admin_sections.keys()),
+        label_visibility="collapsed",
+        key="admin_section_selector",
+    )
+    st.caption(admin_sections[selected_section])
 
-    with tabs[0]:
+    if selected_section == "📢 お知らせ・次回案内":
         announcement_management_tab(supabase_admin)
-
-    with tabs[1]:
-        player_management_tab(supabase_admin)
-
-    with tabs[2]:
+    elif selected_section == "🏆 コンペ・参加者":
         competition_management_tab(supabase_admin)
-
-    with tabs[3]:
-        score_entry_tab()
-
-    with tabs[4]:
+    elif selected_section == "✍️ スコア入力":
+        score_entry_tab(supabase_admin)
+    elif selected_section == "👤 プレイヤー管理":
+        player_management_tab(supabase_admin)
+    elif selected_section == "💾 バックアップ":
         st.subheader("データベースのバックアップ")
-        if st.button("バックアップを実行", key="backup_button"):
+        st.info("バックアップは現在のデータを変更せず、復元用の記録を保存します。")
+        confirm_backup = st.checkbox("バックアップを実行することを確認しました。", key="confirm_backup")
+        if st.button("バックアップを実行", key="backup_button", disabled=not confirm_backup):
             backup_database(supabase_admin)
-
-    with tabs[5]:
+    else:
+        st.error("この操作は、現在のデータをバックアップの内容で置き換えます。")
         st.subheader("データベースのリストア")
         restore_database(supabase_admin)
 
@@ -2484,6 +2869,10 @@ def login_app():
     """ログイン画面"""
     st.title("ログイン")
     
+    if not USER_PASSWORD:
+        st.error("利用者パスワードが設定されていないため、ログインできません。")
+        return
+
     password = st.text_input("パスワードを入力してください", type="password")
     if st.button("ログイン"):
         if password == USER_PASSWORD:
@@ -2561,4 +2950,3 @@ else:
 #     <span class="footer-item">最終更新: {git_date}</span>
 # </div>
 # """, unsafe_allow_html=True)
-

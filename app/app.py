@@ -339,7 +339,7 @@ def render_dashboard_shell() -> None:
 
 
 def render_dashboard_navigation() -> None:
-    """主要機能へのショートカット"""
+    """日常的に使う主要機能へのショートカット"""
     st.markdown('<div class="dashboard-section-label">よく見る<small>成績と競技結果を確認できます</small></div>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
@@ -349,6 +349,9 @@ def render_dashboard_navigation() -> None:
         if st.button("🏆  競技結果を見る", key="dashboard_results", width="stretch"):
             _navigate("results")
 
+
+def render_dashboard_account_navigation() -> None:
+    """ダッシュボード最下部の管理・アカウント操作"""
     st.markdown('<div class="dashboard-section-label">管理・アカウント<small>設定変更やログアウトはこちら</small></div>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
@@ -2693,6 +2696,7 @@ def main_app():
         render_mode = resolve_main_render_mode()
         if render_mode == "safe":
             render_main_safe_mode(scores_df)
+            render_dashboard_account_navigation()
             st.markdown('<div class="dashboard-footer">88会ゴルフコンペ・スコア管理システム</div>', unsafe_allow_html=True)
             return
 
@@ -2829,7 +2833,8 @@ def main_app():
         if players_df.empty:
             st.warning("プレイヤーデータが取得できませんでした。")
         st.error("データの取得に失敗しました。Supabase接続情報とRLS設定を確認してください。")
-    
+
+    render_dashboard_account_navigation()
     st.markdown("---")
     st.caption("88会ゴルフコンペ・スコア管理システム")
 

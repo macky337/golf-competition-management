@@ -282,35 +282,35 @@ def render_dashboard_shell() -> None:
           .dashboard-section-label { margin: 1.8rem 0 .75rem; color: var(--club-ink); font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; }
           .dashboard-section-label small { display: block; margin-top: .2rem; color: var(--club-muted); font-size: .78rem; font-weight: 500; letter-spacing: 0; }
           .dashboard-status-card {
-            min-height: 116px; padding: 1.05rem 1.1rem;
+            min-height: 98px; padding: .85rem .95rem;
             border: 1px solid var(--club-line); border-radius: 18px;
             background: rgba(255,255,255,.88); color: var(--club-ink);
             box-shadow: 0 8px 24px rgba(23, 72, 57, .055);
           }
-          .dashboard-status-card .metric-icon { display: block; margin-bottom: .62rem; font-size: 1.15rem; }
-          .dashboard-status-card strong { display: block; margin-top: .12rem; color: var(--club-green-deep); font-size: 1.45rem; letter-spacing: -.02em; }
+          .dashboard-status-card .metric-icon { display: block; margin-bottom: .38rem; font-size: 1.05rem; }
+          .dashboard-status-card strong { display: block; margin-top: .08rem; color: var(--club-green-deep); font-size: 1.28rem; letter-spacing: -.02em; }
           .dashboard-status-card span { color: var(--club-muted); font-size: .78rem; }
           .dashboard-notice { padding: 1.45rem 1.55rem; border: 1px solid #e9e3d1; border-radius: 22px; background: linear-gradient(135deg, #fffdf7, #fbf7e9); box-shadow: 0 10px 28px rgba(90,70,24,.06); }
           .dashboard-notice h3 { margin: 0; color: #43391e; font-size: 1.3rem; }
           .dashboard-notice p { margin: .65rem 0 0; color: #665f4d; line-height: 1.7; }
           .dashboard-footer { margin: 2.5rem 0 .5rem; padding-top: 1rem; border-top: 1px solid var(--club-line); text-align: center; color: #84968f; font-size: .78rem; }
-          .dashboard-chart { padding: 1rem 1.15rem; border: 1px solid var(--club-line); border-radius: 18px; background: #fff; }
-          .dashboard-chart-row { display: grid; grid-template-columns: minmax(105px, 24%) 1fr 42px; gap: .65rem; align-items: center; margin: .72rem 0; }
+          .dashboard-chart { padding: .75rem .9rem; border: 1px solid var(--club-line); border-radius: 16px; background: #fff; }
+          .dashboard-chart-row { display: grid; grid-template-columns: minmax(105px, 24%) 1fr 42px; gap: .65rem; align-items: center; margin: .52rem 0; }
           .dashboard-chart-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #235447; font-weight: 650; font-size: .9rem; }
           .dashboard-chart-track { height: 10px; overflow: hidden; border-radius: 999px; background: #e5f0eb; }
           .dashboard-chart-fill { height: 100%; min-width: 7px; border-radius: inherit; background: linear-gradient(90deg, var(--club-green), #36a77e); }
           .dashboard-chart-value { text-align: right; color: var(--club-green-deep); font-size: .84rem; font-weight: 800; }
-          .dashboard-spotlight { min-height: 165px; padding: 1.35rem 1.45rem; border: 1px solid var(--club-line); border-radius: 20px; background: #fff; box-shadow: 0 10px 28px rgba(20,65,51,.06); }
+          .dashboard-spotlight { min-height: 132px; padding: 1rem 1.1rem; border: 1px solid var(--club-line); border-radius: 18px; background: #fff; box-shadow: 0 8px 22px rgba(20,65,51,.06); }
           .dashboard-spotlight.gold { border-color: #eadcae; background: linear-gradient(135deg, #fffdf7, #fbf3d7); }
           .dashboard-spotlight .eyebrow { color: var(--club-muted); font-size: .75rem; font-weight: 800; letter-spacing: .09em; }
-          .dashboard-spotlight strong { display: block; margin: .55rem 0 .25rem; color: var(--club-green-deep); font-size: 1.55rem; letter-spacing: -.02em; }
+          .dashboard-spotlight strong { display: block; margin: .38rem 0 .18rem; color: var(--club-green-deep); font-size: 1.3rem; letter-spacing: -.02em; }
           .dashboard-spotlight.gold strong { color: #735a18; }
-          .dashboard-spotlight p { margin: 0; color: #687b73; font-size: .86rem; line-height: 1.65; }
-          .dashboard-podium { min-height: 116px; padding: 1rem; border: 1px solid var(--club-line); border-radius: 16px; background: #fff; text-align: center; }
+          .dashboard-spotlight p { margin: 0; color: #687b73; font-size: .8rem; line-height: 1.5; }
+          .dashboard-podium { min-height: 96px; padding: .75rem; border: 1px solid var(--club-line); border-radius: 14px; background: #fff; text-align: center; }
           .dashboard-podium .medal { font-size: 1.35rem; }
           .dashboard-podium strong { display: block; margin: .28rem 0 .1rem; color: var(--club-ink); font-size: 1rem; }
           .dashboard-podium span { color: var(--club-muted); font-size: .8rem; }
-          .dashboard-competition { min-height: 128px; padding: 1rem; border-left: 4px solid var(--club-green); border-radius: 0 16px 16px 0; background: #f7fbf9; }
+          .dashboard-competition { min-height: 105px; padding: .8rem; border-left: 4px solid var(--club-green); border-radius: 0 14px 14px 0; background: #f7fbf9; }
           .dashboard-competition strong { display: block; margin: .3rem 0; color: var(--club-ink); font-size: .95rem; }
           .dashboard-competition span { color: var(--club-muted); font-size: .78rem; }
           div[data-testid="stButton"] > button { min-height: 3.15rem; border: 1px solid var(--club-line); border-radius: 14px; background: rgba(255,255,255,.92); color: var(--club-ink); font-weight: 700; box-shadow: 0 5px 16px rgba(20,65,51,.045); transition: all .16s ease; }
@@ -1581,11 +1581,28 @@ def _valid_dashboard_scores(scores_df: pd.DataFrame) -> pd.DataFrame:
     return valid_scores[
         (valid_scores["_competition_id"] > 0)
         & (valid_scores["_competition_id"] < 100)
+        & (valid_scores["_competition_id"] != 41)
         & (valid_scores["_out"] > 0)
         & (valid_scores["_in"] > 0)
         & (valid_scores["_gross"] > 0)
         & valid_scores["プレイヤー名"].notna()
     ].copy()
+
+
+def get_best_gross_ranking(valid_scores: pd.DataFrame, unique_players: bool = False) -> pd.DataFrame:
+    """有効な詳細スコアからベスグロ上位10件を返す。"""
+    if valid_scores.empty:
+        return pd.DataFrame()
+
+    ranking = valid_scores.sort_values(
+        ["_gross", "日付", "_competition_id", "プレイヤー名"],
+        ascending=[True, False, False, True],
+        na_position="last",
+    ).copy()
+    if unique_players:
+        # 同スコアならより新しい記録を採用する（上の並び順を維持）。
+        ranking = ranking.drop_duplicates(subset=["プレイヤー名"], keep="first")
+    return ranking.head(10).reset_index(drop=True)
 
 
 def _dashboard_text(value: Any, fallback: str = "－") -> str:
@@ -1670,6 +1687,27 @@ def render_dashboard_highlights(scores_df: pd.DataFrame) -> None:
         )
         st.markdown('<div class="dashboard-section-label">出場回数ランキング<small>詳細スコアが登録された通常コンペを集計</small></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="dashboard-chart">{appearance_rows}</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="dashboard-section-label">ベスグロランキング<small>詳細スコアが登録された通常コンペを集計</small></div>', unsafe_allow_html=True)
+    gross_mode = st.radio(
+        "表示方法",
+        ("純粋なトップ10", "ユニークなトップ10"),
+        horizontal=True,
+        key="dashboard_best_gross_mode",
+        label_visibility="collapsed",
+    )
+    best_gross_rows = get_best_gross_ranking(
+        valid_scores,
+        unique_players=(gross_mode == "ユニークなトップ10"),
+    )
+    gross_ranking_rows = "".join(
+        f'<div class="dashboard-chart-row"><div class="dashboard-chart-name">{rank}. {html.escape(_dashboard_text(row.get("プレイヤー名")))}</div>'
+        f'<div class="dashboard-chart-track"><div class="dashboard-chart-fill" style="width:{max(8, round(float(row["_gross"]) / float(best_gross_rows["_gross"].max()) * 100))}%"></div></div>'
+        f'<div class="dashboard-chart-value">{_dashboard_text(row.get("合計スコア"))}</div></div>'
+        for rank, (_, row) in enumerate(best_gross_rows.iterrows(), start=1)
+    )
+    if gross_ranking_rows:
+        st.markdown(f'<div class="dashboard-chart">{gross_ranking_rows}</div>', unsafe_allow_html=True)
 
     recent_competitions = (
         valid_scores.groupby("_competition_id", as_index=False)

@@ -340,19 +340,22 @@ def render_dashboard_shell() -> None:
 
 def render_dashboard_navigation() -> None:
     """主要機能へのショートカット"""
-    st.markdown('<div class="dashboard-section-label">メニュー<small>見たい情報を選んでください</small></div>', unsafe_allow_html=True)
-    col1, col2, col3, col4 = st.columns(4)
+    st.markdown('<div class="dashboard-section-label">よく見る<small>成績と競技結果を確認できます</small></div>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
     with col1:
         if st.button("📈  個人成績を見る", key="dashboard_stats", width="stretch"):
             _navigate("stats")
     with col2:
         if st.button("🏆  競技結果を見る", key="dashboard_results", width="stretch"):
             _navigate("results")
-    with col3:
+
+    st.markdown('<div class="dashboard-section-label">管理・アカウント<small>設定変更やログアウトはこちら</small></div>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
         if st.button("⚙️  管理メニュー", key="dashboard_admin", width="stretch"):
             st.session_state.admin_logged_in = False
             _navigate("admin")
-    with col4:
+    with col2:
         if st.button("↗  ログアウト", key="dashboard_logout", width="stretch"):
             _logout_user()
 

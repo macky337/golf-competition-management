@@ -32,6 +32,7 @@ from announcement_management import announcement_management_tab
 from player_management import player_management_tab
 from competition_management import competition_management_tab
 from score_entry import score_entry_page as score_entry_tab
+from rankings import rankings_page
 
 
 
@@ -340,14 +341,17 @@ def render_dashboard_shell() -> None:
 
 def render_dashboard_navigation() -> None:
     """日常的に使う主要機能へのショートカット"""
-    st.markdown('<div class="dashboard-section-label">よく見る<small>成績と競技結果を確認できます</small></div>', unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
+    st.markdown('<div class="dashboard-section-label">よく見る<small>成績・競技結果・ランキングを確認できます</small></div>', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("📈  個人成績を見る", key="dashboard_stats", width="stretch"):
             _navigate("stats")
     with col2:
         if st.button("🏆  競技結果を見る", key="dashboard_results", width="stretch"):
             _navigate("results")
+    with col3:
+        if st.button("🏅  ランキング", key="dashboard_rankings", width="stretch"):
+            _navigate("rankings")
 
 
 def render_dashboard_account_navigation() -> None:
@@ -2967,6 +2971,11 @@ elif page == "results":
         st.session_state.page = "login"
         st.rerun()
     competition_results_page()
+elif page == "rankings":
+    if not st.session_state.get("logged_in", False):
+        st.session_state.page = "login"
+        st.rerun()
+    rankings_page(fetch_scores())
 elif page == "admin":
     if not st.session_state.get("admin_logged_in", False):
         admin_login_page()

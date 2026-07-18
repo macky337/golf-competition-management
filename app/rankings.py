@@ -375,7 +375,21 @@ def _show_table(df: pd.DataFrame, empty_message: str, decimals: dict[str, int] |
 
 def rankings_page(scores_df: pd.DataFrame) -> None:
     """会員向けの自動更新ランキングページを表示する。"""
-    st.title("🏅 88会ランキング")
+    st.markdown(
+        """
+        <style>
+          .ranking-page-title { margin: .25rem 0 .55rem; color: #16332b; font-size: clamp(1.75rem, 7.2vw, 2.5rem); font-weight: 800; letter-spacing: -.035em; line-height: 1.15; white-space: nowrap; }
+          .ranking-page-title .ranking-medal { margin-right: .22rem; }
+          @media (max-width: 640px) {
+            .ranking-page-title { font-size: 1.85rem; }
+            .stTabs [data-baseweb="tab-list"] { gap: .1rem; overflow-x: auto; scrollbar-width: none; }
+            .stTabs [data-baseweb="tab"] { padding-left: .55rem; padding-right: .55rem; white-space: nowrap; }
+          }
+        </style>
+        <div class="ranking-page-title"><span class="ranking-medal">🏅</span>88会ランキング</div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption("スコアを保存すると、次回の表示時に自動で集計へ反映されます。通常コンペ（第1〜99回・第41回を除く）を対象にしています。")
     st.info("集計に使うのは登録済みのスコア・順位だけです。未登録のスコアや順位は、各ランキングの分母・連続記録へ含めません。")
 
@@ -406,7 +420,7 @@ def rankings_page(scores_df: pd.DataFrame) -> None:
         display_scores = scores if selected_year == "全期間" else scores[scores["_date"].dt.year == int(selected_year)].copy()
         st.caption(f"対象期間：{selected_year}。フィルターを変更すると、すべてのランキング・賞・コース別成績へ反映されます。")
 
-        ability_tab, stability_tab, records_tab, course_tab, yearly_tab = st.tabs(["実力", "安定感", "記録・特別賞", "コース・季節", "年度別"])
+        ability_tab, stability_tab, records_tab, course_tab, yearly_tab = st.tabs(["実力", "安定感", "記録・賞", "コース", "年度別"])
         with ability_tab:
             st.subheader("実力系ランキング")
             _show_table(winner_count_ranking(display_scores), "優勝記録がありません。")
@@ -437,13 +451,13 @@ def rankings_page(scores_df: pd.DataFrame) -> None:
             st.subheader("連続入賞記録")
             _show_table(podium_streak_ranking(display_scores), "連続入賞記録がありません。")
             st.caption("登録済みの順位記録を日付順に並べた最長連続入賞（3位以内）です。未登録回がある過去データでは、実際の連続記録と異なる場合があります。")
-            st.subheader("スコアのばらつき（グロス標準偏差）")
+            st.subheader("スコアの安定感")
             _show_table(score_stddev_ranking(display_scores), "3回以上の有効スコアが必要です。", {"グロス標準偏差": 2})
-            st.caption("数値が小さいほど、グロススコアが安定しています。")
-            st.subheader("参加賞の帝王（参加回数）")
+            st.caption("グロス標準偏差です。数値が小さいほど、グロススコアが安定しています。")
+            st.subheader("参加賞の帝王")
             _show_table(participation_count_ranking(display_scores), "登録済みスコアがありません。")
             st.caption("スコア登録のあるユニークなコンペ数です。実際の参加者名簿ではなく、登録済みデータを基準にします。")
-            st.subheader("最多連続参加（登録スコアベース）")
+            st.subheader("最多連続参加")
             _show_table(registered_participation_streak_ranking(display_scores), "登録済みスコアがありません。")
             st.caption("登録済みスコアがあるコンペだけを時系列に並べた参考記録です。未登録の過去コンペは判定できません。")
 
@@ -463,7 +477,7 @@ def rankings_page(scores_df: pd.DataFrame) -> None:
             st.subheader("ブービーメーカー回数")
             _show_table(booby_maker_count_ranking(display_scores), "ブービーメーカーの対象となる競技がありません。")
             st.caption("順位登録済みの参加者が2名以上の競技で、最下位をブービーメーカーとして集計しています。")
-            st.subheader("大波賞（最大前後半差）")
+            st.subheader("大波賞")
             _show_table(out_in_gap_ranking(display_scores), "有効なOUT・INスコアがありません。")
             st.caption("1ラウンド内のOUTとINの差の絶対値が最も大きい記録です。数値が大きいほど前後半の差が大きくなります。")
             st.subheader("惜しいで賞")
@@ -477,13 +491,13 @@ def rankings_page(scores_df: pd.DataFrame) -> None:
             players = sorted(display_scores["プレイヤー名"].dropna().astype(str).unique())
             if players:
                 selected_player = st.selectbox("プレイヤー", players, key="ranking_course_player")
-                st.subheader(f"{selected_player} さんのコース別成績")
+                st.subheader("コース別成績")
                 _show_table(
                     course_statistics(display_scores, selected_player),
                     "コース別に集計できる記録がありません。",
                     {"平均グロス": 1, "平均ネット": 1, "平均順位": 2, "勝率": 1},
                 )
-                st.caption("参加回数は登録済みスコアのあるコンペ数です。平均スコアは有効なOUT・INスコア、勝率は順位登録回数を分母にします。")
+                st.caption(f"{selected_player} さんの成績です。参加回数は登録済みスコアのあるコンペ数、勝率は順位登録回数を分母にします。")
                 st.subheader("季節別平均スコア")
                 _show_table(
                     seasonal_average_scores(display_scores, selected_player),

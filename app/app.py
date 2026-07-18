@@ -1807,26 +1807,34 @@ def render_main_safe_mode(scores_df: pd.DataFrame) -> None:
             return str(int(value))
         return str(value)
 
-    record_columns = st.columns(2)
-    for idx, (_, row) in enumerate(past_data_df.iterrows()):
-        date = html.escape(str(row.get("日付", "")))
-        course = html.escape(str(row.get("コース", "")))
-        player = html.escape(str(row.get("プレイヤー名", "")))
-        ranking = format_number(row.get("順位", "-"))
-        total = format_number(row.get("合計スコア", "-"))
-        out_score = format_number(row.get("アウトスコア", "-"))
-        in_score = format_number(row.get("インスコア", "-"))
-        with record_columns[idx % 2]:
-            st.markdown(
-                f"""
-                <div class="dashboard-status-card" style="margin-bottom:.65rem;">
-                  <span>{date}　{course}</span>
-                  <strong>{player}</strong>
-                  <span>{ranking}位 ・ TOTAL {total}　（OUT {out_score} / IN {in_score}）</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    # カードを交互に列へ積むと、スマホで列が縦並びになった際に
+    # 「1・3・5件目 → 2・4・6件目」と読まれてしまう。2件ずつ行を作る。
+    record_rows = list(past_data_df.iterrows())
+    for start_index in range(0, len(record_rows), 2):
+        record_columns = st.columns(2)
+        for offset, column in enumerate(record_columns):
+            item_index = start_index + offset
+            if item_index >= len(record_rows):
+                continue
+            _, row = record_rows[item_index]
+            date = html.escape(str(row.get("日付", "")))
+            course = html.escape(str(row.get("コース", "")))
+            player = html.escape(str(row.get("プレイヤー名", "")))
+            ranking = format_number(row.get("順位", "-"))
+            total = format_number(row.get("合計スコア", "-"))
+            out_score = format_number(row.get("アウトスコア", "-"))
+            in_score = format_number(row.get("インスコア", "-"))
+            with column:
+                st.markdown(
+                    f"""
+                    <div class="dashboard-status-card" style="margin-bottom:.65rem;">
+                      <span>{date}　{course}</span>
+                      <strong>{player}</strong>
+                      <span>{ranking}位 ・ TOTAL {total}　（OUT {out_score} / IN {in_score}）</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 
 RESTORE_TABLES = ["competitions", "players", "participants", "scores", "announcements"]

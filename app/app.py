@@ -2575,25 +2575,60 @@ def perform_restore(backup_data, supabase: Client):
     supabase.rpc("restore_golf_database", {"backup_data": backup_data}).execute()
 
 def login_page():
-    st.title("88会ログイン")
-    
-    # ログイン画面に画像を表示
-    image_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'image', '01205972-9563-43D7-B862-5B2B8DECF9FA.png')
-    if os.path.exists(image_path):
-        st.image(image_path, width="stretch")
-    
+    """写真なしでも88会らしさが伝わる会員ログイン画面。"""
+    st.markdown(
+        """
+        <style>
+          .stApp { background: radial-gradient(circle at 15% 5%, #e5f3ec 0, transparent 28%), linear-gradient(155deg, #f7faf8 0%, #ffffff 58%, #faf6e9 100%); }
+          .block-container { max-width: 1120px; padding-top: 7vh; padding-bottom: 3rem; }
+          .login-welcome { margin: 0 auto 1.45rem; text-align: center; color: #16332b; }
+          .login-welcome .login-mark { display: inline-flex; width: 54px; height: 54px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.28); border-radius: 17px; background: linear-gradient(145deg, #0b6249, #074233); color: #fff7dc; font-size: 1.35rem; box-shadow: 0 12px 28px rgba(7, 61, 49, .18); }
+          .login-welcome .login-eyebrow { margin-top: 1rem; color: #39745f; font-size: .7rem; font-weight: 750; letter-spacing: .18em; text-transform: uppercase; }
+          .login-welcome h1 { margin: .42rem 0 0; color: #123c31; font-size: clamp(2.25rem, 5.5vw, 3rem); font-weight: 700; letter-spacing: -.05em; line-height: 1.06; white-space: nowrap; }
+          .login-welcome h1 span { font-size: .62em; font-weight: 600; letter-spacing: -.025em; }
+          .login-welcome p { margin: .75rem auto 0; max-width: 26rem; color: #687b73; font-size: .98rem; line-height: 1.7; letter-spacing: -.01em; }
+          div[data-testid="stVerticalBlockBorderWrapper"] { border: 1px solid #dce9e2; border-radius: 22px; background: rgba(255,255,255,.86); box-shadow: 0 18px 45px rgba(17, 67, 52, .10); backdrop-filter: blur(14px); }
+          div[data-testid="stVerticalBlockBorderWrapper"] > div { padding: .75rem .55rem .45rem; }
+          .login-card-heading { margin: .25rem 0 .28rem; color: #16332b; font-size: 1.18rem; font-weight: 750; letter-spacing: -.025em; text-align: center; }
+          .login-card-copy { margin: 0 0 1rem; color: #72847c; font-size: .82rem; text-align: center; }
+          div[data-testid="stTextInput"] label { color: #315b4d; font-size: .8rem; font-weight: 700; }
+          div[data-testid="stTextInput"] input { min-height: 3.05rem; border: 1px solid #cfe2d9; border-radius: 12px; background: #fbfdfc; box-shadow: inset 0 1px 1px rgba(0,0,0,.02); }
+          div[data-testid="stTextInput"] input:focus { border-color: #0b6b50; box-shadow: 0 0 0 3px rgba(11,107,80,.13); }
+          div[data-testid="stFormSubmitButton"] button { min-height: 3.1rem; border: 0; border-radius: 12px; background: linear-gradient(125deg, #07513e, #0d7a58); color: white; font-weight: 750; letter-spacing: -.01em; box-shadow: 0 7px 17px rgba(7,88,64,.18); }
+          div[data-testid="stFormSubmitButton"] button:hover { background: linear-gradient(125deg, #063e30, #096e50); transform: translateY(-1px); box-shadow: 0 9px 20px rgba(7,88,64,.20); }
+          .login-footer { margin-top: 1.4rem; color: #83978e; font-size: .73rem; text-align: center; letter-spacing: .01em; }
+          @media (max-width: 640px) { .block-container { padding: 5vh 1.1rem 2rem; } .login-welcome .login-mark { width: 50px; height: 50px; } .login-welcome h1 { white-space: normal; } .login-welcome h1 span { display: block; margin-top: .18rem; font-size: .55em; letter-spacing: .01em; } }
+        </style>
+        <div class="login-welcome">
+          <div class="login-mark">⛳</div>
+          <div class="login-eyebrow">Happakai Golf Society</div>
+          <h1>88会 <span>Members Portal</span></h1>
+          <p>いい仲間と、いいゴルフを。<br>会員のためのゴルフポータル。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if not USER_PASSWORD:
         st.error("利用者パスワードが設定されていないため、ログインできません。管理者に連絡してください。")
         return
 
-    password = st.text_input("パスワードを入力してください", type="password")
-    if st.button("ログイン"):
-        if password == USER_PASSWORD:
-            st.session_state.logged_in = True
-            st.session_state.page = "main"
-            st.rerun()  # ページを強制的に再読み込み
-        else:
-            st.error("パスワードが間違っています")
+    _, login_column, _ = st.columns([1, 1.35, 1])
+    with login_column:
+        with st.container(border=True):
+            st.markdown('<div class="login-card-heading">会員ログイン</div>', unsafe_allow_html=True)
+            st.markdown('<div class="login-card-copy">会員用パスワードを入力してください</div>', unsafe_allow_html=True)
+            with st.form("member_login_form"):
+                password = st.text_input("パスワード", type="password", placeholder="パスワードを入力", key="member_password_input")
+                submitted = st.form_submit_button("ログイン", width="stretch")
+            if submitted:
+                if password == USER_PASSWORD:
+                    st.session_state.logged_in = True
+                    st.session_state.page = "main"
+                    st.rerun()
+                st.error("パスワードが違います。もう一度確認してください。")
+
+    st.markdown('<div class="login-footer">88会ゴルフコンペ・メンバーズポータル</div>', unsafe_allow_html=True)
 
 def admin_login_page():
     st.title("管理者ログイン")

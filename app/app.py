@@ -436,7 +436,9 @@ st.markdown("""
 # 環境変数の読み込み
 # .envファイルのパスをプロジェクトルートから解決
 dotenv_path = os.path.join(get_project_root(), '.env')
-load_dotenv(dotenv_path=dotenv_path, override=True)
+# デプロイ先（Railway 等）の環境変数を最優先にする。ローカルの .env が
+# 残っていても、空または古い値で本番の認証設定を上書きしてはいけない。
+load_dotenv(dotenv_path=dotenv_path, override=False)
 
 # Supabase接続情報 - Streamlit secrets と環境変数の両方をサポート
 def _get_secret_supabase(*keys: str) -> str:

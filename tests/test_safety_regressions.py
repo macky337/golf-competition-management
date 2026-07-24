@@ -106,6 +106,11 @@ def test_application_does_not_contain_default_passwords_or_secret_output():
     assert 'supabase.rpc("restore_golf_database"' in app_source
 
 
+def test_deployment_environment_variables_take_precedence_over_local_dotenv():
+    app_source = (APP_DIR / "app.py").read_text(encoding="utf-8-sig")
+    assert "load_dotenv(dotenv_path=dotenv_path, override=False)" in app_source
+
+
 def test_winner_count_includes_ranked_history_without_score_details():
     app_path = APP_DIR / "app.py"
     module = ast.parse(app_path.read_text(encoding="utf-8-sig"))

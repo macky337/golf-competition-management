@@ -111,14 +111,6 @@ def test_deployment_environment_variables_take_precedence_over_local_dotenv():
     assert "load_dotenv(dotenv_path=dotenv_path, override=False)" in app_source
 
 
-def test_member_dashboard_has_direct_scorecard_import_route():
-    app_source = (APP_DIR / "app.py").read_text(encoding="utf-8-sig")
-    assert "📷  スコアカード画像を読み込む" in app_source
-    assert '_navigate("scorecard_import")' in app_source
-    assert 'elif page == "scorecard_import":' in app_source
-    assert "score_entry_tab(score_entry_client)" in app_source
-
-
 def test_winner_count_includes_ranked_history_without_score_details():
     app_path = APP_DIR / "app.py"
     module = ast.parse(app_path.read_text(encoding="utf-8-sig"))

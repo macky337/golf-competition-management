@@ -352,6 +352,13 @@ def render_dashboard_navigation() -> None:
     with col3:
         if st.button("🏅  ランキング", key="dashboard_rankings", width="stretch"):
             _navigate("rankings")
+    if st.button(
+        "📷  スコアカード画像を読み込む",
+        key="dashboard_scorecard_import",
+        width="stretch",
+        type="primary",
+    ):
+        _navigate("scorecard_import")
 
 
 def render_dashboard_account_navigation() -> None:
@@ -3013,6 +3020,18 @@ elif page == "rankings":
         st.session_state.page = "login"
         st.rerun()
     rankings_page(fetch_scores())
+elif page == "scorecard_import":
+    if not st.session_state.get("logged_in", False):
+        st.session_state.page = "login"
+        st.rerun()
+    score_entry_client = get_supabase_admin_client()
+    if score_entry_client:
+        score_entry_tab(score_entry_client)
+    else:
+        st.error("スコア入力機能を初期化できませんでした。管理者に連絡してください。")
+        if st.button("メイン画面へ", key="scorecard_import_back"):
+            st.session_state.page = "main"
+            st.rerun()
 elif page == "admin":
     if not st.session_state.get("admin_logged_in", False):
         admin_login_page()

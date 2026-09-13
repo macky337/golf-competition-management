@@ -22,7 +22,7 @@ import streamlit as st
 import pandas as pd
 import os
 from dotenv import load_dotenv
-from supabase import create_client
+from supabase_connection import create_client
 import datetime
 import pytz
 import matplotlib

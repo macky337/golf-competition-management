@@ -16,7 +16,8 @@ matplotlib.rcParams['font.family'] = 'MS Gothic'  # Windowsの場合
 from datetime import datetime
 import pytz
 import json
-from supabase import create_client, Client
+from supabase import Client
+from supabase_connection import create_client
 from dotenv import load_dotenv
 import subprocess
 import warnings

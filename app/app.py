@@ -6,6 +6,17 @@ import html
 import os
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
+from pathlib import Path
+from PIL import Image
+
+
+APP_ICON = Image.open(Path(__file__).parent.parent / "static" / "favicon.png")
+st.set_page_config(
+    page_title="88会ゴルフコンペ",
+    page_icon=APP_ICON,
+    layout="wide",
+)
 import matplotlib.pyplot as plt
 # japanize_matplotlibの代わりに直接日本語フォントを設定
 import matplotlib
@@ -34,6 +45,45 @@ from player_management import player_management_tab
 from competition_management import competition_management_tab
 from score_entry import score_entry_page as score_entry_tab
 from rankings import rankings_page
+
+
+def inject_app_icon_links():
+    """Expose installable app metadata in Streamlit's parent document."""
+    components.html("""
+    <script>
+    (function() {
+        try {
+            const doc = window.parent.document;
+            const links = [
+                ["icon", "/app/static/favicon.png", "image/png"],
+                ["apple-touch-icon", "/app/static/apple-touch-icon.png", "image/png"],
+                ["manifest", "/app/static/manifest.webmanifest", "application/manifest+json"]
+            ];
+            links.forEach(function(item) {
+                let link = doc.head.querySelector('link[rel="' + item[0] + '"]');
+                if (!link) {
+                    link = doc.createElement("link");
+                    link.rel = item[0];
+                    doc.head.appendChild(link);
+                }
+                link.href = item[1];
+                link.type = item[2];
+                if (item[0] === "apple-touch-icon") link.sizes = "180x180";
+            });
+            let theme = doc.head.querySelector('meta[name="theme-color"]');
+            if (!theme) {
+                theme = doc.createElement("meta");
+                theme.name = "theme-color";
+                doc.head.appendChild(theme);
+            }
+            theme.content = "#078719";
+        } catch (_) { /* page_icon remains available as a fallback */ }
+    })();
+    </script>
+    """, height=0, width=0)
+
+
+inject_app_icon_links()
 
 
 

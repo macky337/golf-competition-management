@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">88会 ゴルフポータル</title>
+  <desc id="desc">深緑の角丸タイルに、芝と赤い旗を描いたゴルフのマーク</desc>
+  <defs>
+    <linearGradient id="tile" x1="74" y1="54" x2="438" y2="462" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0d7959"/>
+      <stop offset="1" stop-color="#063d30"/>
+    </linearGradient>
+    <linearGradient id="green" x1="158" y1="318" x2="364" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67bd69"/>
+      <stop offset="1" stop-color="#258754"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#032b21" flood-opacity=".3"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="132" fill="url(#tile)"/>
+  <path d="M101 355c45-59 114-89 193-89s147 30 194 89c-55 44-128 66-194 66-67 0-139-22-193-66Z" fill="url(#green)"/>
+  <ellipse cx="292" cy="354" rx="28" ry="8" fill="#052f27" opacity=".6"/>
+  <ellipse cx="292" cy="349" rx="17" ry="5" fill="#e8f5ed"/>
+  <rect x="282" y="111" width="13" height="239" rx="6.5" fill="#f8fbf8" filter="url(#shadow)"/>
+  <path d="M295 119c48 2 82 18 112 46-30 25-64 38-112 36V119Z" fill="#df634f"/>
+  <path d="M295 119c48 2 82 18 112 46-18 15-37 25-57 31-12-19-30-43-55-77Z" fill="#ef7863" opacity=".65"/>
+  <circle cx="289" cy="352" r="5" fill="#eef9f1"/>
+</svg>

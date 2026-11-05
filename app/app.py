@@ -76,7 +76,7 @@ def inject_app_icon_links():
                 theme.name = "theme-color";
                 doc.head.appendChild(theme);
             }
-            theme.content = "#078719";
+            theme.content = "#073d31";
         } catch (_) { /* page_icon remains available as a fallback */ }
     })();
     </script>
@@ -366,10 +366,12 @@ def render_dashboard_shell() -> None:
             box-shadow: 0 22px 55px rgba(7, 61, 49, .20);
           }
           .dashboard-hero::after { content: "88"; position: absolute; right: 2rem; bottom: -2.5rem; color: rgba(255,255,255,.07); font-size: 9rem; line-height: 1; font-weight: 900; }
-          .dashboard-eyebrow { color: #bcead7; font-size: .76rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+          .dashboard-eyebrow { display: flex; align-items: center; gap: .48rem; color: #bcead7; font-size: .76rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+          .dashboard-brand-mark { width: 28px; height: 28px; border-radius: 9px; box-shadow: 0 4px 10px rgba(0,0,0,.18); }
           .dashboard-hero h1 { margin: .45rem 0 0; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1.08; color: white; letter-spacing: -.035em; }
           .dashboard-hero p { max-width: 650px; margin: .8rem 0 0; color: #d9f3e8; font-size: 1rem; line-height: 1.75; }
-          .dashboard-hero-badge { display: inline-block; margin-top: 1.2rem; padding: .42rem .75rem; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(255,255,255,.10); color: #fff7dc; font-size: .78rem; font-weight: 700; }
+          .dashboard-hero-badge { display: inline-flex; align-items: center; gap: .38rem; margin-top: 1.2rem; padding: .42rem .75rem; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(255,255,255,.10); color: #fff7dc; font-size: .78rem; font-weight: 700; }
+          .dashboard-hero-badge img { width: 17px; height: 17px; border-radius: 5px; }
           .dashboard-section-label { margin: 1.8rem 0 .75rem; color: var(--club-ink); font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; }
           .dashboard-section-label small { display: block; margin-top: .2rem; color: var(--club-muted); font-size: .78rem; font-weight: 500; letter-spacing: 0; }
           .dashboard-status-card {
@@ -417,10 +419,10 @@ def render_dashboard_shell() -> None:
           }
         </style>
         <div class="dashboard-hero">
-          <div class="dashboard-eyebrow">Happakai Golf Society</div>
+          <div class="dashboard-eyebrow"><img class="dashboard-brand-mark" src="/app/static/brand-mark.svg" alt="">Happakai Golf Society</div>
           <h1>いい仲間と、<br>いいゴルフを。</h1>
           <p>88会の開催案内から個人成績、歴代の競技結果まで。いつもの情報を、ひとつの場所で。</p>
-          <div class="dashboard-hero-badge">⛳ 88会 メンバーズポータル</div>
+          <div class="dashboard-hero-badge"><img src="/app/static/brand-mark.svg" alt="">88会 メンバーズポータル</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -2672,7 +2674,8 @@ def login_page():
           .stApp { background: radial-gradient(circle at 15% 5%, #e5f3ec 0, transparent 28%), linear-gradient(155deg, #f7faf8 0%, #ffffff 58%, #faf6e9 100%); }
           .block-container { max-width: 1120px; padding-top: 7vh; padding-bottom: 3rem; }
           .login-welcome { margin: 0 auto 1.45rem; text-align: center; color: #16332b; }
-          .login-welcome .login-mark { display: inline-flex; width: 54px; height: 54px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.28); border-radius: 17px; background: linear-gradient(145deg, #0b6249, #074233); color: #fff7dc; font-size: 1.35rem; box-shadow: 0 12px 28px rgba(7, 61, 49, .18); }
+          .login-welcome .login-mark { display: inline-flex; width: 54px; height: 54px; align-items: center; justify-content: center; border-radius: 17px; box-shadow: 0 12px 28px rgba(7, 61, 49, .18); overflow: hidden; }
+          .login-welcome .login-mark img { display: block; width: 100%; height: 100%; }
           .login-welcome .login-eyebrow { margin-top: 1rem; color: #39745f; font-size: .7rem; font-weight: 750; letter-spacing: .18em; text-transform: uppercase; }
           .login-welcome h1 { margin: .42rem 0 0; color: #123c31; font-size: clamp(2.25rem, 5.5vw, 3rem); font-weight: 700; letter-spacing: -.05em; line-height: 1.06; white-space: nowrap; }
           .login-welcome h1 span { font-size: .62em; font-weight: 600; letter-spacing: -.025em; }
@@ -2690,7 +2693,7 @@ def login_page():
           @media (max-width: 640px) { .block-container { padding: 5vh 1.1rem 2rem; } .login-welcome .login-mark { width: 50px; height: 50px; } .login-welcome h1 { white-space: normal; } .login-welcome h1 span { display: block; margin-top: .18rem; font-size: .55em; letter-spacing: .01em; } }
         </style>
         <div class="login-welcome">
-          <div class="login-mark">⛳</div>
+          <div class="login-mark"><img src="/app/static/brand-mark.svg" alt="88会 ゴルフポータル"></div>
           <div class="login-eyebrow">Happakai Golf Society</div>
           <h1>88会 <span>Members Portal</span></h1>
           <p>いい仲間と、いいゴルフを。<br>会員のためのゴルフポータル。</p>

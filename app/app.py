@@ -94,6 +94,41 @@ def get_project_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+ANNOUNCEMENT_GUIDE_PDFS = {
+    55: {
+        "path": os.path.join("app", "assets", "guides", "88kai-golf-competition-55.pdf"),
+        "filename": "第55回88会ゴルフコンペのご案内.pdf",
+        "label": "第55回 大会案内（PDF・2ページ）",
+    },
+}
+
+
+def get_announcement_guide_pdf(announcement: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """案内タイトル・大会情報に対応する同梱PDFを返す。"""
+    info = announcement.get("tournament_info") or {}
+    if isinstance(info, str):
+        try:
+            info = json.loads(info)
+        except (TypeError, json.JSONDecodeError):
+            info = {}
+
+    round_number = info.get("tournament_number") if isinstance(info, dict) else None
+    if round_number is None:
+        match = re.search(r"第\s*(\d+)\s*回", str(announcement.get("title") or ""))
+        round_number = match.group(1) if match else None
+    try:
+        guide = ANNOUNCEMENT_GUIDE_PDFS.get(int(round_number))
+    except (TypeError, ValueError):
+        guide = None
+    if not guide:
+        return None
+
+    pdf_path = os.path.join(get_project_root(), guide["path"])
+    if not os.path.isfile(pdf_path):
+        return None
+    return {**guide, "pdf_path": pdf_path}
+
+
 def _get_static_version_fallback() -> str:
     """環境変数やVERSIONファイルに定義された静的バージョンを取得"""
     try:
@@ -2746,6 +2781,28 @@ def render_dashboard_announcement(announcement: Dict[str, Any]) -> None:
             st.image(announcement["image_url"], width="stretch")
         except Exception:
             pass
+
+    guide = get_announcement_guide_pdf(announcement)
+    if guide:
+        with open(guide["pdf_path"], "rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+
+        st.markdown(
+            '<div class="dashboard-section-label">大会案内 PDF<small>組合せ・競技ルール・賞金表彰をご確認ください</small></div>',
+            unsafe_allow_html=True,
+        )
+        st.download_button(
+            f'↗ {guide["label"]} を開く・保存する',
+            data=pdf_bytes,
+            file_name=guide["filename"],
+            mime="application/pdf",
+            key=f'guide_pdf_download_{announcement.get("id", "default")}',
+            width="stretch",
+        )
+        if hasattr(st, "pdf"):
+            st.pdf(pdf_bytes, height=720, key=f'guide_pdf_preview_{announcement.get("id", "default")}')
+        else:
+            st.info("この環境ではPDFの埋め込み表示に対応していません。上のボタンからPDFを開いてください。")
 
 
 def get_default_dashboard_announcement() -> Dict[str, Any]:

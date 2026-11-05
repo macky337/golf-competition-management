@@ -18,6 +18,7 @@ BRAND_MARK_DATA_URI = (
     "data:image/png;base64,"
     + base64.b64encode((STATIC_DIR / "icon-192.png").read_bytes()).decode("ascii")
 )
+APP_ICON_VERSION = "20261105"
 st.set_page_config(
     page_title="88会ゴルフコンペ",
     page_icon=APP_ICON,
@@ -60,10 +61,12 @@ def inject_app_icon_links():
     (function() {
         try {
             const doc = window.parent.document;
+            const version = "__APP_ICON_VERSION__";
             const links = [
-                ["icon", "/app/static/favicon.png", "image/png"],
-                ["apple-touch-icon", "/app/static/apple-touch-icon.png", "image/png"],
-                ["manifest", "/app/static/manifest.webmanifest", "application/manifest+json"]
+                ["icon", "/app/static/favicon.png?v=" + version, "image/png"],
+                ["apple-touch-icon", "/app/static/apple-touch-icon.png?v=" + version, "image/png"],
+                ["apple-touch-icon-precomposed", "/app/static/apple-touch-icon.png?v=" + version, "image/png"],
+                ["manifest", "/app/static/manifest.webmanifest?v=" + version, "application/manifest+json"]
             ];
             links.forEach(function(item) {
                 let link = doc.head.querySelector('link[rel="' + item[0] + '"]');
@@ -86,7 +89,7 @@ def inject_app_icon_links():
         } catch (_) { /* page_icon remains available as a fallback */ }
     })();
     </script>
-    """, height=0, width=0)
+    """.replace("__APP_ICON_VERSION__", APP_ICON_VERSION), height=0, width=0)
 
 
 inject_app_icon_links()

@@ -1,6 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 import platform
 import html
+import base64
 
 
 import os
@@ -11,7 +12,12 @@ from pathlib import Path
 from PIL import Image
 
 
-APP_ICON = Image.open(Path(__file__).parent.parent / "static" / "favicon.png")
+STATIC_DIR = Path(__file__).parent.parent / "static"
+APP_ICON = Image.open(STATIC_DIR / "favicon.png")
+BRAND_MARK_DATA_URI = (
+    "data:image/png;base64,"
+    + base64.b64encode((STATIC_DIR / "icon-192.png").read_bytes()).decode("ascii")
+)
 st.set_page_config(
     page_title="88会ゴルフコンペ",
     page_icon=APP_ICON,
@@ -419,12 +425,12 @@ def render_dashboard_shell() -> None:
           }
         </style>
         <div class="dashboard-hero">
-          <div class="dashboard-eyebrow"><img class="dashboard-brand-mark" src="/app/static/brand-mark.svg" alt="">Happakai Golf Society</div>
+          <div class="dashboard-eyebrow"><img class="dashboard-brand-mark" src="__BRAND_MARK_DATA_URI__" alt="">Happakai Golf Society</div>
           <h1>いい仲間と、<br>いいゴルフを。</h1>
           <p>88会の開催案内から個人成績、歴代の競技結果まで。いつもの情報を、ひとつの場所で。</p>
-          <div class="dashboard-hero-badge"><img src="/app/static/brand-mark.svg" alt="">88会 メンバーズポータル</div>
+          <div class="dashboard-hero-badge"><img src="__BRAND_MARK_DATA_URI__" alt="">88会 メンバーズポータル</div>
         </div>
-        """,
+        """.replace("__BRAND_MARK_DATA_URI__", BRAND_MARK_DATA_URI),
         unsafe_allow_html=True,
     )
 
@@ -2693,12 +2699,12 @@ def login_page():
           @media (max-width: 640px) { .block-container { padding: 5vh 1.1rem 2rem; } .login-welcome .login-mark { width: 50px; height: 50px; } .login-welcome h1 { white-space: normal; } .login-welcome h1 span { display: block; margin-top: .18rem; font-size: .55em; letter-spacing: .01em; } }
         </style>
         <div class="login-welcome">
-          <div class="login-mark"><img src="/app/static/brand-mark.svg" alt="88会 ゴルフポータル"></div>
+          <div class="login-mark"><img src="__BRAND_MARK_DATA_URI__" alt="88会 ゴルフポータル"></div>
           <div class="login-eyebrow">Happakai Golf Society</div>
           <h1>88会 <span>Members Portal</span></h1>
           <p>いい仲間と、いいゴルフを。<br>会員のためのゴルフポータル。</p>
         </div>
-        """,
+        """.replace("__BRAND_MARK_DATA_URI__", BRAND_MARK_DATA_URI),
         unsafe_allow_html=True,
     )
 

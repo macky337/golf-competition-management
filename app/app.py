@@ -96,15 +96,17 @@ def get_project_root():
 
 ANNOUNCEMENT_GUIDE_PDFS = {
     55: {
-        "path": os.path.join("app", "assets", "guides", "88kai-golf-competition-55.pdf"),
-        "filename": "第55回88会ゴルフコンペのご案内.pdf",
-        "label": "第55回 大会案内（PDF・2ページ）",
+        "preview_paths": (
+            os.path.join("app", "assets", "guides", "88kai-golf-competition-55-page-1.png"),
+            os.path.join("app", "assets", "guides", "88kai-golf-competition-55-page-2.png"),
+        ),
+        "label": "大会案内（全2ページ）",
     },
 }
 
 
-def get_announcement_guide_pdf(announcement: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """案内タイトル・大会情報に対応する同梱PDFを返す。"""
+def get_announcement_guide(announcement: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """案内タイトル・大会情報に対応する同梱大会案内を返す。"""
     info = announcement.get("tournament_info") or {}
     if isinstance(info, str):
         try:
@@ -123,10 +125,10 @@ def get_announcement_guide_pdf(announcement: Dict[str, Any]) -> Optional[Dict[st
     if not guide:
         return None
 
-    pdf_path = os.path.join(get_project_root(), guide["path"])
-    if not os.path.isfile(pdf_path):
+    preview_paths = tuple(os.path.join(get_project_root(), path) for path in guide["preview_paths"])
+    if not all(os.path.isfile(path) for path in preview_paths):
         return None
-    return {**guide, "pdf_path": pdf_path}
+    return {**guide, "preview_paths": preview_paths}
 
 
 def _get_static_version_fallback() -> str:
@@ -2782,27 +2784,15 @@ def render_dashboard_announcement(announcement: Dict[str, Any]) -> None:
         except Exception:
             pass
 
-    guide = get_announcement_guide_pdf(announcement)
+    guide = get_announcement_guide(announcement)
     if guide:
-        with open(guide["pdf_path"], "rb") as pdf_file:
-            pdf_bytes = pdf_file.read()
-
-        st.markdown(
-            '<div class="dashboard-section-label">大会案内 PDF<small>組合せ・競技ルール・賞金表彰をご確認ください</small></div>',
-            unsafe_allow_html=True,
-        )
-        st.download_button(
-            f'↗ {guide["label"]} を開く・保存する',
-            data=pdf_bytes,
-            file_name=guide["filename"],
-            mime="application/pdf",
-            key=f'guide_pdf_download_{announcement.get("id", "default")}',
-            width="stretch",
-        )
-        if hasattr(st, "pdf"):
-            st.pdf(pdf_bytes, height=720, key=f'guide_pdf_preview_{announcement.get("id", "default")}')
-        else:
-            st.info("この環境ではPDFの埋め込み表示に対応していません。上のボタンからPDFを開いてください。")
+        st.caption(guide["label"])
+        for page_number, preview_path in enumerate(guide["preview_paths"], start=1):
+            st.image(
+                preview_path,
+                caption=f"{page_number} / {len(guide['preview_paths'])} ページ",
+                width="stretch",
+            )
 
 
 def get_default_dashboard_announcement() -> Dict[str, Any]:

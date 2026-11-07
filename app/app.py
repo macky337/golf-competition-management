@@ -365,7 +365,22 @@ def render_dashboard_shell() -> None:
             --club-gold: #d3aa4a;
           }
           .stApp { background: linear-gradient(180deg, #f7faf8 0, #ffffff 430px); }
-          .block-container { max-width: 1180px; padding-top: 1.5rem; padding-bottom: 4rem; }
+          .block-container { width: 100%; max-width: 1180px; box-sizing: border-box; padding-top: 1.5rem; padding-bottom: 4rem; }
+          .dashboard-hero,
+          .dashboard-notice,
+          .dashboard-chart,
+          .dashboard-status-card,
+          .dashboard-spotlight,
+          .dashboard-podium,
+          .dashboard-competition {
+            box-sizing: border-box;
+            min-width: 0;
+            max-width: 100%;
+          }
+          .dashboard-hero > *, .dashboard-notice > * { min-width: 0; max-width: 100%; }
+          .dashboard-hero h1, .dashboard-hero p, .dashboard-notice h3, .dashboard-notice p { overflow-wrap: anywhere; }
+          div[data-testid="stHorizontalBlock"] { min-width: 0; max-width: 100%; }
+          div[data-testid="stButton"], div[data-testid="stButton"] > button { min-width: 0; max-width: 100%; box-sizing: border-box; }
           .dashboard-hero {
             position: relative; overflow: hidden;
             padding: 2.4rem 2.5rem 2.25rem;
@@ -424,7 +439,7 @@ def render_dashboard_shell() -> None:
           div[data-testid="stButton"] > button:hover { border-color: #82b5a2; color: var(--club-green); transform: translateY(-1px); box-shadow: 0 9px 22px rgba(20,65,51,.10); }
           div[data-testid="stExpander"] { border-color: var(--club-line); border-radius: 14px; background: rgba(255,255,255,.72); }
           @media (max-width: 640px) {
-            .block-container { padding: max(3.8rem, calc(env(safe-area-inset-top) + 1rem)) 1rem max(3rem, calc(env(safe-area-inset-bottom) + 1.5rem)); }
+            .block-container { width: 100%; max-width: 100%; padding: max(3.8rem, calc(env(safe-area-inset-top) + 1rem)) 1rem max(3rem, calc(env(safe-area-inset-bottom) + 1.5rem)); }
             .dashboard-hero { padding: 1.35rem 1.25rem 1.2rem; margin: 0 0 1rem; border-radius: 22px; }
             .dashboard-hero::after { right: .35rem; bottom: -1.75rem; font-size: 6rem; }
             .dashboard-eyebrow { gap: .4rem; font-size: .66rem; letter-spacing: .12em; }

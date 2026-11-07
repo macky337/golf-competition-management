@@ -8,7 +8,8 @@ on:
 
 jobs:
   quality-checks:
-    runs-on: ubuntu-latest
+    # Playwright 1.60 のChromium依存関係を安定して導入できるUbuntuを固定する。
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

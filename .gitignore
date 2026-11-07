@@ -35,3 +35,6 @@ secrets.toml
 build/
 dist/
 *.egg-info/
+
+# Browser test artifacts
+test-results/

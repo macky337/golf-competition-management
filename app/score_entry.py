@@ -36,37 +36,50 @@ elif platform.system() == 'Darwin':  # Macの場合
 else:  # Linux（Streamlit Cloud含む）
     matplotlib.rcParams['font.family'] = 'IPAexGothic'
 
-# 環境変数の読み込み
-load_dotenv()
+# ブラウザ自動テストでは、親アプリと同じく本番用 .env を読み込まない。
+APP_TEST_MODE = os.getenv("APP_TEST_MODE", "").strip().lower() in {"1", "true", "yes"}
+if not APP_TEST_MODE:
+    load_dotenv()
 
 # Supabase接続情報の取得
-try:
-    # まずStreamlit secretsを試す
-    SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
-    SUPABASE_KEY = (
-        st.secrets.get("supabase", {}).get("key", "")
-        or st.secrets.get("supabase", {}).get("anon_key", "")
-        or st.secrets.get("supabase", {}).get("anonKey", "")
-    )
-except Exception:
-    # 次に環境変数を試す
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
+if APP_TEST_MODE:
+    SUPABASE_URL = ""
+    SUPABASE_KEY = ""
+else:
+    try:
+        # まずStreamlit secretsを試す
+        SUPABASE_URL = st.secrets.get("supabase", {}).get("url", "")
+        SUPABASE_KEY = (
+            st.secrets.get("supabase", {}).get("key", "")
+            or st.secrets.get("supabase", {}).get("anon_key", "")
+            or st.secrets.get("supabase", {}).get("anonKey", "")
+        )
+    except Exception:
+        # 次に環境変数を試す
+        SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+        SUPABASE_KEY = os.getenv("SUPABASE_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
 
 # 単体起動時にも固定パスワードへフォールバックしない。
-try:
-    auth_secrets = st.secrets.get("auth", {})
-except Exception:
+if APP_TEST_MODE:
     auth_secrets = {}
-USER_PASSWORD = (
-    auth_secrets.get("user_password", "")
-    or auth_secrets.get("password", "")
-    or os.getenv("USER_PASSWORD", "")
-).strip()
-ADMIN_PASSWORD = (
-    auth_secrets.get("admin_password", "")
-    or os.getenv("ADMIN_PASSWORD", "")
-).strip()
+else:
+    try:
+        auth_secrets = st.secrets.get("auth", {})
+    except Exception:
+        auth_secrets = {}
+if APP_TEST_MODE:
+    USER_PASSWORD = os.getenv("E2E_USER_PASSWORD", "").strip()
+    ADMIN_PASSWORD = os.getenv("E2E_ADMIN_PASSWORD", "").strip()
+else:
+    USER_PASSWORD = (
+        auth_secrets.get("user_password", "")
+        or auth_secrets.get("password", "")
+        or os.getenv("USER_PASSWORD", "")
+    ).strip()
+    ADMIN_PASSWORD = (
+        auth_secrets.get("admin_password", "")
+        or os.getenv("ADMIN_PASSWORD", "")
+    ).strip()
 
 # セッション状態の初期化
 if "logged_in" not in st.session_state:

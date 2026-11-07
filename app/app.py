@@ -545,12 +545,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ブラウザ自動テストでは、ローカルの .env や Streamlit secrets を読まずに
+# 起動する。これにより、本番Supabaseへ接続する経路を持たない画面確認ができる。
+APP_TEST_MODE = os.getenv("APP_TEST_MODE", "").strip().lower() in {"1", "true", "yes"}
+
 # 環境変数の読み込み
 # .envファイルのパスをプロジェクトルートから解決
 dotenv_path = os.path.join(get_project_root(), '.env')
 # デプロイ先（Railway 等）の環境変数を最優先にする。ローカルの .env が
 # 残っていても、空または古い値で本番の認証設定を上書きしてはいけない。
-load_dotenv(dotenv_path=dotenv_path, override=False)
+if not APP_TEST_MODE:
+    load_dotenv(dotenv_path=dotenv_path, override=False)
 
 # Supabase接続情報 - Streamlit secrets と環境変数の両方をサポート
 def _get_secret_supabase(*keys: str) -> str:
@@ -577,17 +582,22 @@ def _get_secret_auth(*keys: str) -> str:
         return ""
 
 
-SUPABASE_URL = _get_secret_supabase("url") or os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_KEY = (
-    _get_secret_supabase("key", "anon_key", "anonKey")
-    or os.getenv("SUPABASE_KEY", "").strip()
-    or os.getenv("SUPABASE_ANON_KEY", "").strip()
-)
-SUPABASE_SERVICE_KEY = (
-    _get_secret_supabase("service_key", "service_role_key", "serviceKey", "serviceRoleKey")
-    or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
-    or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-)
+if APP_TEST_MODE:
+    SUPABASE_URL = ""
+    SUPABASE_KEY = ""
+    SUPABASE_SERVICE_KEY = ""
+else:
+    SUPABASE_URL = _get_secret_supabase("url") or os.getenv("SUPABASE_URL", "").strip()
+    SUPABASE_KEY = (
+        _get_secret_supabase("key", "anon_key", "anonKey")
+        or os.getenv("SUPABASE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+    )
+    SUPABASE_SERVICE_KEY = (
+        _get_secret_supabase("service_key", "service_role_key", "serviceKey", "serviceRoleKey")
+        or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    )
 
 # デバッグ: 環境変数の読み込み確認（開発時のみ）
 if os.getenv("DEBUG_SUPABASE") == "true":
@@ -596,7 +606,7 @@ if os.getenv("DEBUG_SUPABASE") == "true":
     st.write("DEBUG: SUPABASE_SERVICE_KEY =", "SET" if SUPABASE_SERVICE_KEY else "NOT SET")
 
 # 接続情報が不足している場合の対応
-if not SUPABASE_URL or not SUPABASE_KEY:
+if not APP_TEST_MODE and (not SUPABASE_URL or not SUPABASE_KEY):
     st.warning("""
     Supabase接続情報が見つかりません。以下のいずれかの方法で設定してください：
     
@@ -619,14 +629,18 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     """)
 
 # ログイン用のパスワード設定
-USER_PASSWORD = (
-    _get_secret_auth("user_password", "password")
-    or os.getenv("USER_PASSWORD", "").strip()
-)
-ADMIN_PASSWORD = (
-    _get_secret_auth("admin_password")
-    or os.getenv("ADMIN_PASSWORD", "").strip()
-)
+if APP_TEST_MODE:
+    USER_PASSWORD = os.getenv("E2E_USER_PASSWORD", "").strip()
+    ADMIN_PASSWORD = os.getenv("E2E_ADMIN_PASSWORD", "").strip()
+else:
+    USER_PASSWORD = (
+        _get_secret_auth("user_password", "password")
+        or os.getenv("USER_PASSWORD", "").strip()
+    )
+    ADMIN_PASSWORD = (
+        _get_secret_auth("admin_password")
+        or os.getenv("ADMIN_PASSWORD", "").strip()
+    )
 
 if not USER_PASSWORD:
     logging.error("USER_PASSWORD is not configured. User login is disabled.")

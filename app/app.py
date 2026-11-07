@@ -548,6 +548,13 @@ st.markdown("""
 # ブラウザ自動テストでは、ローカルの .env や Streamlit secrets を読まずに
 # 起動する。これにより、本番Supabaseへ接続する経路を持たない画面確認ができる。
 APP_TEST_MODE = os.getenv("APP_TEST_MODE", "").strip().lower() in {"1", "true", "yes"}
+if APP_TEST_MODE:
+    from test_mode_data import (
+        mock_announcement,
+        mock_competitions_dataframe,
+        mock_players_dataframe,
+        mock_scores_dataframe,
+    )
 
 # 環境変数の読み込み
 # .envファイルのパスをプロジェクトルートから解決
@@ -688,6 +695,8 @@ if "page" not in st.session_state:
 @st.cache_resource
 def get_supabase_client():
     """Supabaseクライアントを取得（キャッシュ付き）"""
+    if APP_TEST_MODE:
+        return None
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None
     
@@ -710,6 +719,8 @@ def get_supabase_client():
 @st.cache_resource
 def get_supabase_admin_client() -> Optional[Client]:
     """管理者（サービスロール）用のSupabaseクライアントを取得（キャッシュ付き）"""
+    if APP_TEST_MODE:
+        return None
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         return None
     
@@ -727,6 +738,8 @@ def get_supabase_admin_client() -> Optional[Client]:
 
 def fetch_scores():
     """スコアデータをSupabaseから取得"""
+    if APP_TEST_MODE:
+        return mock_scores_dataframe()
     supabase = get_supabase_client()
     if not supabase:
         return pd.DataFrame()
@@ -800,6 +813,8 @@ def fetch_scores():
 
 def fetch_players():
     """プレイヤーデータをSupabaseから取得"""
+    if APP_TEST_MODE:
+        return mock_players_dataframe()
     supabase = get_supabase_client()
     if not supabase:
         return pd.DataFrame()
@@ -821,6 +836,8 @@ def fetch_players():
 
 def fetch_competitions():
     """コンペデータをSupabaseから取得"""
+    if APP_TEST_MODE:
+        return mock_competitions_dataframe()
     supabase = get_supabase_client()
     if not supabase:
         return pd.DataFrame()
@@ -2836,9 +2853,9 @@ def main_app():
     render_dashboard_navigation()
     
     # 取得の失敗と描画の失敗を分離し、途中描画後の二重表示を防ぐ。
-    announcement = None
+    announcement = mock_announcement() if APP_TEST_MODE else None
     try:
-        supabase_client = get_supabase_client()
+        supabase_client = None if APP_TEST_MODE else get_supabase_client()
         announcements_response = None
         
         if supabase_client:

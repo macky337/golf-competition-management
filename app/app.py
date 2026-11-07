@@ -62,6 +62,10 @@ def inject_app_icon_links():
     (function() {
         try {
             const doc = window.parent.document;
+            const viewport = doc.querySelector('meta[name="viewport"]');
+            if (viewport && !viewport.content.includes("viewport-fit=cover")) {
+                viewport.content += ", viewport-fit=cover";
+            }
             const version = "__APP_ICON_VERSION__";
             const links = [
                 ["icon", "/app/static/favicon.png?v=" + version, "image/png"],
@@ -420,9 +424,17 @@ def render_dashboard_shell() -> None:
           div[data-testid="stButton"] > button:hover { border-color: #82b5a2; color: var(--club-green); transform: translateY(-1px); box-shadow: 0 9px 22px rgba(20,65,51,.10); }
           div[data-testid="stExpander"] { border-color: var(--club-line); border-radius: 14px; background: rgba(255,255,255,.72); }
           @media (max-width: 640px) {
-            .block-container { padding: .8rem 1rem 3rem; }
-            .dashboard-hero { padding: 1.65rem 1.35rem; border-radius: 22px; }
-            .dashboard-hero::after { right: .5rem; font-size: 7rem; }
+            .block-container { padding: max(3.8rem, calc(env(safe-area-inset-top) + 1rem)) 1rem max(3rem, calc(env(safe-area-inset-bottom) + 1.5rem)); }
+            .dashboard-hero { padding: 1.35rem 1.25rem 1.2rem; margin: 0 0 1rem; border-radius: 22px; }
+            .dashboard-hero::after { right: .35rem; bottom: -1.75rem; font-size: 6rem; }
+            .dashboard-eyebrow { gap: .4rem; font-size: .66rem; letter-spacing: .12em; }
+            .dashboard-brand-mark { width: 24px; height: 24px; border-radius: 8px; }
+            .dashboard-hero h1 { margin-top: .35rem; font-size: clamp(2rem, 10vw, 2.45rem); line-height: 1.12; }
+            .dashboard-hero p { margin-top: .65rem; font-size: .9rem; line-height: 1.6; }
+            .dashboard-hero-badge { margin-top: .85rem; padding: .34rem .62rem; font-size: .72rem; }
+            .dashboard-section-label { margin: 1.35rem 0 .5rem; font-size: 1.12rem; }
+            .dashboard-section-label small { margin-top: .12rem; font-size: .74rem; }
+            div[data-testid="stButton"] > button { min-height: 2.8rem; border-radius: 12px; font-size: .91rem; }
             .dashboard-status-card { min-height: 102px; margin-bottom: .45rem; }
             .dashboard-spotlight { min-height: 0; margin-bottom: .55rem; }
             .dashboard-chart-row { grid-template-columns: 88px 1fr 36px; gap: .45rem; }
@@ -444,13 +456,13 @@ def render_dashboard_navigation() -> None:
     st.markdown('<div class="dashboard-section-label">よく見る<small>成績・競技結果・ランキングを確認できます</small></div>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📈  個人成績を見る", key="dashboard_stats", width="stretch"):
+        if st.button("個人成績を見る", key="dashboard_stats", width="stretch"):
             _navigate("stats")
     with col2:
-        if st.button("🏆  競技結果を見る", key="dashboard_results", width="stretch"):
+        if st.button("競技結果を見る", key="dashboard_results", width="stretch"):
             _navigate("results")
     with col3:
-        if st.button("🏅  ランキング", key="dashboard_rankings", width="stretch"):
+        if st.button("ランキング", key="dashboard_rankings", width="stretch"):
             _navigate("rankings")
 
 

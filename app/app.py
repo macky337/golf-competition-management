@@ -52,6 +52,7 @@ from player_management import player_management_tab
 from competition_management import competition_management_tab
 from score_entry import score_entry_page as score_entry_tab
 from rankings import rankings_page
+from data_integrity import fetch_all_rows, validate_backup
 
 
 def inject_app_icon_links():
@@ -706,14 +707,14 @@ def fetch_scores():
     
     try:
         # スコアデータを取得
-        response = supabase.table("scores").select("*").execute()
+        scores = fetch_all_rows(supabase, "scores")
         
         # レスポンスの検証
-        if not response.data:
+        if not scores:
             st.warning("スコアデータが空です。データベースに値が存在しないか、RLS設定により取得できない可能性があります。")
             return pd.DataFrame()
         
-        scores = response.data
+        competitions = {row["competition_id"]: row for row in fetch_all_rows(supabase, "competitions")}
         
         # プレイヤー情報を取得
         players_response = supabase.table("players").select("*").execute()
@@ -749,8 +750,8 @@ def fetch_scores():
             
             score_dict = {
                 "競技ID": score.get("competition_id"),
-                "日付": score.get("date"),
-                "コース": score.get("course"),
+                "日付": competitions.get(score.get("competition_id"), {}).get("date", score.get("date")),
+                "コース": competitions.get(score.get("competition_id"), {}).get("course", score.get("course")),
                 "プレイヤー名": players.get(score.get("player_id"), "不明"),
                 "アウトスコア": out_score,
                 "インスコア": in_score,
@@ -1956,19 +1957,7 @@ def _resolve_backup_dir() -> str:
 
 
 def _fetch_backup_payload(supabase: Client) -> Dict[str, Any]:
-    competitions_response = supabase.table("competitions").select("*").execute()
-    players_response = supabase.table("players").select("*").execute()
-    participants_response = supabase.table("participants").select("*").execute()
-    scores_response = supabase.table("scores").select("*").execute()
-    announcements_response = supabase.table("announcements").select("*").execute()
-
-    return {
-        "competitions": competitions_response.data or [],
-        "players": players_response.data or [],
-        "participants": participants_response.data or [],
-        "scores": scores_response.data or [],
-        "announcements": announcements_response.data or [],
-    }
+    return {table: fetch_all_rows(supabase, table) for table in RESTORE_TABLES}
 
 
 def _collect_table_counts(supabase: Client) -> Dict[str, int]:
@@ -2357,6 +2346,7 @@ def _execute_restore_with_guard(
     backup_identifier: str,
     operator_name: str,
 ) -> None:
+    validate_backup(backup_data)
     pre_snapshot_file = _save_pre_restore_snapshot(supabase)
     before_counts = _collect_table_counts(supabase)
     expected_counts = {table: len(backup_data.get(table, [])) for table in RESTORE_TABLES}
@@ -2665,13 +2655,7 @@ REVOKE ALL ON TABLE backups FROM authenticated;
 
 def perform_restore(backup_data, supabase: Client):
     """サーバー側RPCで、全テーブルを単一トランザクション内に復元する。"""
-    if not isinstance(backup_data, dict):
-        raise ValueError("バックアップデータ形式が不正です。JSONオブジェクトではありません。")
-
-    for table in RESTORE_TABLES:
-        rows = backup_data.get(table, [])
-        if not isinstance(rows, list):
-            raise ValueError(f"バックアップデータ形式が不正です。{table} が配列ではありません。")
+    validate_backup(backup_data)
 
     supabase.rpc("restore_golf_database", {"backup_data": backup_data}).execute()
 
@@ -2825,23 +2809,21 @@ def main_app():
     render_dashboard_shell()
     render_dashboard_navigation()
     
-    # お知らせをデータベースから取得して表示
+    # 取得の失敗と描画の失敗を分離し、途中描画後の二重表示を防ぐ。
+    announcement = None
     try:
         supabase_client = get_supabase_client()
         announcements_response = None
         
         if supabase_client:
-            announcements_response = supabase_client.table("announcements").select("*").eq("is_active", True).order("display_order", desc=True).limit(1).execute()
+            announcements_response = supabase_client.table("announcements").select("*").eq("is_active", True).order("display_order", desc=True).order("created_at", desc=True).limit(1).execute()
         
         if announcements_response and announcements_response.data and len(announcements_response.data) > 0:
             announcement = announcements_response.data[0]
-            render_dashboard_announcement(announcement)
-        else:
-            # デフォルトのお知らせ（データベースにデータがない場合）
-            render_dashboard_announcement(get_default_dashboard_announcement())
     except Exception:
-        # エラー時はデフォルトのお知らせを表示
-        render_dashboard_announcement(get_default_dashboard_announcement())
+        st.warning("次回案内を取得できませんでした。時間をおいて再読み込みしてください。")
+    if announcement:
+        render_dashboard_announcement(announcement)
     
     # Supabaseからデータを取得
     scores_df = fetch_scores()

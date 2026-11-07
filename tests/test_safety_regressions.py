@@ -78,6 +78,14 @@ def test_save_scores_upserts_without_deleting_existing_rows(monkeypatch):
     assert supabase.scores.upsert_rows[0]["competition_id"] == 7
     assert supabase.scores.upsert_rows[0]["player_id"] == 10
 
+    supabase.scores.upsert_rows = None
+    assert score_entry.save_scores(
+        7, {10: {"out_score": 40, "in_score": 41, "net_score": 71},
+            11: {"out_score": 0, "in_score": 0, "net_score": 0}},
+        pd.DataFrame(), supabase,
+    ) is False
+    assert supabase.scores.upsert_rows is None
+
 
 def test_initial_schema_uses_competition_id_consistently():
     sql = (PROJECT_ROOT / "migrations" / "0001_initial_schema.sql").read_text(encoding="utf-8")

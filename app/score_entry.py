@@ -216,7 +216,15 @@ def save_scores(competition_id, scores_data, players_data, supabase=None):
         course = competition_info.iloc[0]["course"]
         
         # 順位を計算
-        rankings = calculate_rankings(scores_data)
+        detailed_scores = {
+            player_id: score for player_id, score in scores_data.items()
+            if (score.get("out_score") or 0) > 0 and (score.get("in_score") or 0) > 0
+        }
+        # 順位のみの履歴を含む大会は、詳細入力が全員分揃うまで保存を止める。
+        if len(detailed_scores) != len(scores_data):
+            st.error("詳細未入力の既存記録があります。全員分のOUT・INを入力してから保存してください。順位だけの記録は変更していません。")
+            return False
+        rankings = calculate_rankings(detailed_scores)
         
         for player_id, score_info in scores_data.items():
             if score_info.get("out_score") is not None and score_info.get("in_score") is not None:
@@ -373,7 +381,7 @@ def score_entry_page(supabase=None):
                                 max_value=100, 
                                 value=int(existing_data.get("out_score", 0)),
                                 step=1,
-                                key=f"out_{player_id}"
+                                key=f"out_{competition_id}_{player_id}"
                             )
                         
                         with col2:
@@ -383,7 +391,7 @@ def score_entry_page(supabase=None):
                                 max_value=100, 
                                 value=int(existing_data.get("in_score", 0)),
                                 step=1,
-                                key=f"in_{player_id}"
+                                key=f"in_{competition_id}_{player_id}"
                             )
                         
                         with col3:
@@ -393,7 +401,7 @@ def score_entry_page(supabase=None):
                                 max_value=50.0,
                                 value=float(existing_data.get("handicap", 0.0)),
                                 step=0.1,
-                                key=f"hcp_{player_id}"
+                                key=f"hcp_{competition_id}_{player_id}"
                             )
                         
                         # グロススコアとネットスコアを計算
@@ -427,6 +435,11 @@ def score_entry_page(supabase=None):
                                 "net_score": net_score
                             }
                             scores_changed = True
+                        elif player_id in st.session_state.get("score_data", {}):
+                            st.session_state.score_data[player_id] = {
+                                "out_score": out_score, "in_score": in_score,
+                                "handicap": handicap,
+                            }
                 
                 # 登録ボタン
                 submit_button = st.form_submit_button("スコアを登録")

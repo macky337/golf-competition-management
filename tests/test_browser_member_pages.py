@@ -73,7 +73,12 @@ def test_member_pages_render_with_fictional_data(streamlit_url, name, viewport):
 
         page.get_by_role("button", name="ランキング", exact=True).click()
         expect(page.get_by_text("実力系ランキング", exact=True)).to_be_visible(timeout=20_000)
-        expect(page.get_by_text("テスト 太郎", exact=True).first).to_be_visible(timeout=20_000)
+        expect(page.get_by_role("heading", name="ベスグロ回数", exact=True)).to_be_visible(timeout=20_000)
+        expect(page.get_by_text("優勝記録がありません。", exact=True)).not_to_be_visible()
+        expect(page.get_by_text("有効なグロススコアがありません。", exact=True)).not_to_be_visible()
+        expect(
+            page.get_by_text("各コンペの最少グロスを出した回数です。同スコアは全員を数えます。", exact=True)
+        ).to_be_visible(timeout=20_000)
         _assert_no_streamlit_exception(page)
         page.screenshot(path=str(ARTIFACT_DIR / f"member-{name}-rankings.png"), full_page=True)
         page.get_by_role("button", name="← メイン画面へ", exact=True).click()

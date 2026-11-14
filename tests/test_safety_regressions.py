@@ -17,6 +17,15 @@ class ScoreQuery:
         self.upsert_rows = None
         self.on_conflict = None
         self.delete_called = False
+        self.existing_rows = []
+
+    def select(self, columns):
+        self.selected_columns = columns
+        return self
+
+    def eq(self, column, value):
+        self.filter = (column, value)
+        return self
 
     def delete(self):
         self.delete_called = True
@@ -28,7 +37,7 @@ class ScoreQuery:
         return self
 
     def execute(self):
-        return object()
+        return type("Response", (), {"data": self.existing_rows})()
 
 
 class SupabaseStub:
@@ -45,7 +54,7 @@ class SessionStateStub(dict):
         return self[name]
 
 
-def test_save_scores_upserts_without_deleting_existing_rows(monkeypatch):
+def test_save_scores_uses_primary_key_upsert_without_deleting_existing_rows(monkeypatch):
     score_entry = importlib.import_module("score_entry")
     supabase = SupabaseStub()
     monkeypatch.setattr(score_entry, "get_supabase_client", lambda: supabase)
@@ -74,11 +83,31 @@ def test_save_scores_upserts_without_deleting_existing_rows(monkeypatch):
 
     assert saved is True
     assert supabase.scores.delete_called is False
-    assert supabase.scores.on_conflict == "competition_id,player_id"
+    assert supabase.scores.on_conflict == "id"
     assert supabase.scores.upsert_rows[0]["competition_id"] == 7
     assert supabase.scores.upsert_rows[0]["player_id"] == 10
+    assert "id" not in supabase.scores.upsert_rows[0]
+
+    supabase.scores.existing_rows = [{"id": 55, "player_id": 10}]
+    assert score_entry.save_scores(
+        7, {10: {"out_score": 40, "in_score": 41, "net_score": 71}},
+        pd.DataFrame(), supabase,
+    ) is True
+    assert supabase.scores.upsert_rows[0]["id"] == 55
+    assert supabase.scores.on_conflict == "id"
 
     supabase.scores.upsert_rows = None
+    supabase.scores.existing_rows = [
+        {"id": 55, "player_id": 10}, {"id": 56, "player_id": 10}
+    ]
+    assert score_entry.save_scores(
+        7, {10: {"out_score": 40, "in_score": 41, "net_score": 71}},
+        pd.DataFrame(), supabase,
+    ) is False
+    assert supabase.scores.upsert_rows is None
+
+    supabase.scores.upsert_rows = None
+    supabase.scores.existing_rows = []
     assert score_entry.save_scores(
         7, {10: {"out_score": 40, "in_score": 41, "net_score": 71},
             11: {"out_score": 0, "in_score": 0, "net_score": 0}},

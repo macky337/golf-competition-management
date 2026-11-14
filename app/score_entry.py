@@ -254,12 +254,33 @@ def save_scores(competition_id, scores_data, players_data, supabase=None):
                 }
                 records_to_insert.append(record)
         
-        # 一意制約 (competition_id, player_id) を使って原子的に追加・更新する。
-        # 先に既存行を削除しないため、通信・検証エラーでも保存済みデータを失わない。
+        # 既存DBによっては (competition_id, player_id) の一意制約がないため、
+        # その組み合わせを ON CONFLICT に指定すると PostgreSQL が 42P10 を返す。
+        # 既存行の主キーを使って更新し、新規行は通常の INSERT として保存する。
         if records_to_insert:
+            existing_response = (
+                supabase.table("scores")
+                .select("id,player_id")
+                .eq("competition_id", competition_id)
+                .execute()
+            )
+            existing_ids = {}
+            for existing in existing_response.data or []:
+                player_id = existing.get("player_id")
+                # 重複がある場合に任意の行を選んで更新しない。
+                if player_id in existing_ids:
+                    st.error("同じコンペに重複したスコア行があります。管理者に確認してください。")
+                    return False
+                existing_ids[player_id] = existing.get("id")
+
+            for record in records_to_insert:
+                existing_id = existing_ids.get(record["player_id"])
+                if existing_id is not None:
+                    record["id"] = existing_id
+
             supabase.table("scores").upsert(
                 records_to_insert,
-                on_conflict="competition_id,player_id",
+                on_conflict="id",
             ).execute()
             return True
         else:

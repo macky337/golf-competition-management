@@ -18,13 +18,17 @@ class ScoreQuery:
         self.on_conflict = None
         self.delete_called = False
         self.existing_rows = []
+        self.insert_rows = None
+        self.updated_rows = []
+        self.filters = []
 
     def select(self, columns):
         self.selected_columns = columns
+        self.mode = "select"
         return self
 
     def eq(self, column, value):
-        self.filter = (column, value)
+        self.filters.append((column, value))
         return self
 
     def delete(self):
@@ -36,8 +40,22 @@ class ScoreQuery:
         self.on_conflict = on_conflict
         return self
 
+    def insert(self, rows):
+        self.insert_rows = rows
+        self.mode = "insert"
+        return self
+
+    def update(self, row):
+        self.mode = "update"
+        self.updated_rows.append((row, list(self.filters)))
+        self.filters.clear()
+        return self
+
     def execute(self):
-        return type("Response", (), {"data": self.existing_rows})()
+        data = self.existing_rows if getattr(self, "mode", "select") == "select" else []
+        if getattr(self, "mode", "select") == "select":
+            self.filters.clear()
+        return type("Response", (), {"data": data})()
 
 
 class SupabaseStub:
@@ -54,7 +72,7 @@ class SessionStateStub(dict):
         return self[name]
 
 
-def test_save_scores_uses_primary_key_upsert_without_deleting_existing_rows(monkeypatch):
+def test_save_scores_inserts_and_updates_without_on_conflict(monkeypatch):
     score_entry = importlib.import_module("score_entry")
     supabase = SupabaseStub()
     monkeypatch.setattr(score_entry, "get_supabase_client", lambda: supabase)
@@ -83,20 +101,20 @@ def test_save_scores_uses_primary_key_upsert_without_deleting_existing_rows(monk
 
     assert saved is True
     assert supabase.scores.delete_called is False
-    assert supabase.scores.on_conflict == "id"
-    assert supabase.scores.upsert_rows[0]["competition_id"] == 7
-    assert supabase.scores.upsert_rows[0]["player_id"] == 10
-    assert "id" not in supabase.scores.upsert_rows[0]
+    assert supabase.scores.upsert_rows is None
+    assert supabase.scores.insert_rows[0]["competition_id"] == 7
+    assert supabase.scores.insert_rows[0]["player_id"] == 10
 
     supabase.scores.existing_rows = [{"id": 55, "player_id": 10}]
     assert score_entry.save_scores(
         7, {10: {"out_score": 40, "in_score": 41, "net_score": 71}},
         pd.DataFrame(), supabase,
     ) is True
-    assert supabase.scores.upsert_rows[0]["id"] == 55
-    assert supabase.scores.on_conflict == "id"
+    updated_record, filters = supabase.scores.updated_rows[-1]
+    assert updated_record["competition_id"] == 7
+    assert filters == [("id", 55), ("competition_id", 7), ("player_id", 10)]
+    assert supabase.scores.upsert_rows is None
 
-    supabase.scores.upsert_rows = None
     supabase.scores.existing_rows = [
         {"id": 55, "player_id": 10}, {"id": 56, "player_id": 10}
     ]
@@ -105,9 +123,10 @@ def test_save_scores_uses_primary_key_upsert_without_deleting_existing_rows(monk
         pd.DataFrame(), supabase,
     ) is False
     assert supabase.scores.upsert_rows is None
+    assert len(supabase.scores.updated_rows) == 1
 
-    supabase.scores.upsert_rows = None
     supabase.scores.existing_rows = []
+    supabase.scores.insert_rows = None
     assert score_entry.save_scores(
         7, {10: {"out_score": 40, "in_score": 41, "net_score": 71},
             11: {"out_score": 0, "in_score": 0, "net_score": 0}},

@@ -47,14 +47,15 @@ class ScoreQuery:
 
     def update(self, row):
         self.mode = "update"
-        self.updated_rows.append((row, list(self.filters)))
+        self.pending_update = row
         self.filters.clear()
         return self
 
     def execute(self):
         data = self.existing_rows if getattr(self, "mode", "select") == "select" else []
-        if getattr(self, "mode", "select") == "select":
-            self.filters.clear()
+        if getattr(self, "mode", "select") == "update":
+            self.updated_rows.append((self.pending_update, list(self.filters)))
+        self.filters.clear()
         return type("Response", (), {"data": data})()
 
 
@@ -106,6 +107,7 @@ def test_save_scores_inserts_and_updates_without_on_conflict(monkeypatch):
     assert supabase.scores.insert_rows[0]["player_id"] == 10
 
     supabase.scores.existing_rows = [{"id": 55, "player_id": 10}]
+    supabase.scores.insert_rows = None
     assert score_entry.save_scores(
         7, {10: {"out_score": 40, "in_score": 41, "net_score": 71}},
         pd.DataFrame(), supabase,
@@ -114,6 +116,7 @@ def test_save_scores_inserts_and_updates_without_on_conflict(monkeypatch):
     assert updated_record["competition_id"] == 7
     assert filters == [("id", 55), ("competition_id", 7), ("player_id", 10)]
     assert supabase.scores.upsert_rows is None
+    assert supabase.scores.insert_rows is None
 
     supabase.scores.existing_rows = [
         {"id": 55, "player_id": 10}, {"id": 56, "player_id": 10}
@@ -124,6 +127,17 @@ def test_save_scores_inserts_and_updates_without_on_conflict(monkeypatch):
     ) is False
     assert supabase.scores.upsert_rows is None
     assert len(supabase.scores.updated_rows) == 1
+
+    supabase.scores.existing_rows = [{"id": 55, "player_id": 10}]
+    assert score_entry.save_scores(
+        7, {10: {"out_score": 40, "in_score": 41, "net_score": 71},
+            11: {"out_score": 42, "in_score": 43, "net_score": 75}},
+        pd.DataFrame(), supabase,
+    ) is True
+    assert len(supabase.scores.updated_rows) == 2
+    assert [row["player_id"] for row in supabase.scores.insert_rows] == [11]
+    assert supabase.scores.delete_called is False
+    assert supabase.scores.upsert_rows is None
 
     supabase.scores.existing_rows = []
     supabase.scores.insert_rows = None

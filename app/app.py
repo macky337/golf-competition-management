@@ -492,6 +492,7 @@ def render_dashboard_account_navigation() -> None:
     with col2:
         if st.button("↗  ログアウト", key="dashboard_logout", width="stretch"):
             _logout_user()
+    st.link_button("管理者ログインを別タブで開く", "?view=admin")
 
 
 def render_dashboard_status(
@@ -2781,14 +2782,18 @@ def admin_login_page():
         st.error("管理者パスワードが設定されていないため、管理機能は無効です。")
         return
 
-    password = st.text_input("管理者パスワードを入力してください", type="password", key="admin_password_input")
-    if st.button("ログイン", key="admin_login_button"):
+    with st.form("admin_login_form"):
+        password = st.text_input("管理者パスワードを入力してください", type="password", key="admin_password_input")
+        submitted = st.form_submit_button("ログイン")
+    if submitted:
         if password == ADMIN_PASSWORD:
             st.session_state.admin_logged_in = True
             st.session_state.page = "admin"
             st.rerun()
         else:
             st.error("パスワードが間違っています")
+    if st.button("会員ログインへ", key="admin_login_back"):
+        _navigate("main" if st.session_state.get("logged_in", False) else "login")
 
 
 def render_dashboard_announcement(announcement: Dict[str, Any]) -> None:
@@ -3137,6 +3142,12 @@ def login_app():
             st.rerun()  # ページを強制的に再読み込み
         else:
             st.error("パスワードが間違っています")
+
+# 管理者認証画面を新しいブラウザセッションから直接開ける入口。
+# URLは入口の選択にのみ使い、認証状態は変更しない。
+if st.query_params.get("view") == "admin":
+    del st.query_params["view"]
+    st.session_state.page = "admin"
 
 # ページ表示（ルーティング）
 page = st.session_state.get("page", "login")

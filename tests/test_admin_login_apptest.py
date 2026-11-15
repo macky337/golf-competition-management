@@ -17,7 +17,7 @@ def make_app(monkeypatch):
     return app
 
 
-def test_admin_login_rejects_empty_and_wrong_password_then_accepts_correct(monkeypatch):
+def test_admin_login_rejects_wrong_password(monkeypatch):
     app = make_app(monkeypatch)
     app.button(key="FormSubmitter:admin_login_form-ログイン").click().run()
     assert not app.session_state.admin_logged_in
@@ -25,6 +25,10 @@ def test_admin_login_rejects_empty_and_wrong_password_then_accepts_correct(monke
     app.button(key="FormSubmitter:admin_login_form-ログイン").click().run()
     assert not app.session_state.admin_logged_in
     assert any(error.value == "パスワードが間違っています" for error in app.error)
+
+
+def test_admin_login_accepts_correct_password(monkeypatch):
+    app = make_app(monkeypatch)
     app.text_input(key="admin_password_input").input("fictional-admin-password").run()
     app.button(key="FormSubmitter:admin_login_form-ログイン").click().run()
     assert app.session_state.admin_logged_in

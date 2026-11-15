@@ -254,9 +254,8 @@ def save_scores(competition_id, scores_data, players_data, supabase=None):
                 }
                 records_to_insert.append(record)
         
-        # 既存DBによっては (competition_id, player_id) の一意制約がないため、
-        # その組み合わせを ON CONFLICT に指定すると PostgreSQL が 42P10 を返す。
-        # 既存行の主キーを使って更新し、新規行は通常の INSERT として保存する。
+        # DBごとに (competition_id, player_id) の一意制約が異なるため、
+        # ON CONFLICTを使わず、既存行は主キーで更新し新規行はINSERTする。
         if records_to_insert:
             existing_response = (
                 supabase.table("scores")
@@ -273,15 +272,23 @@ def save_scores(competition_id, scores_data, players_data, supabase=None):
                     return False
                 existing_ids[player_id] = existing.get("id")
 
+            new_records = []
             for record in records_to_insert:
                 existing_id = existing_ids.get(record["player_id"])
                 if existing_id is not None:
-                    record["id"] = existing_id
+                    (
+                        supabase.table("scores")
+                        .update(record)
+                        .eq("id", existing_id)
+                        .eq("competition_id", competition_id)
+                        .eq("player_id", record["player_id"])
+                        .execute()
+                    )
+                else:
+                    new_records.append(record)
 
-            supabase.table("scores").upsert(
-                records_to_insert,
-                on_conflict="id",
-            ).execute()
+            if new_records:
+                supabase.table("scores").insert(new_records).execute()
             return True
         else:
             st.warning("登録するスコアデータがありません。")

@@ -336,6 +336,9 @@ def resolve_main_render_mode() -> str:
 
 def _navigate(page: str) -> None:
     """画面遷移を統一する"""
+    if page == "stats":
+        st.session_state.pop("selected_player_for_stats", None)
+        st.session_state.selected_player_for_stats_selector = None
     st.session_state.page = page
     st.rerun()
 
@@ -1244,6 +1247,11 @@ def _legacy_personal_stats_page():
 
 def personal_stats_page():
     """個人の記録を、通常コンペの有効スコアだけで見やすく表示する。"""
+    navigation_columns = st.columns(2)
+    with navigation_columns[0]:
+        if st.button("← メイン画面へ", key="back_to_main_from_stats_modern", width="stretch"):
+            _navigate("main")
+
     scores_df = fetch_scores()
     if scores_df.empty:
         st.warning("個人成績データを取得できません。")
@@ -1255,15 +1263,30 @@ def personal_stats_page():
         st.info("表示できるプレイヤーがいません。")
         return
 
-    if st.session_state.get("selected_player_for_stats") not in players_list:
-        st.session_state.selected_player_for_stats = players_list[0]
-    selected_player = st.selectbox(
-        "プレイヤーを選択",
-        players_list,
-        index=players_list.index(st.session_state.selected_player_for_stats),
-        key="selected_player_for_stats_selector",
-    )
-    st.session_state.selected_player_for_stats = selected_player
+    selected_player = st.session_state.get("selected_player_for_stats")
+    if selected_player not in players_list:
+        st.title("個人成績")
+        st.write("会員ごとのスコア推移や自己ベスト、過去の成績を確認できます。表示したい会員を選んでください。")
+        with st.form("personal_stats_selection"):
+            player = st.selectbox(
+                "成績を表示する会員",
+                players_list,
+                index=None,
+                placeholder="会員を選択してください",
+                key="selected_player_for_stats_selector",
+            )
+            submitted = st.form_submit_button("成績を表示", type="primary", width="stretch")
+        if submitted:
+            if player is None:
+                st.warning("成績を表示する会員を選択してください。")
+            else:
+                st.session_state.selected_player_for_stats = player
+                st.rerun()
+        return
+
+    with navigation_columns[1]:
+        if st.button("会員を選び直す", key="choose_stats_player", width="stretch"):
+            _navigate("stats")
 
     all_player_data = scores_df[scores_df["プレイヤー名"] == selected_player].copy()
     player_data = _valid_dashboard_scores(scores_df)
@@ -1375,10 +1398,6 @@ def personal_stats_page():
         history.columns = ["日付", "コース", "順位", "ネット", "グロス", "OUT", "IN", "HC"]
         render_html_table(history, max_rows=10)
         st.caption("直近10回の有効スコアを表示しています。")
-
-    if st.button("← メイン画面へ", key="back_to_main_from_stats_modern"):
-        st.session_state.page = "main"
-        st.rerun()
 
 
 def _legacy_competition_results_page():
